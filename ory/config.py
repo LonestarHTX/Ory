@@ -5,7 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import List, Optional
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -20,6 +20,7 @@ class Config:
     attachments_folder: Optional[str] = None  # None means "Attachments"
     wikis_folder: str = "Wikis"
     open_browser: bool = False
+    command: List[str] = field(default_factory=list)  # e.g. ["read", "Welcome"]; empty runs the app
 
 
 class ConfigError(Exception):
@@ -27,12 +28,16 @@ class ConfigError(Exception):
 
 
 def load(argv: Optional[List[str]] = None) -> Config:
-    parser = argparse.ArgumentParser(prog="python3 -m ory", description="Run Ory on localhost.")
+    parser = argparse.ArgumentParser(
+        prog="python3 -m ory",
+        description="Run Ory on localhost, or run one of its commands (python3 -m ory help).",
+    )
     parser.add_argument("--notes", help="notes folder to open (overrides notes_dir in the config file)")
     parser.add_argument("--port", type=int, help="port to serve on (default 4747)")
     parser.add_argument("--config", default=DEFAULT_CONFIG, help="config file (default ory.config.json in the repo)")
     parser.add_argument("--open", action="store_true", help="open Ory in the default browser")
-    args = parser.parse_args(argv)
+    # Anything after the options is a command for agents and scripts (cli.py).
+    args, command = parser.parse_known_args(argv)
 
     data = {}
     if os.path.exists(args.config):
@@ -65,4 +70,5 @@ def load(argv: Optional[List[str]] = None) -> Config:
         attachments_folder=data.get("attachments_folder"),
         wikis_folder=str(data.get("wikis_folder", "Wikis")),
         open_browser=args.open,
+        command=command,
     )

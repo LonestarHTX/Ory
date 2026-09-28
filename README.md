@@ -132,6 +132,46 @@ Edits made outside Ory (in another editor, by git or by an AI tool) are picked u
 seconds. If a note changes on disk while you have unsaved edits to it, Ory asks which
 version to keep instead of overwriting either.
 
+## Using Ory with AI
+
+AI agents can use a notes folder as fully as you do, through three ways in that share one
+set of operations (`ory/agent.py`):
+
+- **A guide in the folder.** Ory writes `AGENTS.md` (and a `CLAUDE.md` that points to it)
+  at the top of the notes folder and keeps them current: the layout, the conventions, and
+  the commands below. Any agent opened in the folder (Claude Code, Codex, Cursor and
+  others) reads it first. The files are hidden from Ory's own lists. Delete the first line
+  of either to keep your own version; Ory then leaves it alone.
+- **Commands.** `python3 -m ory [--notes PATH] COMMAND` prints JSON:
+  - Reading: `index`, `wikis`, `read`, `search` and `backlinks`.
+  - Changing notes: `write` and `append` (the text comes on stdin), `daily`, `move` (which rewrites links) and `trash`.
+  - Suggestions: `unread`, `suggestions` and `suggest`.
+
+  Run `python3 -m ory help` for the list.
+- **An MCP server.** `python3 -m ory mcp` offers the same actions as tools, with the guide
+  as its instructions, to any app that speaks MCP. For Claude Code:
+
+  ```bash
+  claude mcp add ory --env PYTHONPATH=/path/to/Ory -- python3 -m ory --notes /path/to/notes mcp
+  ```
+
+  For Claude Desktop, add this under `mcpServers` in its settings file:
+
+  ```json
+  "ory": {
+    "command": "python3",
+    "args": ["-m", "ory", "--notes", "/path/to/notes", "mcp"],
+    "env": { "PYTHONPATH": "/path/to/Ory" }
+  }
+  ```
+
+Agents have full access, the same as you. Moves go through Ory, so links follow, and
+nothing is deleted outright: `trash` moves files to `.trash/`. For changes you'd rather
+weigh first, an agent files suggestions (`suggest`): findings and whole-page drafts that
+appear in Ory's Suggestions within a couple of seconds, lighting the silver bulb, for you
+to approve change by change. This is also the quickest way to run Suggestions: ask an
+agent to "find suggestions for my wikis", with no copying and pasting.
+
 ## Keys
 
 | Key | Does |
@@ -239,6 +279,10 @@ ory/            Python server, standard library only
   server.py     HTTP server and JSON API, localhost only
   vault.py      the notes folder: index, links, backlinks, search, rename
   markdown.py   frontmatter and wikilink parsing
+  agent.py      what AI agents can do with the notes folder
+  cli.py        those operations as commands (python3 -m ory COMMAND)
+  mcp.py        the same over MCP (python3 -m ory mcp)
+  guide.py      AGENTS.md and CLAUDE.md in the notes folder
   static/       built web UI (committed; do not edit by hand)
 web/            web UI source: CodeMirror 6 and plain JavaScript
 tests/          python3 -m unittest
@@ -272,7 +316,7 @@ are not JSON. Paths are confined to the notes folder.
 ## Roadmap
 
 - **v0 (this):** notes core.
-- **v1 (started):** wikis drafted from notes by copy and paste (Suggestions, above).
-  Next: API adapters so the paste steps can be one button, and asking the wikis
-  questions.
+- **v1 (started):** wikis drafted from notes, by copy and paste or by any agent through
+  the commands and MCP server. Next: API adapters so Find suggestions can call a model
+  itself, and asking the wikis questions.
 - **v2:** one-way publishing of wiki pages to a shared site, with their `sources` left out.

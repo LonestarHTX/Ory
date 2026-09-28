@@ -231,7 +231,8 @@ def _index(v: Vault, q, b):
 
 
 def _version(v: Vault, q, b):
-    return {"version": v.refresh()}, 200
+    # The suggestions file changes when an agent files suggestions (agent.py).
+    return {"version": v.refresh(), "suggestions": v.suggestions_rev()}, 200
 
 
 def _get_note(v: Vault, q, b):

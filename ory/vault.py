@@ -21,6 +21,8 @@ from typing import Any, Dict, Iterable, List, Optional, Tuple
 from . import markdown
 
 NOTE_EXT = ".md"
+# Guides for AI agents at the top of the notes folder (guide.py); not notes.
+AGENT_GUIDES = ("AGENTS.md", "CLAUDE.md")
 TRASH_DIR = ".trash"
 DEFAULT_ATTACHMENTS = "Attachments"
 # A link target ending in one of these is a file rather than a note.
@@ -163,7 +165,7 @@ class Vault:
                 if rel_dir != ".":
                     folders.append(rel_dir)
                 for filename in filenames:
-                    if filename.startswith("."):
+                    if filename.startswith(".") or (rel_dir == "." and filename in AGENT_GUIDES):
                         continue
                     full = os.path.join(dirpath, filename)
                     rel = filename if rel_dir == "." else f"{rel_dir}/{filename}"
@@ -265,6 +267,12 @@ class Vault:
             return name
         return path[: -len(NOTE_EXT)] if is_note else path
 
+    def notes(self) -> Dict[str, Note]:
+        """Every note by path, fresh from disk."""
+        with self._lock:
+            self.refresh()
+            return dict(self._notes)
+
     def read_many(self, paths: Iterable[str]) -> List[Dict[str, Any]]:
         """Several notes' text at once, for building a prompt. Unknown paths are skipped."""
         with self._lock:
@@ -283,6 +291,10 @@ class Vault:
 
     def _suggestions_file(self) -> str:
         return os.path.join(self.root, *self.wikis_folder.split("/"), ".ory", "suggestions.json")
+
+    def suggestions_rev(self) -> Optional[str]:
+        full = self._suggestions_file()
+        return _rev(os.stat(full)) if os.path.exists(full) else None
 
     def suggestions(self) -> Dict[str, Any]:
         full = self._suggestions_file()

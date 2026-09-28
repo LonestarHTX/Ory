@@ -1,11 +1,13 @@
-"""Entry point: `python3 -m ory`."""
+"""Entry point: `python3 -m ory` runs the app; `python3 -m ory COMMAND` runs
+one of the commands for agents and scripts (cli.py)."""
 
 from __future__ import annotations
 
 import sys
 import webbrowser
 
-from . import config
+from . import cli, config
+from .guide import write_guides
 from .server import make_server
 from .vault import Vault
 
@@ -27,6 +29,10 @@ def main() -> int:
         wikis_folder=cfg.wikis_folder,
     )
     vault.refresh()
+    if cfg.command:
+        return cli.run(vault, cfg.command)
+
+    write_guides(vault)
     try:
         server = make_server(vault, cfg.port)
     except OSError as exc:

@@ -16,7 +16,7 @@ import { createSearchView } from "./ui/search-view.js";
 import { createSwitcher } from "./ui/switcher.js";
 import { installTooltips } from "./ui/tooltip.js";
 import { createTree } from "./ui/tree.js";
-import { loadSuggestions, waiting } from "./suggestions/state.js";
+import { loadSuggestions, suggestions, waiting } from "./suggestions/state.js";
 import { silverBulb } from "./ui/silver-icon.js";
 import { createSuggestionsView } from "./ui/suggestions-view.js";
 import { createWikiNav } from "./ui/wiki-nav.js";
@@ -348,8 +348,10 @@ async function poll() {
   if (polling) return;
   polling = true;
   try {
-    const { version } = await api.version();
+    const { version, suggestions: suggestionsRev } = await api.version();
     if (version !== store.version) await loadIndex(); // emits "index", handled below
+    // An agent filed suggestions (python3 -m ory suggest, or over MCP).
+    if (suggestionsRev !== undefined && suggestionsRev !== suggestions.rev) await loadSuggestions();
     if (!errorBar.hidden && errorBar.dataset.offline) errorBar.hidden = true;
   } catch (err) {
     if (err.status === 0) {
