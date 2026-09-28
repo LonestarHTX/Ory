@@ -127,7 +127,8 @@ const suggestionsEl = h("section", { class: "view suggestions-view", hidden: tru
 const main = h("main", { class: "main" }, errorBar, noteEl, pageEl, wikisEl, suggestionsEl, searchEl, emptyEl);
 const right = h("aside", { class: "sidebar sidebar-right", "aria-label": "Backlinks" });
 
-document.body.append(h("div", { class: "app" }, left, main, right));
+const app = h("div", { class: "app" }, left, main, right);
+document.body.append(app);
 
 function navItem(iconName, label, shortcut, run) {
   return h("button", { class: "nav-item", type: "button", onClick: run },
@@ -218,6 +219,8 @@ function renderEmpty(message) {
 
 function showOnly(view) {
   for (const el of [noteEl, pageEl, wikisEl, suggestionsEl, searchEl, emptyEl]) el.hidden = el !== view;
+  // Backlinks and the outline belong to a note; other views get the width.
+  app.classList.toggle("has-rail", view === noteEl || view === pageEl);
   if (view !== pageEl) pageView.close(); // stop a page's animation when it is not shown
   navSearch.classList.toggle("is-selected", view === searchEl);
 }

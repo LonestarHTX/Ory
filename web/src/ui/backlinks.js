@@ -2,9 +2,9 @@
 
 import { openNote } from "../actions.js";
 import { api } from "../api.js";
-import { parseLink } from "../links.js";
 import { on, store } from "../store.js";
 import { h } from "./dom.js";
+import { readable } from "./readable.js";
 
 export function createBacklinks(el) {
   const count = h("span", { class: "count" });
@@ -45,21 +45,4 @@ export function createBacklinks(el) {
   on("current", refresh);
   refresh();
   return { refresh };
-}
-
-/** Show a Markdown line the way it reads: list marks dropped, links as their text. */
-function readable(text) {
-  const line = text.replace(/^\s*(?:[-*+]|\d+[.)])\s+(?:\[[ xX]\]\s+)?/, "").replace(/^#+\s+/, "")
-    .replace(/<\/?span[^>]*>/g, "");
-  const out = [];
-  let pos = 0;
-  for (const m of line.matchAll(/!?\[\[([^\[\]]+)\]\]/g)) {
-    const { target, alias } = parseLink(m[1]);
-    // An embed's "|640" is a size, not a name to show.
-    const shown = m[0].startsWith("!") ? target.replace(/\.html?$/i, "") : alias ?? target;
-    out.push(line.slice(pos, m.index), h("span", { class: "backlink-link" }, shown));
-    pos = m.index + m[0].length;
-  }
-  out.push(line.slice(pos));
-  return out;
 }

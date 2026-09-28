@@ -312,8 +312,16 @@ html[data-theme-fade]::view-transition-new(root) {
 
 .app {
   display: grid;
-  grid-template-columns: var(--side-w) minmax(0, 1fr) var(--side-w);
+  grid-template-columns: var(--side-w) minmax(0, 1fr);
   height: 100vh;
+}
+
+.app.has-rail {
+  grid-template-columns: var(--side-w) minmax(0, 1fr) var(--side-w);
+}
+
+.app:not(.has-rail) .sidebar-right {
+  display: none;
 }
 
 .sidebar {
@@ -336,7 +344,8 @@ html[data-theme-fade]::view-transition-new(root) {
 }
 
 @media (max-width: 1100px) {
-  .app {
+  .app,
+  .app.has-rail {
     grid-template-columns: var(--side-w) minmax(0, 1fr);
   }
 
@@ -2076,6 +2085,11 @@ html[data-theme-fade]::view-transition-new(root) {
   padding: var(--gutter) var(--gutter) 48px;
 }
 
+/* Results read like text, so they keep to a readable width. */
+.search-body > * {
+  max-width: 880px;
+}
+
 .search-field {
   margin-bottom: 16px;
 }
@@ -2118,6 +2132,9 @@ html[data-theme-fade]::view-transition-new(root) {
 }
 
 .result-path {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   font-size: 12px;
   color: var(--text-3);
 }

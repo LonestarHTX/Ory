@@ -4,7 +4,10 @@
 import { openNote } from "../actions.js";
 import { api } from "../api.js";
 import { folderOf } from "../links.js";
-import { h, keys } from "./dom.js";
+import { store } from "../store.js";
+import { wikiOf } from "../wikis.js";
+import { h, icon, keys } from "./dom.js";
+import { readable } from "./readable.js";
 
 export function createSearchView(el) {
   const count = h("span", { class: "note-status", role: "status" });
@@ -62,7 +65,7 @@ export function createSearchView(el) {
       h("section", { class: "result" },
         h("button", { class: "result-note", type: "button", onClick: () => openNote(r.path) },
           h("span", { class: "result-name" }, r.name),
-          h("span", { class: "result-path" }, folderOf(r.path))),
+          place(r.path)),
         r.matches.map((m) =>
           h("button", { class: "result-line", type: "button", onClick: () => openNote(r.path, { line: m.line }) },
             highlight(m))))));
@@ -99,14 +102,13 @@ export function createSearchView(el) {
   };
 }
 
+/** Where a result lives: its folder, or for a wiki page, the wiki (and section). */
+function place(path) {
+  const folder = folderOf(path);
+  if (!wikiOf(path)) return h("span", { class: "result-path" }, folder);
+  return h("span", { class: "result-path" }, icon("book", 12), folder.slice(store.wikisFolder.length + 1).replace(/\//g, " / "));
+}
+
 function highlight({ text, ranges, cutStart, cutEnd }) {
-  const out = [];
-  let pos = 0;
-  for (const [from, to] of ranges) {
-    if (from < pos) continue;
-    out.push(text.slice(pos, from), h("mark", null, text.slice(from, to)));
-    pos = to;
-  }
-  out.push(text.slice(pos));
-  return [cutStart ? "…" : "", ...out, cutEnd ? "…" : ""];
+  return [cutStart ? "…" : "", ...readable(text, ranges), cutEnd ? "…" : ""];
 }
