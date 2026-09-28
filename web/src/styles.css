@@ -1347,6 +1347,20 @@ html[data-theme-fade]::view-transition-new(root) {
   text-underline-offset: 3px;
 }
 
+/* A button that sits in a sentence, looking like a link. */
+.text-link {
+  padding: 0;
+  color: var(--text);
+  font: inherit;
+  text-decoration: underline;
+  text-decoration-color: var(--border-strong);
+  text-underline-offset: 3px;
+}
+
+.text-link:hover {
+  text-decoration-color: currentColor;
+}
+
 .cm-wikilink-missing {
   color: var(--text-2);
   text-decoration-style: dashed;
@@ -3499,6 +3513,23 @@ mark {
   background: var(--text-3);
 }
 
+.setting-command-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  width: 100%;
+}
+
+.setting-command-row .setting-command {
+  flex: 1;
+  min-width: 0;
+}
+
+.setting-command-row .btn {
+  flex: none;
+  margin-top: 2px;
+}
+
 .setting-command {
   padding: 8px 12px;
   border: 1px solid var(--line);
@@ -3523,7 +3554,58 @@ mark {
 
 .setting-actions {
   display: flex;
+  align-items: center;
   gap: 8px;
+}
+
+.setting-actions .setting-status {
+  margin-left: 4px;
+}
+
+h3.setting-label {
+  margin: 0;
+  font-size: inherit;
+}
+
+/* "Unsaved" beside Folders in the window's sidebar. */
+.settings-unsaved {
+  margin-left: auto;
+  color: var(--text-3);
+  font-size: 12px;
+}
+
+/* Shortcuts: what it does on the left, the keys on the right. */
+.settings-keys {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) max-content;
+  width: 100%;
+  margin: 0;
+}
+
+.settings-key {
+  display: contents;
+}
+
+.settings-key dt,
+.settings-key dd {
+  padding: 6px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.settings-key dt {
+  color: var(--text-2);
+}
+
+.settings-key dd {
+  display: flex;
+  justify-content: flex-end;
+  gap: 4px;
+  margin: 0;
+}
+
+.settings-key:last-child dt,
+.settings-key:last-child dd {
+  border-bottom: 0;
 }
 
 /* A choice of a few options, like the Notes | Wikis switch. */

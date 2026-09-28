@@ -14,13 +14,12 @@ import { folderOf, noteName, parseLink } from "../links.js";
 import { emit, linkTextFor, loadIndex, resolve, setCurrent, store } from "../store.js";
 import { coverUrl, infoboxRows, isBlank, isHome, pageParts, pageTitle, wiki as wikiInfo, wikiFolder, wikiOf } from "../wikis.js";
 import { clear, formatDate, h, icon, keys, timeAgo, todayISO } from "./dom.js";
-import { readsWiki } from "./settings.js";
+import { pref, readsWiki, setPref, SOURCE_KEY } from "../prefs.js";
 import { createFormatToolbar } from "./format-toolbar.js";
 import { headings } from "./outline.js";
 import { openMenu } from "./menu.js";
 
 const SAVE_DELAY = 500;
-const SOURCE_KEY = "ory.sourceMode";
 
 export function createNoteView(el) {
   const crumb = h("span", { class: "note-crumb" });
@@ -482,11 +481,7 @@ export function createNoteView(el) {
   function toggleSource() {
     if (!note || reading) return;
     sourcePref = !sourcePref;
-    try {
-      localStorage.setItem(SOURCE_KEY, sourcePref ? "1" : "0");
-    } catch {
-      /* per-browser convenience only */
-    }
+    setPref(SOURCE_KEY, sourcePref ? "1" : "0");
     editor.setSourceMode(sourcePref);
     modeLabel.hidden = !sourcePref;
   }
@@ -573,9 +568,5 @@ export function createNoteView(el) {
 }
 
 function readSourcePref() {
-  try {
-    return localStorage.getItem(SOURCE_KEY) === "1";
-  } catch {
-    return false;
-  }
+  return pref(SOURCE_KEY, "0") === "1";
 }

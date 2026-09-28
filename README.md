@@ -135,14 +135,17 @@ version to keep instead of overwriting either.
 ## Settings
 
 Settings opens in a window over your notes, from the small gear at the bottom of the
-sidebar or Cmd+,. It has three sections:
+sidebar or Cmd+,. It has five sections:
 
 - **Folders:** switch the notes folder without restarting, and name the daily notes,
   attachments and wikis folders. These are saved in `ory.config.json` on this computer.
-- **Appearance and editing:** the theme, whether notes open in live preview or source,
-  and whether wiki pages open for reading or editing. These are kept in the browser.
+- **Appearance:** light, dark, or following the computer. Kept in the browser.
+- **Editing:** whether notes open in live preview or source, whether wiki pages open
+  for reading or editing, and spell check. Kept in the browser.
 - **AI:** whether Claude Desktop and Claude Code are connected to Ory's tools, a switch
-  for the guide for agents, and the longest prompt Suggestions asks you to paste.
+  for the guide for agents, and the longest prompt Suggestions asks you to paste. While
+  Claude Desktop is open it can't be connected; quit it and a Connect button appears.
+- **Shortcuts:** every keyboard shortcut in one list.
 
 ## Using Ory with AI
 

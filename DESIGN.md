@@ -82,10 +82,15 @@ The rules Ory's interface follows. A value outside the scales below is a mistake
 - **Settings** is a floating window over whatever is open, like the quick switcher,
   opened by the small gear at the foot of the sidebar (beside the notes folder's name)
   or Cmd+,; Esc, a click outside or Cmd+, again closes it. It has its own sidebar of
-  sections (Folders, Appearance, AI) and remembers the last one. Each section starts
-  with a short line saying where its settings are kept. Choices of a few
-  options use the segmented control of the space switch; folders are fields saved
-  together with one primary button; connection status is a status dot and a sentence.
+  sections (Folders, Appearance, Editing, AI, Shortcuts), moved through with the
+  arrow keys, and remembers the last one. Tab stays inside it, and focus stays put
+  when a choice redraws the section. Each section starts with a short line saying
+  where its settings are kept. Choices of a few options use the segmented control of
+  the space switch and apply at once; folders are fields saved together with one
+  primary button, which is disabled until something changes, with Revert beside it
+  and "Unsaved" beside Folders in the window's sidebar. Connection status is a status
+  dot and a sentence, rechecked while the window is open. Shortcuts are rows split by
+  hairlines, the keys right-aligned.
 - **Wiki cards** (All wikis, and a Home's pages) are bordered cards that darken their
   border on hover; the "start a wiki" card is dashed.
 

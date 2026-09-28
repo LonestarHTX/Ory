@@ -9,6 +9,7 @@ import { Prec, StateField } from "@codemirror/state";
 import { Decoration, EditorView, keymap, WidgetType } from "@codemirror/view";
 
 import { parseLink } from "../links.js";
+import { spellchecks } from "../prefs.js";
 import { inkPaint } from "../ui/color.js";
 import { openMenu } from "../ui/menu.js";
 import { isReading, setReading, setSourceMode, sourceMode } from "./live-preview.js";
@@ -153,7 +154,7 @@ class TableWidget extends WidgetType {
         cell.dataset.c = c;
         if (!this.reading) {
           cell.contentEditable = "plaintext-only";
-          cell.spellcheck = true;
+          cell.spellcheck = spellchecks();
           cell.setAttribute("role", "textbox");
           cell.setAttribute("aria-label", r === 0 ? `Column ${c + 1} heading` : `Row ${r}, column ${c + 1}`);
         }

@@ -5,7 +5,7 @@
 // Findings: approve or dismiss each. Write drafts: whole pages come back and
 // each change on them is accepted or rejected. Apply saves what was accepted.
 
-import { alertError, notify, openNote } from "../actions.js";
+import { alertError, notify, openNote, openSettings } from "../actions.js";
 import { noteName } from "../links.js";
 import { on, store } from "../store.js";
 import { changes } from "../suggestions/diff.js";
@@ -169,7 +169,8 @@ export function createSuggestionsView(el) {
             run.kind === "find"
               ? `${round.paths.length} ${round.paths.length === 1 ? "note" : "notes"}, the wikis' pages and instructions, about ${words.toLocaleString()} words.`
               : `${round.findingIds.length} approved ${round.findingIds.length === 1 ? "finding" : "findings"} with their pages and notes, about ${words.toLocaleString()} words.`,
-            many ? " Use a new chat for each part, or say it continues." : ""),
+            many ? [" Use a new chat for each part, or say it continues. How big a part can be is in ",
+              h("button", { class: "text-link", type: "button", onClick: () => openSettings("ai") }, "Settings"), "."] : ""),
           h("div", { class: "sugg-step-actions" },
             h("button", { class: `btn btn--small${run.copied === run.index ? "" : " btn--primary"}`, type: "button", onClick: copy },
               icon(run.copied === run.index ? "check" : "copy", 14), run.copied === run.index ? "Copied" : "Copy prompt"),

@@ -12,6 +12,7 @@ import { drawSelection, EditorView, keymap, placeholder } from "@codemirror/view
 import { tags as t } from "@lezer/highlight";
 import { GFM, parser as commonmark } from "@lezer/markdown";
 
+import { spellchecks } from "../prefs.js";
 import { attachments, insertFiles } from "./attachments.js";
 import { wikilinkCompletion } from "./autocomplete.js";
 import { setHeading, startNoteLink, toggleInline, toggleList } from "./format.js";
@@ -136,7 +137,8 @@ export function createEditor(parent, handlers) {
       if (u.docChanged && !u.transactions.some((tr) => tr.annotation(fromDisk))) handlers.onChange(u);
       if (u.docChanged || u.selectionSet || u.focusChanged) handlers.onSelection?.(u.state);
     }),
-    EditorView.contentAttributes.of({ "aria-label": "Note", spellcheck: "true", autocorrect: "on" }),
+    // Read on every update, so a change in Settings reaches open notes too.
+    EditorView.contentAttributes.of(() => ({ "aria-label": "Note", spellcheck: String(spellchecks()), autocorrect: "on" })),
   ];
 
   const view = new EditorView({ parent });
