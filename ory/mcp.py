@@ -8,6 +8,7 @@ one per line; stdout carries nothing else.
 
 from __future__ import annotations
 
+import io
 import json
 import sys
 from typing import Any, Callable, Dict, Optional
@@ -87,6 +88,8 @@ def handle(agent: Agent, vault: Vault, message: Dict[str, Any]) -> Optional[Dict
     params = message.get("params") or {}
     if msg_id is None:
         return None  # notifications/initialized, cancellations: nothing to answer
+    if not isinstance(method, str) or not isinstance(params, dict):
+        return {"jsonrpc": "2.0", "id": msg_id, "error": {"code": -32600, "message": "Invalid request"}}
 
     def result(value: Any) -> Dict[str, Any]:
         return {"jsonrpc": "2.0", "id": msg_id, "result": value}
@@ -113,17 +116,33 @@ def handle(agent: Agent, vault: Vault, message: Dict[str, Any]) -> Optional[Dict
         if name not in TOOLS:
             return error(-32602, f"Unknown tool: {name}")
         call: Callable = TOOLS[name][2]
+        arguments = params.get("arguments") or {}
+        if not isinstance(arguments, dict):
+            return result({"content": [{"type": "text", "text": "Arguments must be an object."}], "isError": True})
         try:
-            value = call(agent, params.get("arguments") or {})
-        except (VaultError, KeyError, TypeError, ValueError) as exc:
-            return result({"content": [{"type": "text", "text": str(exc)}], "isError": True})
+            value = call(agent, arguments)
+        except KeyError as exc:
+            return result({"content": [{"type": "text", "text": f"Missing argument: {exc}"}], "isError": True})
+        except Exception as exc:  # a bad call is the caller's error, never the server's end
+            text = exc.strerror if isinstance(exc, OSError) and exc.strerror else str(exc)
+            return result({"content": [{"type": "text", "text": text or type(exc).__name__}], "isError": True})
         return result({"content": [{"type": "text", "text": json.dumps(value, ensure_ascii=False, default=str)}]})
     return error(-32601, f"Method not found: {method}")
 
 
+def _safe(agent: Agent, vault: Vault, message: Any) -> Optional[Dict[str, Any]]:
+    if not isinstance(message, dict):
+        return {"jsonrpc": "2.0", "id": None, "error": {"code": -32600, "message": "Invalid request"}}
+    try:
+        return handle(agent, vault, message)
+    except Exception as exc:  # keep serving whatever one message does
+        return {"jsonrpc": "2.0", "id": message.get("id"), "error": {"code": -32603, "message": f"Internal error: {exc}"}}
+
+
 def serve(vault: Vault, stdin=None, stdout=None) -> int:
-    stdin = stdin or sys.stdin
-    stdout = stdout or sys.stdout
+    # JSON-RPC is UTF-8 whatever the console's code page.
+    stdin = stdin or io.TextIOWrapper(sys.stdin.buffer, encoding="utf-8")
+    stdout = stdout or io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", newline="\n")
     agent = Agent(vault)
     for line in stdin:
         line = line.strip()
@@ -134,11 +153,14 @@ def serve(vault: Vault, stdin=None, stdout=None) -> int:
         except ValueError:
             reply = {"jsonrpc": "2.0", "id": None, "error": {"code": -32700, "message": "Parse error"}}
         else:
-            batch = message if isinstance(message, list) else [message]
-            replies = [r for r in (handle(agent, vault, m) for m in batch if isinstance(m, dict)) if r]
-            if not replies:
-                continue
-            reply = replies if isinstance(message, list) else replies[0]
+            if isinstance(message, list) and not message:
+                reply = {"jsonrpc": "2.0", "id": None, "error": {"code": -32600, "message": "Invalid request"}}
+            else:
+                batch = message if isinstance(message, list) else [message]
+                replies = [r for r in (_safe(agent, vault, m) for m in batch) if r]
+                if not replies:
+                    continue
+                reply = replies if isinstance(message, list) else replies[0]
         stdout.write(json.dumps(reply, ensure_ascii=False, default=str) + "\n")
         stdout.flush()
     return 0

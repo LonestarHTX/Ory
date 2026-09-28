@@ -26,17 +26,28 @@ export async function loadSuggestions() {
   emit("suggestions");
 }
 
-/** Change the state and save it. A save that loses a race reloads and says so. */
+/**
+ * Change the state and save it. Another writer (an agent filing suggestions,
+ * another window) may have saved first: then the latest state is loaded and
+ * the change made again on it. Changes find things by id, so they apply the
+ * same way to the newer state.
+ */
 export async function update(change) {
-  const next = structuredClone(suggestions.data);
-  change(next);
-  try {
-    const { rev } = await api.saveSuggestions(next, suggestions.rev);
-    suggestions.data = next;
-    suggestions.rev = rev;
-  } catch (err) {
-    if (err.status === 409) await loadSuggestions();
-    throw err;
+  for (let attempt = 0; ; attempt++) {
+    const next = structuredClone(suggestions.data);
+    change(next);
+    try {
+      const { rev } = await api.saveSuggestions(next, suggestions.rev);
+      suggestions.data = next;
+      suggestions.rev = rev;
+      break;
+    } catch (err) {
+      if (err.status !== 409 || attempt >= 3) {
+        if (err.status === 409) await loadSuggestions();
+        throw err;
+      }
+      await loadSuggestions();
+    }
   }
   emit("suggestions");
 }
@@ -144,19 +155,42 @@ export async function decide(id, status) {
 
 // Write --------------------------------------------------------------------------------
 
-/** Where a finding's page lives: its existing path, or where a new one would go. */
-export function pagePathFor(f) {
-  if (!f.wiki) return null;
-  const folder = wikiFolder(f.wiki);
-  if (f.kind === "wiki") return `${folder}/Home.md`;
-  if (!f.page) return null;
-  const want = f.page.toLowerCase().replace(/\.md$/, "");
-  const existing = store.notes.find((n) => n.path.startsWith(folder + "/")
-    && (noteName(n.path).toLowerCase() === want || n.path.slice(folder.length + 1).replace(/\.md$/i, "").toLowerCase() === want));
-  return existing?.path ?? `${folder}/${f.page.replace(/\.md$/i, "")}.md`;
+/** The wiki a finding names, as its folder is actually spelt, or a new one's name. */
+function wikiName(name) {
+  const want = String(name ?? "").trim();
+  return wikis().find((w) => w.name.toLowerCase() === want.toLowerCase())?.name ?? want;
 }
 
-/** The write prompt's rounds for the approved findings: [{text, keys, pages}]. */
+/**
+ * Where a finding's page lives: its existing path, or where a new one would
+ * go. Wiki and page names match whatever their case, and a page given as a
+ * whole path ("Wikis/Night sky/Finding Saturn.md") is taken as it is.
+ */
+export function pagePathFor(f) {
+  if (!f.wiki) return null;
+  const wiki = wikiName(f.wiki);
+  const folder = wikiFolder(wiki);
+  if (f.kind === "wiki") return `${folder}/Home.md`;
+  if (!f.page) return null;
+  let page = f.page.trim().replace(/\.md$/i, "");
+  const inside = `${folder}/`.toLowerCase();
+  if (page.toLowerCase().startsWith(inside)) page = page.slice(inside.length);
+  else if (page.toLowerCase().startsWith(`${store.wikisFolder}/`.toLowerCase())) page = page.slice(page.indexOf("/", store.wikisFolder.length + 1) + 1);
+  const want = page.toLowerCase();
+  const pages = store.notes.filter((n) => n.path.toLowerCase().startsWith(inside));
+  const existing = pages.find((n) => n.path.slice(folder.length + 1).replace(/\.md$/i, "").toLowerCase() === want)
+    ?? (page.includes("/") ? null : pages.filter((n) => noteName(n.path).toLowerCase() === want).length === 1
+      ? pages.find((n) => noteName(n.path).toLowerCase() === want) : null);
+  return existing?.path ?? `${folder}/${page}.md`;
+}
+
+const samePath = (a, b) => a != null && b != null && a.toLowerCase() === b.toLowerCase();
+
+/**
+ * The write prompt's rounds for the approved findings: [{text, keys, findingIds, bases}].
+ * A page that already has a draft waiting is written on from that draft, and
+ * the new draft carries both sets of findings, so nothing drafted is lost.
+ */
 export async function prepareWrite() {
   const approved = approvedFindings();
   const groups = new Map();
@@ -164,6 +198,13 @@ export async function prepareWrite() {
     const key = pagePathFor(f) ?? `?${f.id}`;
     if (!groups.has(key)) groups.set(key, { key, findings: [] });
     groups.get(key).findings.push(f);
+  }
+  const pending = new Map(drafts().map((d) => [d.path, d]));
+  for (const [key, g] of groups) {
+    const d = pending.get(key);
+    if (!d) continue;
+    g.draft = d;
+    g.findings.push(...suggestions.data.findings.filter((f) => d.findingIds.includes(f.id) && !g.findings.includes(f)));
   }
   const existing = [...groups.keys()].filter((k) => store.paths.includes(k));
   const sources = [...new Set(approved.flatMap((f) => f.sources))];
@@ -175,7 +216,8 @@ export async function prepareWrite() {
   for (const p of instructionPaths) instructions[wikiOf(p)] = pageParts(byPath.get(p)?.text ?? "").body;
   const list = [...groups.values()].map((g) => ({
     ...g,
-    page: byPath.has(g.key) ? { path: g.key, text: byPath.get(g.key).text } : null,
+    page: g.draft ? { path: g.key, text: g.draft.text }
+      : byPath.has(g.key) ? { path: g.key, text: byPath.get(g.key).text } : null,
     newPath: g.key.startsWith("?") ? "a page of your choosing in the right wiki" : g.key,
     notes: [...new Set(g.findings.flatMap((f) => f.sources))].map((p) => byPath.get(p)).filter(Boolean),
   }));
@@ -205,20 +247,41 @@ export async function takePages(round, reply) {
   const extra = missing.length ? (await api.readNotes(missing)).notes : [];
   const bases = { ...round.bases, ...Object.fromEntries(extra.map((n) => [n.path, n.text])) };
   const findings = suggestions.data.findings.filter((f) => round.findingIds.includes(f.id));
-  const covered = new Set();
+  // Which findings each page answers: those whose page it is (or whose new
+  // wiki it's in); findings with no page of their own go with a page from
+  // their wiki, or with the first page if they name no wiki.
+  const answers = new Map(ok.map((p) => [p.path, new Set()]));
+  const pageless = [];
+  for (const f of findings) {
+    const own = ok.find((p) => samePath(pagePathFor(f), p.path) || (f.kind === "wiki" && samePath(wikiOf(p.path), wikiName(f.wiki))));
+    if (own) answers.get(own.path).add(f.id);
+    else if (!pagePathFor(f)) pageless.push(f);
+  }
+  for (const f of pageless) {
+    const home = ok.find((p) => f.wiki && samePath(wikiOf(p.path), wikiName(f.wiki))) ?? (f.wiki ? null : ok[0]);
+    if (home) answers.get(home.path).add(f.id);
+  }
+  const covered = new Set([...answers.values()].flatMap((s) => [...s]));
+  const unchanged = [];
   await update((data) => {
     for (const p of ok) {
       const base = bases[p.path] ?? null;
-      data.drafts = data.drafts.filter((d) => d.path !== p.path);
+      const ids = [...answers.get(p.path)];
+      // A page that comes back as it already is changes nothing: no draft.
+      if (base != null && base.replace(/\r\n/g, "\n").trimEnd() === p.text.replace(/\r\n/g, "\n").trimEnd()) {
+        unchanged.push(p.path);
+        ids.forEach((id) => covered.delete(id));
+        continue;
+      }
+      const previous = data.drafts.find((d) => d.path === p.path);
+      data.drafts = data.drafts.filter((d) => d !== previous);
       data.drafts.push({
         id: newId("d"),
         path: p.path,
-        base,
+        base: previous ? previous.base : base,
         text: p.text,
         changes: p.changes,
-        findingIds: findings
-          .filter((f) => pagePathFor(f) === p.path || (f.kind === "wiki" && wikiOf(p.path) === f.wiki))
-          .map((f) => (covered.add(f.id), f.id)),
+        findingIds: [...new Set([...(previous?.findingIds ?? []), ...ids])],
         accepted: [],
         rejected: [],
         created: Date.now(),
@@ -227,9 +290,10 @@ export async function takePages(round, reply) {
     // Findings no page answered stay approved, to write again or dismiss.
     for (const f of data.findings) if (covered.has(f.id) && f.status === "approved") f.status = "drafted";
   });
-  const left = findings.length - covered.size;
+  if (unchanged.length) problems.push(`${unchanged.length === 1 ? "A page" : `${unchanged.length} pages`} came back unchanged, so there is nothing to review for ${unchanged.length === 1 ? "it" : "them"}.`);
+  const left = findings.filter((f) => f.status === "approved" && !covered.has(f.id)).length;
   if (left) problems.push(`${left} approved ${left === 1 ? "finding" : "findings"} got no page back and stay approved.`);
-  return { added: ok.length, problems };
+  return { added: ok.length - unchanged.length, problems };
 }
 
 export async function decideChange(draftId, index, verdict) {
@@ -262,9 +326,12 @@ export async function decideAll(draftId, verdict) {
  */
 export async function applyDrafts() {
   const ready = drafts().filter((d) => d.accepted.length);
-  const turnedDown = drafts().filter((d) => !d.accepted.length && d.rejected.length
-    && d.rejected.length === changes(d.base ?? "", d.text).hunks.length);
-  const existing = ready.filter((d) => d.base != null).map((d) => d.path);
+  // Set aside: drafts whose every change was rejected, and drafts with no change left.
+  const turnedDown = drafts().filter((d) => {
+    const count = changes(d.base ?? "", d.text).hunks.length;
+    return !d.accepted.length && d.rejected.length === count;
+  });
+  const existing = ready.map((d) => d.path).filter((p) => store.paths.includes(p));
   const { notes: now } = existing.length ? await api.readNotes(existing) : { notes: [] };
   const current = new Map(now.map((n) => [n.path, n]));
   const applied = [];
@@ -274,8 +341,10 @@ export async function applyDrafts() {
     const page = current.get(d.path);
     try {
       if (d.base == null) {
-        if (store.paths.includes(d.path)) {
-          rebased.push(d);
+        if (page) {
+          // Written as a new page, but a page by that name appeared since:
+          // show the draft against that page instead.
+          rebased.push({ ...d, base: page.text, clashes: 0 });
           continue;
         }
         await api.create(d.path, applyChanges("", d.text, d.accepted));

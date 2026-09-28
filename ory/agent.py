@@ -118,9 +118,11 @@ class Agent:
         if path not in self.vault.notes():
             return self.write(path, text if text.endswith("\n") else text + "\n")
         note = self.vault.get(path)
-        joined = note.text.rstrip("\n") + ("\n" if note.text.strip() else "") + text
-        if not joined.endswith("\n"):
-            joined += "\n"
+        eol = "\r\n" if "\r\n" in note.text else "\n"  # keep the note's own line endings
+        text = text.replace("\r\n", "\n").replace("\n", eol)
+        joined = note.text.rstrip("\r\n") + (eol if note.text.strip() else "") + text
+        if not joined.endswith(eol):
+            joined += eol
         saved = self.vault.save(path, joined, note.rev)
         return {"path": saved.path, "rev": saved.rev, "created": False}
 
@@ -163,14 +165,23 @@ class Agent:
             "unread": len(self.unread()),
         }
 
-    def suggest(self, findings: Optional[List[Dict[str, Any]]] = None,
-                drafts: Optional[List[Dict[str, Any]]] = None,
-                read: Optional[List[str]] = None) -> Dict[str, Any]:
+    def suggest(self, findings: Any = None, drafts: Any = None, read: Any = None) -> Dict[str, Any]:
         """File findings and page drafts for the person to review in Ory, and
-        mark notes as read so the next run doesn't raise them again."""
-        findings = findings or []
-        drafts = drafts or []
-        read = read or []
+        mark notes as read so the next run doesn't raise them again.
+
+        A draft's `findingIds` may name findings already filed (by id) or ones
+        in this same call (by their position, from 0); those become "drafted".
+        `read` is a list of paths, or {path: mtime} with the mtimes `unread`
+        gave, so a note edited after you read it stays unread.
+        """
+        findings = _list_of_dicts(findings, "findings")
+        drafts = _list_of_dicts(drafts, "drafts")
+        if read is None:
+            read = {}
+        elif isinstance(read, list):
+            read = {str(p): None for p in read}
+        elif not isinstance(read, dict):
+            raise VaultError("read must be a list of paths or {path: mtime}.")
         known = self.vault.notes()
         added_findings, added_drafts = [], []
         now = int(time.time() * 1000)
@@ -180,7 +191,12 @@ class Agent:
                 raise VaultError(f"Unknown finding kind {f.get('kind')!r}. Use one of: {', '.join(FINDING_KINDS)}.")
             if not f.get("title"):
                 raise VaultError("Every finding needs a title.")
-            sources = [s if s.endswith(NOTE_EXT) else s + NOTE_EXT for s in f.get("sources", [])]
+            raw = f.get("sources") or []
+            if isinstance(raw, str):
+                raw = [raw]
+            if not isinstance(raw, list):
+                raise VaultError("A finding's sources must be a list of note paths.")
+            sources = [self._note(s) for s in raw]
             added_findings.append({
                 "id": _new_id("f"), "kind": kind,
                 "wiki": str(f.get("wiki") or ""), "page": str(f.get("page") or ""),
@@ -197,23 +213,46 @@ class Agent:
             if not isinstance(d.get("text"), str):
                 raise VaultError("Every draft needs its whole page as text.")
             base = known[path].text if path in known else None
+            ids = []
+            for ref in d.get("findingIds") or []:
+                if isinstance(ref, int) and not isinstance(ref, bool):
+                    if not 0 <= ref < len(added_findings):
+                        raise VaultError(f"A draft names finding {ref}, but this call has {len(added_findings)}.")
+                    ids.append(added_findings[ref]["id"])
+                else:
+                    ids.append(str(ref))
             added_drafts.append({
                 "id": _new_id("d"), "path": path, "base": base,
                 "text": d["text"] if d["text"].endswith("\n") else d["text"] + "\n",
-                "changes": [{"section": str(c.get("section", "")), "reason": str(c.get("reason", ""))} for c in d.get("changes", [])],
-                "findingIds": list(d.get("findingIds", [])), "accepted": [], "rejected": [], "created": now,
+                "changes": [{"section": str(c.get("section", "")), "reason": str(c.get("reason", ""))}
+                            for c in _list_of_dicts(d.get("changes"), "changes")],
+                "findingIds": ids, "accepted": [], "rejected": [], "created": now,
             })
         mtimes = {n.path: n.mtime for n in known.values()}
+        drafted = {i for d in added_drafts for i in d["findingIds"]}
+        for f in added_findings:
+            if f["id"] in drafted:
+                f["status"] = "drafted"
         for attempt in range(3):
             state = self.vault.suggestions()
             data = self._suggestions()
             data["findings"].extend(added_findings)
+            for f in data["findings"]:
+                if f["id"] in drafted and f.get("status") in ("open", "approved"):
+                    f["status"] = "drafted"
+            # A new draft for a page replaces the one waiting, and takes on its findings.
+            for new in added_drafts:
+                old = next((x for x in data["drafts"] if x["path"] == new["path"]), None)
+                if old:
+                    new["base"] = old.get("base", new["base"])
+                    new["findingIds"] = list(dict.fromkeys(old.get("findingIds", []) + new["findingIds"]))
             new_paths = {d["path"] for d in added_drafts}
             data["drafts"] = [d for d in data["drafts"] if d["path"] not in new_paths] + added_drafts
-            for p in read:
+            for p, seen in read.items():
                 p = self._note(p)
                 if p in mtimes:
-                    data["read"][p] = mtimes[p]
+                    # As of the version you read, if you say which; else as it is now.
+                    data["read"][p] = mtimes[p] if seen is None else min(float(seen), mtimes[p])
             if added_findings or read:
                 data["lastRun"] = now
             try:
@@ -234,3 +273,11 @@ class Agent:
     def _note(path: str) -> str:
         path = str(path).strip().replace("\\", "/").strip("/")
         return path if path.lower().endswith(NOTE_EXT) else path + NOTE_EXT
+
+
+def _list_of_dicts(value: Any, name: str) -> List[Dict[str, Any]]:
+    if value is None:
+        return []
+    if not isinstance(value, list) or not all(isinstance(v, dict) for v in value):
+        raise VaultError(f"{name} must be a list of objects.")
+    return value

@@ -8,6 +8,7 @@ file watcher.
 
 from __future__ import annotations
 
+import itertools
 import json
 import os
 import posixpath
@@ -88,7 +89,10 @@ def note_name(path: str) -> str:
 
 
 def _rev(stat: os.stat_result) -> str:
-    return f"{stat.st_mtime_ns:x}-{stat.st_size:x}"
+    # The inode catches a same-size replace within one mtime tick (editors and
+    # sync tools write a new file and rename it over the old one). ctime is left
+    # out: a rename changes it, and the note just moved would then look edited.
+    return f"{stat.st_mtime_ns:x}-{stat.st_size:x}-{stat.st_ino:x}"
 
 
 class Vault:
@@ -150,6 +154,46 @@ class Vault:
     @staticmethod
     def _note_path(rel: str) -> str:
         return rel if rel.lower().endswith(NOTE_EXT) else rel + NOTE_EXT
+
+    @staticmethod
+    def _clean(rel: str) -> str:
+        """A path as given ("Projects/", "./Projects", "a\\b"), made plain: "Projects", "a/b"."""
+        rel = str(rel).replace("\\", "/").strip()
+        rel = posixpath.normpath(rel).strip("/") if rel else ""
+        return "" if rel == "." else rel
+
+    def _existing(self, rel: str) -> Optional[str]:
+        """The index's own spelling of a note, file or folder, matching case loosely
+        (macOS and Windows file systems ignore case)."""
+        if rel in self._notes or rel in self._files or rel in self._folders:
+            return rel
+        low = rel.lower()
+        for known in itertools.chain(self._notes, self._files, self._folders):
+            if known.lower() == low:
+                return known
+        return None
+
+    def _disk_parents(self, rel: str) -> str:
+        """`rel` with its folders spelt as they already are on disk, so a new
+        "Projects/Plan.md" goes into an existing "projects" folder under that name."""
+        parts = rel.split("/")
+        for i in range(len(parts) - 1):
+            folder = "/".join(parts[: i + 1])
+            match = next((f for f in self._folders if f.lower() == folder.lower()), None)
+            if not match:
+                break
+            parts[: i + 1] = match.split("/")
+        return "/".join(parts)
+
+    def _source(self, rel: str) -> str:
+        """A path to move or trash: cleaned, spelt as on disk, never inside a dot-folder."""
+        rel = self._clean(rel)
+        if not rel or any(part.startswith(".") for part in rel.split("/")):
+            raise VaultError(f"'{rel or '.'}' cannot be moved or trashed.")
+        found = self._existing(rel) or self._existing(self._note_path(rel))
+        if not found:
+            raise VaultError(f"'{rel}' does not exist.", 404)
+        return found
 
     # Index ----------------------------------------------------------------
 
@@ -314,12 +358,14 @@ class Vault:
             raise VaultError("Suggestions must be a JSON object.")
         full = self._suggestions_file()
         with self._lock:
-            current = _rev(os.stat(full)) if os.path.exists(full) else None
-            if current != base_rev:
-                raise VaultError("Suggestions changed in another window. Reload to see them.", 409)
             os.makedirs(os.path.dirname(full), exist_ok=True)
-            _atomic_write(full, json.dumps(data, indent=2, ensure_ascii=False) + "\n")
-            return {"rev": _rev(os.stat(full))}
+            # The app and an agent's process may both save: lock across processes.
+            with _file_lock(full + ".lock"):
+                current = _rev(os.stat(full)) if os.path.exists(full) else None
+                if current != base_rev:
+                    raise VaultError("Suggestions changed in another window. Reload to see them.", 409)
+                _atomic_write(full, json.dumps(data, indent=2, ensure_ascii=False) + "\n")
+                return {"rev": _rev(os.stat(full))}
 
     # Notes ------------------------------------------------------------------
 
@@ -350,14 +396,18 @@ class Vault:
 
     def create(self, rel: str, text: str = "") -> Note:
         rel = self._note_path(self.check_name(rel))
-        full = self._abs(rel)
         with self._lock:
+            self.refresh()
+            rel = self._disk_parents(rel)
+            full = self._abs(rel)
             if os.path.exists(full):
                 raise VaultError(f"'{rel}' already exists.", 409)
             os.makedirs(os.path.dirname(full), exist_ok=True)
-            _atomic_write(full, text)
+            # Another process (an agent) may create the same note at the same moment.
+            if not _atomic_create(full, text):
+                raise VaultError(f"'{rel}' already exists.", 409)
             self.refresh()
-            return self._notes[rel]
+            return self._notes[self._existing(rel) or rel]
 
     def create_folder(self, rel: str) -> str:
         rel = self.check_name(rel)
@@ -375,8 +425,9 @@ class Vault:
         rel = f"{self.daily_folder}/{date}{NOTE_EXT}" if self.daily_folder else date + NOTE_EXT
         with self._lock:
             self.refresh()
-            if rel in self._notes:
-                return self._notes[rel], False
+            found = self._existing(rel)
+            if found in self._notes:
+                return self._notes[found], False
             return self.create(rel), True
 
     # Attachments --------------------------------------------------------------
@@ -404,6 +455,9 @@ class Vault:
         folder = self.attachments_folder(note) if folder is None else folder.strip("/")
         stem, ext = posixpath.splitext(name)
         with self._lock:
+            self.refresh()
+            if folder:
+                folder = self._disk_parents(folder + "/x")[: -2]
             n = 0
             while True:
                 candidate = f"{stem}{f' {n}' if n else ''}{ext}"
@@ -430,21 +484,21 @@ class Vault:
                     os.unlink(tmp)
                 raise
             self.refresh()
-            return self._files[rel]
+            return self._files[self._existing(rel) or rel]
 
     def file_path(self, rel: str) -> str:
-        """The absolute path of an attachment, for serving it."""
+        """The absolute path of an attachment, for serving it. Nothing in a dot-folder."""
         full = self._abs(rel)
-        if any(part.startswith(".") for part in rel.split("/")) or not os.path.isfile(full):
+        if any(part.startswith(".") for part in self._clean(rel).split("/")) or not os.path.isfile(full):
             raise VaultError(f"'{rel}' does not exist.", 404)
         return full
 
     def trash(self, rel: str) -> str:
-        """Move a note or folder into `.trash/`, as Obsidian does."""
-        full = self._abs(rel)
+        """Move a note, file or folder into `.trash/`. Nothing is deleted outright."""
         with self._lock:
-            if not os.path.exists(full):
-                raise VaultError(f"'{rel}' does not exist.", 404)
+            self.refresh()
+            rel = self._source(rel)
+            full = self._abs(rel)
             trash_root = os.path.join(self.root, TRASH_DIR)
             dest = os.path.join(trash_root, os.path.basename(full))
             stem, ext = os.path.splitext(dest)
@@ -459,9 +513,10 @@ class Vault:
 
     def move(self, src: str, dest: str) -> Dict[str, Any]:
         """Rename or move a note or folder and update links that point into it."""
-        src_full = self._abs(src)
         with self._lock:
             self.refresh()
+            src = self._source(src)
+            src_full = self._abs(src)
             is_note = src in self._notes
             is_file = src in self._files
             if not is_note and not is_file and not os.path.isdir(src_full):
@@ -503,11 +558,12 @@ class Vault:
                     if new_target and self.resolve(link.target, source) != new_target:
                         edits.append((link.start, link.end, self.link_text_for(new_target, source)))
                 if edits and source in self._notes:
-                    text = self._notes[source].text
+                    original = text = self._notes[source].text
                     for start, end, replacement in sorted(edits, reverse=True):
                         text = text[:start] + replacement + text[end:]
-                    _atomic_write(self._abs(source), text)
-                    updated.append(source)
+                    if text != original:
+                        _atomic_write(self._abs(source), text)
+                        updated.append(source)
             if updated:
                 self.refresh()
             return {"path": dest, "updated": sorted(updated)}
@@ -631,7 +687,54 @@ def _snippets(text: str, terms: List[str], max_lines: int = 3, width: int = 160)
     return out
 
 
+class _file_lock:
+    """An advisory lock held across processes (POSIX); a no-op where unsupported."""
+
+    def __init__(self, path: str):
+        self.path = path
+        self.fh = None
+
+    def __enter__(self):
+        try:
+            import fcntl
+            self.fh = open(self.path, "a")
+            fcntl.flock(self.fh, fcntl.LOCK_EX)
+        except (ImportError, OSError):
+            self.fh = None
+        return self
+
+    def __exit__(self, *exc):
+        if self.fh:
+            self.fh.close()  # closing releases the lock
+        return False
+
+
+def _atomic_create(full: str, text: str) -> bool:
+    """Write a new file whole, or return False if one already exists there."""
+    directory = os.path.dirname(full)
+    fd, tmp = tempfile.mkstemp(prefix=".ory-", suffix=".tmp", dir=directory)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8", newline="") as fh:
+            fh.write(text)
+        os.chmod(tmp, 0o644)
+        try:
+            os.link(tmp, full)  # fails if the name is taken, unlike a rename
+        except FileExistsError:
+            return False
+        except OSError:
+            if os.path.exists(full):
+                return False
+            os.replace(tmp, full)  # no hard links here (some network drives)
+        return True
+    finally:
+        if os.path.exists(tmp):
+            os.unlink(tmp)
+
+
 def _atomic_write(full: str, text: str) -> None:
+    # Saving a symlinked note writes through to the file it points at.
+    if os.path.islink(full):
+        full = os.path.realpath(full)
     directory = os.path.dirname(full)
     fd, tmp = tempfile.mkstemp(prefix=".ory-", suffix=".tmp", dir=directory)
     try:

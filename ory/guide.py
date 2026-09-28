@@ -103,12 +103,12 @@ To keep the wikis current from the notes, start with the notes from `unread`. Re
                     "sources": ["{daily}/2026-09-27.md"]}}],
       "drafts": [{{"path": "{wikis}/Night sky/Finding Saturn.md", "text": "(the whole page)",
                   "changes": [{{"section": "Where to look", "reason": "adds the rising time"}}]}}],
-      "read": ["{daily}/2026-09-27.md"]
+      "read": {{"{daily}/2026-09-27.md": 1790000000.0}}
     }}
 
 - **Finding kinds:** `page` (a new page), `add` (something a page should say), `conflict` (a note disagrees with a page), `link` (one page should point to another), `wiki` (a subject for a new wiki), and `fix` (something wrong or stale).
-- **Drafts** are whole pages. The person reviews them change by change.
-- **`read`** lists the notes you went through, so the next run skips them.
+- **Drafts** are whole pages. The person reviews them change by change. A draft's `findingIds` names the findings it answers: ids from `suggestions`, or positions (0, 1, …) in this call's `findings`.
+- **`read`** lists the notes you went through, with the `mtime` that `unread` gave for each, so the next run skips them but still sees any later edit. A plain list of paths also works.
 - **Leave out chatter,** to-dos, plans and anything personal. Group related notes into one finding.
 """
 

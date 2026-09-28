@@ -165,3 +165,84 @@ class InterfaceTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class HardeningTests(unittest.TestCase):
+    """Bugs found in review, kept fixed."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.root = self.tmp.name
+        write(self.root, "projects/Plan.md", "plan\n")
+        write(self.root, "Index.md", "See [[projects/Plan]].\n")
+        write(self.root, ".git/config", "[remote] url=https://token@host\n")
+        self.vault = Vault(self.root)
+        self.agent = Agent(self.vault)
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def test_dot_folders_stay_private(self):
+        with self.assertRaises(VaultError):
+            self.vault.file_path("x\\..\\.git\\config")  # a backslash is still a path separator
+        for path in (".git", ".trash", "x/../.git"):
+            with self.assertRaises(VaultError):
+                self.agent.trash(path)
+        with self.assertRaises(VaultError):
+            self.agent.move(".git", "Visible")
+
+    def test_existing_folder_case_is_reused(self):
+        created = self.agent.write("Projects/Idea", "idea\n")
+        self.assertEqual(created["path"], "projects/Idea.md")
+        self.assertTrue(os.path.exists(os.path.join(self.root, "projects", "Idea.md")))
+
+    def test_move_accepts_paths_as_typed(self):
+        result = self.agent.move("projects/", "Work")
+        self.assertEqual(result["path"], "Work")
+        self.assertEqual(self.agent.read("Index")["links"], ["Work/Plan.md"])  # the link follows
+        self.agent.move("Index", "Home")  # no ".md"
+        self.assertEqual(self.agent.read("Home")["path"], "Home.md")
+
+    def test_append_keeps_windows_line_endings(self):
+        with open(os.path.join(self.root, "Win.md"), "wb") as fh:
+            fh.write(b"one\r\ntwo\r\n")
+        self.agent.append("Win", "three")
+        with open(os.path.join(self.root, "Win.md"), "rb") as fh:
+            self.assertEqual(fh.read(), b"one\r\ntwo\r\nthree\r\n")
+
+    def test_drafts_can_answer_findings_in_the_same_call(self):
+        write(self.root, "Wikis/Sky/Home.md", "# Sky\n")
+        result = self.agent.suggest(
+            findings=[{"kind": "add", "wiki": "Sky", "page": "Home", "title": "More"}],
+            drafts=[{"path": "Wikis/Sky/Home.md", "text": "# Sky\n\nMore.\n", "findingIds": [0]}],
+        )
+        data = self.vault.suggestions()["data"]
+        self.assertEqual(data["drafts"][0]["findingIds"], result["findings"])
+        self.assertEqual(data["findings"][0]["status"], "drafted")
+        with self.assertRaises(VaultError):
+            self.agent.suggest(findings=["just a string"])
+        with self.assertRaises(VaultError):
+            self.agent.suggest(drafts=[{"path": "Wikis/Sky/Home.md", "text": "x", "changes": ["s"]}])
+
+    def test_mcp_survives_bad_calls(self):
+        calls = [
+            {"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": {"name": "write_note", "arguments": {"path": "Index.md/child", "text": "x"}}},
+            {"jsonrpc": "2.0", "id": 2, "method": "tools/call", "params": {"name": "append_to_note", "arguments": {"path": "Index", "text": None}}},
+            {"jsonrpc": "2.0", "id": 3, "method": "tools/call", "params": {"name": "todays_note", "arguments": ["x"]}},
+            5,
+            {"jsonrpc": "2.0", "id": 4, "method": "ping"},
+        ]
+        out = io.StringIO()
+        mcp.serve(self.vault, io.StringIO("\n".join(json.dumps(c) for c in calls) + "\n"), out)
+        replies = [json.loads(l) for l in out.getvalue().splitlines()]
+        self.assertEqual(len(replies), 5)
+        self.assertTrue(all(r["result"]["isError"] for r in replies[:3]))
+        self.assertEqual(replies[3]["error"]["code"], -32600)
+        self.assertEqual(replies[4]["result"], {})
+
+    def test_cli_argument_errors_are_json(self):
+        out = io.StringIO()
+        with redirect_stdout(out):
+            code = cli.run(self.vault, ["search", "--foo", "x"])
+        self.assertEqual(code, 1)
+        self.assertIn("error", json.loads(out.getvalue()))

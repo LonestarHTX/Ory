@@ -7,6 +7,7 @@ The operations themselves are in agent.py; `mcp` serves them over MCP.
 from __future__ import annotations
 
 import argparse
+import io
 import json
 import sys
 from typing import Any, List
@@ -34,7 +35,24 @@ USAGE = """Commands (every one prints JSON):
 """
 
 
+class _Parser(argparse.ArgumentParser):
+    """Argument errors come back as JSON like every other error, not as usage text."""
+
+    def error(self, message: str):
+        raise ValueError(f"{message}. Run: python3 -m ory help")
+
+
+def _utf8_stdio() -> None:
+    """Notes are UTF-8 whatever the console's code page (Windows pipes default to cp1252)."""
+    for name in ("stdin", "stdout"):
+        stream = getattr(sys, name)
+        encoding = (getattr(stream, "encoding", None) or "utf-8").lower().replace("-", "")
+        if encoding != "utf8" and hasattr(stream, "buffer"):
+            setattr(sys, name, io.TextIOWrapper(stream.buffer, encoding="utf-8", newline="\n" if name == "stdout" else None))
+
+
 def run(vault: Vault, argv: List[str]) -> int:
+    _utf8_stdio()
     if not argv or argv[0] in ("help", "-h", "--help"):
         print(USAGE)
         return 0
@@ -50,17 +68,19 @@ def run(vault: Vault, argv: List[str]) -> int:
         result = dispatch(agent, name, rest)
     except VaultError as exc:
         return fail(str(exc))
-    except (ValueError, KeyError, TypeError) as exc:
+    except (ValueError, KeyError, TypeError, AttributeError) as exc:
         return fail(f"Bad input: {exc}")
-    except SystemExit as exc:  # argparse on a bad command line
-        return int(exc.code or 0) or 2
+    except OSError as exc:
+        return fail(f"File system error: {exc.strerror or exc}")
+    except SystemExit as exc:  # --help on a command
+        return int(exc.code or 0)
     print(json.dumps(result, indent=2, ensure_ascii=False, default=str))
     return 0
 
 
 def dispatch(agent: Agent, name: str, rest: List[str]) -> Any:
     def parser(*positional: str, **options: str) -> argparse.Namespace:
-        p = argparse.ArgumentParser(prog=f"python3 -m ory {name}")
+        p = _Parser(prog=f"python3 -m ory {name}", allow_abbrev=False)
         for arg in positional:
             p.add_argument(arg, nargs="+" if arg == "query" else None)
         for opt, help_text in options.items():

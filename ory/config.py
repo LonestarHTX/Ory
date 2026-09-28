@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import sys
 from dataclasses import dataclass, field
 from typing import List, Optional
 
@@ -31,15 +32,32 @@ def load(argv: Optional[List[str]] = None) -> Config:
     parser = argparse.ArgumentParser(
         prog="python3 -m ory",
         description="Run Ory on localhost, or run one of its commands (python3 -m ory help).",
+        allow_abbrev=False,
     )
     parser.add_argument("--notes", help="notes folder to open (overrides notes_dir in the config file)")
     parser.add_argument("--port", type=int, help="port to serve on (default 4747)")
     parser.add_argument("--config", default=DEFAULT_CONFIG, help="config file (default ory.config.json in the repo)")
     parser.add_argument("--open", action="store_true", help="open Ory in the default browser")
-    # Anything after the options is a command for agents and scripts (cli.py).
-    args, command = parser.parse_known_args(argv)
+    # Options come first; from the first word that isn't one, the rest is a
+    # command for agents and scripts (cli.py), with its own options.
+    argv = list(sys.argv[1:] if argv is None else argv)
+    split = len(argv)
+    i = 0
+    while i < len(argv):
+        token = argv[i]
+        if token in ("--notes", "--port", "--config"):
+            i += 2
+        elif token.split("=", 1)[0] in ("--notes", "--port", "--config") or token in ("--open", "-h", "--help"):
+            i += 1
+        else:
+            split = i
+            break
+    args = parser.parse_args(argv[:split])
+    command = argv[split:]
 
     data = {}
+    if args.config != DEFAULT_CONFIG and not os.path.exists(args.config):
+        raise ConfigError(f"The config file does not exist: {args.config}")
     if os.path.exists(args.config):
         try:
             with open(args.config, encoding="utf-8") as fh:

@@ -377,7 +377,10 @@ export function createNoteView(el) {
     } catch (err) {
       if (err.status === 404 && note?.path === path) {
         editor.forget(path);
-        closeNote();
+        // A wiki page that went away: back to its wiki's Home, if there is one.
+        const home = wiki ? wikiInfo(wiki).home : null;
+        if (home && home.path !== path) openNote(home.path, { replace: true });
+        else closeNote();
       }
       return;
     }

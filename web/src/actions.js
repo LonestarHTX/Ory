@@ -181,7 +181,13 @@ export async function trashPath(path) {
     }
     await loadIndex();
     const current = store.currentPath;
-    if (current === path || (current && current.startsWith(path + "/"))) closeNote();
+    if (current === path || (current && current.startsWith(path + "/"))) {
+      // Trashing a wiki page lands on that wiki's Home, if it still has one.
+      const m = current.startsWith(store.wikisFolder + "/") ? /^([^/]+)\//.exec(current.slice(store.wikisFolder.length + 1)) : null;
+      const home = m ? `${store.wikisFolder}/${m[1]}/Home.md` : null;
+      if (home && home !== current && store.paths.includes(home)) openNote(home, { replace: true });
+      else closeNote();
+    }
   } catch (err) {
     alertError(err);
   }

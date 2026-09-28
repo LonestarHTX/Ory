@@ -242,6 +242,8 @@ export function createSuggestionsView(el) {
     const stats = list.map((d) => ({ d, hunks: changes(d.base ?? "", d.text).hunks }));
     const total = stats.reduce((n, s) => n + s.hunks.length, 0);
     const accepted = list.reduce((n, d) => n + d.accepted.length, 0);
+    // Apply also sets aside drafts whose every change was rejected.
+    const settled = stats.some(({ d, hunks }) => !d.accepted.length && d.rejected.length === hunks.length);
     return h("div", { class: "review" },
       h("nav", { class: "review-list", "aria-label": "Drafts" },
         stats.map(({ d, hunks }) => {
@@ -267,7 +269,7 @@ export function createSuggestionsView(el) {
             onClick: () => confirm("Discard every draft? Their findings go back to Approved.") && work(discardDrafts),
           }, "Discard all"),
           h("button", {
-            class: "btn btn--small btn--primary", type: "button", disabled: busy || !accepted ? true : null,
+            class: "btn btn--small btn--primary", type: "button", disabled: busy || (!accepted && !settled) ? true : null,
             onClick: () => work(async () => {
               const r = await applyDrafts();
               const parts = [];
@@ -304,7 +306,9 @@ export function createSuggestionsView(el) {
       otherReasons.length ? h("ul", { class: "review-reasons" }, otherReasons.map((c) => h("li", null, h("b", null, c.section), `: ${c.reason}`))) : null,
       hunks.length ? hunks.map((x) => {
         const state = d.accepted.includes(x.index) ? "accepted" : d.rejected.includes(x.index) ? "rejected" : "";
-        const before = ops.slice(Math.max(0, x.from - 2), x.from);
+        // Context: up to two unchanged lines, never reaching back into the change before.
+        const prevEnd = x.index > 0 ? hunks[x.index - 1].to : 0;
+        const before = ops.slice(Math.max(prevEnd, x.from - 2), x.from).filter((o) => o.type === "same");
         const after = ops.slice(x.to, x.to + 2).filter((o) => o.type === "same");
         // A new page is one change: the whole page.
         const section = d.base == null ? "The whole page" : x.section;

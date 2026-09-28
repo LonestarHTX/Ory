@@ -10,11 +10,11 @@ import shutil
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any, Callable, Dict, Optional, Tuple
-from urllib.parse import parse_qs, unquote, urlparse
+from urllib.parse import parse_qs, quote, unquote, urlparse
 
 from .vault import Note, Vault, VaultError
 
-STATIC_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static")
+STATIC_DIR = os.path.join(os.path.dirname(os.path.realpath(__file__)), "static")
 LOCAL_HOSTS = ("127.0.0.1", "localhost", "[::1]")
 MAX_BODY = 20 * 1024 * 1024
 MAX_UPLOAD = 200 * 1024 * 1024
@@ -142,6 +142,9 @@ class Handler(BaseHTTPRequestHandler):
         except OSError as exc:
             self._send_json({"error": f"File system error: {exc.strerror or exc}"}, 500)
             return
+        except Exception as exc:  # never drop the connection without an answer
+            self._send_json({"error": f"The file could not be saved: {exc}"}, 500)
+            return
         self._send_json({"path": attachment.path, "name": attachment.name, "size": attachment.size}, 201)
 
     def _send_vault_file(self, rel: str) -> None:
@@ -168,8 +171,10 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("X-Content-Type-Options", "nosniff")
         self.send_header("Cache-Control", "no-cache")
         if not is_page and (not ctype.startswith(INLINE_TYPES) or ctype == "image/svg+xml"):
-            name = os.path.basename(full).replace('"', "")
-            self.send_header("Content-Disposition", f'attachment; filename="{name}"')
+            name = os.path.basename(full)
+            # Headers are Latin-1: an ASCII name for old clients, the real one encoded.
+            plain = "".join(ch if 32 <= ord(ch) < 127 and ch not in '"\\' else "_" for ch in name)
+            self.send_header("Content-Disposition", f"attachment; filename=\"{plain}\"; filename*=UTF-8''{quote(name)}")
         self.end_headers()
         with open(full, "rb") as fh:
             shutil.copyfileobj(fh, self.wfile)

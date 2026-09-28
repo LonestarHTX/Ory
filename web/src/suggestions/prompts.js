@@ -57,28 +57,35 @@ sources: Daily/2026-09-27.md, Projects/Backyard observatory.md
  * Returns [{text, paths}], `paths` being the notes each round reads.
  */
 export function findPrompts({ wikis, notes, decided, wikisFolder }) {
-  const head = [
+  // The wikis' summary is repeated in every round, so it never takes more
+  // than half of one: section names go first, then summaries, then pages.
+  const build = (detail) => [
     ROLE,
     FIND_TASK,
     "# The wikis",
     wikis.length
-      ? wikis.map((w) => wikiSummary(w)).join("\n\n")
+      ? wikis.map((w) => wikiSummary(w, detail)).join("\n\n")
       : `There are no wikis yet. Suggest new ones where the notes support them. Wikis live in the "${wikisFolder}" folder.`,
     decided.length
       ? "# Already decided\n\n" + decided.slice(-80).map((f) => `- ${f.status}: ${KINDS[f.kind] ?? f.kind} · ${target(f)} · ${f.title}`).join("\n")
       : "",
   ].filter(Boolean).join("\n\n");
+  let head = build(3);
+  for (let detail = 2; head.length > BUDGET / 2 && detail >= 0; detail--) head = build(detail);
   return rounds(head, notes.map((n) => ({ path: n.path, block: noteBlock(n) })), (i, total) =>
     `# Notes${total > 1 ? ` (part ${i + 1} of ${total}; the other parts come in separate messages)` : ""}`);
 }
 
-function wikiSummary(w) {
-  const pages = w.pages.map((p) => {
+/** detail 3: pages, summaries and sections; 2: pages and summaries; 1: pages; 0: the first 40 pages. */
+function wikiSummary(w, detail = 3) {
+  const list = detail === 0 ? w.pages.slice(0, 40) : w.pages;
+  const pages = list.map((p) => {
     const parts = [`- ${p.title}`];
-    if (p.summary) parts.push(`: ${p.summary}`);
-    if (p.headings.length) parts.push(` (sections: ${p.headings.join("; ")})`);
+    if (detail >= 2 && p.summary) parts.push(`: ${p.summary}`);
+    if (detail >= 3 && p.headings.length) parts.push(` (sections: ${p.headings.join("; ")})`);
     return parts.join("");
   });
+  if (list.length < w.pages.length) pages.push(`- …and ${w.pages.length - list.length} more pages`);
   return [
     `## ${w.name}`,
     w.instructions ? `Instructions for this wiki:\n${w.instructions.trim()}` : "",
@@ -128,17 +135,22 @@ const KIND_WORDS = [
   [/^fix|^correct|^stale|^wrong/, "fix"],
 ];
 
-/** Findings from a reply. Lenient about fences, spacing and case; returns {findings, problems}. */
+/**
+ * Findings from a reply. Lenient about what chat apps and models do to the
+ * format: fences, "**kind:**" and bulleted fields, "=== finding 1" headers,
+ * any case, and prose before, between or after the findings.
+ * Returns {findings, problems, none}.
+ */
 export function parseFindings(reply) {
   const findings = [];
   const problems = [];
   const text = unfence(reply);
-  if (/^\s*===\s*none\s*$/im.test(text) && !/===\s*finding/i.test(text)) return { findings, problems, none: true };
-  const blocks = text.split(/^\s*===\s*finding\s*$/im).slice(1);
+  if (/^[ \t>*_#-]*===\s*none\b/im.test(text) && !/===\s*finding/i.test(text)) return { findings, problems, none: true };
+  const blocks = text.split(/^[ \t>*_#-]*===\s*finding\b.*$/im).slice(1);
   if (!blocks.length) problems.push("No findings were found in the reply. Paste the AI's whole answer, starting at the first === finding.");
   for (const block of blocks) {
     const fields = readFields(block, ["kind", "wiki", "page", "section", "title", "why", "sources"]);
-    const kindText = (fields.kind ?? "").toLowerCase().trim();
+    const kindText = clean(fields.kind).replace(/`/g, "").toLowerCase();
     const kind = KIND_WORDS.find(([re]) => re.test(kindText))?.[1] ?? "fix";
     if (!fields.title && !fields.why) {
       problems.push(`A finding had no title or reason and was skipped.`);
@@ -208,48 +220,80 @@ export function writePrompts({ groups, instructions, wikisFolder }) {
     `# What to write${total > 1 ? ` (part ${i + 1} of ${total}; the other parts come in separate messages)` : ""}`);
 }
 
-/** Pages from a reply: {pages: [{path, changes: [{section, reason}], text}], problems}. */
+/**
+ * Pages from a reply: {pages: [{path, changes: [{section, reason}], text}], problems}.
+ * A page runs from its "=== page:" line to its last "=== end" (so a page may
+ * itself contain one), or to the next page if the end marker was forgotten.
+ */
 export function parsePages(reply) {
   const pages = [];
   const problems = [];
   const text = unfence(reply);
-  const re = /^\s*===\s*page:\s*(.+?)\s*$([\s\S]*?)^\s*===\s*end\s*$/gim;
-  for (const m of text.matchAll(re)) {
-    const path = m[1].trim().replace(/^["'`]|["'`]$/g, "");
-    const body = m[2];
-    const split = /^\s*===\s*text\s*$/im.exec(body);
-    const head = split ? body.slice(0, split.index) : "";
-    let page = split ? body.slice(split.index + split[0].length) : body;
-    page = page.replace(/^\r?\n/, "").replace(/\s+$/, "") + "\n";
+  const headers = [...text.matchAll(/^[ \t>*_#-]*===\s*page:\s*(.+?)\s*$/gim)];
+  headers.forEach((m, i) => {
+    const path = cleanPath(m[1]);
+    let body = text.slice(m.index + m[0].length, i + 1 < headers.length ? headers[i + 1].index : text.length);
+    const ends = [...body.matchAll(/^[ \t>*_#-]*===\s*end\s*$/gim)];
+    if (ends.length) body = body.slice(0, ends[ends.length - 1].index);
+    else problems.push(`"${path}" had no === end, so check that it came through whole.`);
+    // The page starts after "=== text"; without it, at its first "---" or "#" line.
+    let split = /^[ \t>*_#-]*===\s*text\s*$/im.exec(body);
+    let head = "";
+    let page = body;
+    if (split) {
+      head = body.slice(0, split.index);
+      page = body.slice(split.index + split[0].length);
+    } else if ((split = /^(---|#{1,6}\s)/m.exec(body))) {
+      head = body.slice(0, split.index);
+      page = body.slice(split.index);
+    }
+    page = unfence(page.replace(/^\s*\n/, "")).replace(/\s+$/, "") + "\n";
     const changes = [];
     for (const line of head.split("\n")) {
       const item = /^\s*[-*]\s*(.+?)\s*:\s*(.+)$/.exec(line);
-      if (item) changes.push({ section: item[1].trim(), reason: item[2].trim() });
+      if (item) changes.push({ section: clean(item[1]), reason: item[2].trim() });
     }
     pages.push({ path, changes, text: page });
-  }
+  });
   if (!pages.length) problems.push("No pages were found in the reply. Paste the AI's whole answer, from the first === page: to the last === end.");
   return { pages, problems };
 }
 
-// Helpers -----------------------------------------------------------------------------
-
-/** Drop a ``` fence a chat app may have put around the whole reply. */
-function unfence(text) {
-  return String(text ?? "").replace(/\r\n/g, "\n").replace(/^\s*```[a-z]*\s*\n/i, "").replace(/\n```\s*$/, "\n");
+/** A page path as a model may write it: in bold, in [[ ]], in quotes or backticks, without ".md". */
+function cleanPath(value) {
+  let path = String(value).trim().replace(/^\*\*|\*\*$/g, "").replace(/^\[\[|\]\]$/g, "").replace(/^["'`]+|["'`]+$/g, "").trim();
+  if (!/\.md$/i.test(path)) path += ".md";
+  return path;
 }
 
-/** "key: value" lines, where a value runs on until the next known key. */
+// Helpers -----------------------------------------------------------------------------
+
+/** Drop a ``` fence a chat app may have put around the whole reply (or a page). */
+function unfence(text) {
+  const t = String(text ?? "").replace(/\r\n/g, "\n");
+  const m = /^\s*```[\w-]*[ \t]*\n([\s\S]*?)\n```[ \t]*\s*$/.exec(t);
+  return m ? m[1] + "\n" : t;
+}
+
+/**
+ * "key: value" lines, where a value runs on until the next known key or a
+ * blank line. Keys may be bold or bulleted ("- **kind:** add"). A key seen
+ * once in a block is not read again, so a reason whose next line begins
+ * "Page: 12 …" stays one reason.
+ */
 function readFields(block, keys) {
   const fields = {};
   let key = null;
-  const keyRe = new RegExp(`^\\s*(${keys.join("|")})\\s*:\\s*(.*)$`, "i");
+  const keyRe = new RegExp(`^[\\s>*-]*\\**\\s*(${keys.join("|")})\\s*\\**\\s*:\\s*\\**\\s*(.*)$`, "i");
   for (const line of block.split("\n")) {
     const m = keyRe.exec(line);
-    if (m) {
+    // "why" is free text: once it starts, only "sources" can follow it.
+    if (m && !(m[1].toLowerCase() in fields) && (key !== "why" || m[1].toLowerCase() === "sources")) {
       key = m[1].toLowerCase();
       fields[key] = m[2];
-    } else if (key && line.trim()) {
+    } else if (!line.trim()) {
+      key = null;
+    } else if (key) {
       fields[key] += " " + line.trim();
     }
   }
@@ -260,9 +304,16 @@ function clean(value) {
   return (value ?? "").trim().replace(/^["']|["']$/g, "").replace(/^\*\*|\*\*$/g, "").trim();
 }
 
+/** Note paths from a sources field; anything after a path (a stray sentence) is dropped. */
 function splitSources(value) {
   return (value ?? "")
     .split(/,|;|\n/)
-    .map((s) => s.trim().replace(/^\[\[|\]\]$/g, "").replace(/^["'`]|["'`]$/g, "").trim())
+    .map((s) => {
+      let item = s.trim().replace(/^["'`*]+|["'`*]+$/g, "");
+      const link = /^\[\[([^\]|#]+)/.exec(item);
+      if (link) return link[1].trim();
+      const md = /^(.+?\.md)\b/i.exec(item);
+      return (md ? md[1] : item).trim();
+    })
     .filter(Boolean);
 }
