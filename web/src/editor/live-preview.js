@@ -301,7 +301,11 @@ function build(view, { resolve, fileSize, openPage }) {
     const l = doc.lineAt(pos);
     return touches(view, l.from, l.to);
   };
+  // Only the part on screen: a long block (or an unclosed fence) mustn't cost every line.
+  let visible = { from: 0, to: doc.length };
   const eachLine = (from, to, fn) => {
+    from = Math.max(from, visible.from);
+    to = Math.min(to, visible.to);
     for (let pos = from; pos <= to;) {
       const l = doc.lineAt(pos);
       fn(l);
@@ -310,6 +314,7 @@ function build(view, { resolve, fileSize, openPage }) {
   };
 
   for (const range of view.visibleRanges) {
+    visible = range;
     syntaxTree(state).iterate({
       from: range.from,
       to: range.to,
@@ -429,7 +434,8 @@ function build(view, { resolve, fileSize, openPage }) {
             const last = doc.lineAt(node.to).number;
             // Away from the block, its ``` fences give way: the opening one to
             // the language, if any, the closing one to a sliver of padding.
-            const quietFences = live && !touches(view, node.from, node.to);
+            // The whole lines: the cursor in a fence's indent, list or quote mark counts too.
+            const quietFences = live && !touches(view, doc.lineAt(node.from).from, doc.lineAt(node.to).to);
             const marks = node.getChildren("CodeMark");
             const info = node.getChild("CodeInfo");
             const closes = marks.length > 1 && last !== first && doc.lineAt(marks[marks.length - 1].from).number === last;
@@ -624,9 +630,12 @@ function flow(state) {
       if (node.name !== "Paragraph") return;
       const a = doc.lineAt(node.from).number;
       const b = doc.lineAt(node.to).number;
+      // Deliberate breaks, as the parser sees them (two spaces or a backslash).
+      const hard = new Set();
+      node.node.getChildren("HardBreak").forEach((br) => hard.add(doc.lineAt(br.from).number));
       for (let n = a; n < b; n++) {
         const here = doc.line(n);
-        if (/( {2,}|\\)$/.test(here.text)) continue;
+        if (hard.has(n)) continue;
         const next = doc.line(n + 1);
         const indent = /^[ \t]*/.exec(next.text)[0].length;
         out.push(space.range(here.to, next.from + indent));

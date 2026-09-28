@@ -46,6 +46,16 @@ const fromDisk = Annotation.define();
 const editability = new Compartment();
 const editable = (on) => (on ? [] : [EditorView.editable.of(false), EditorState.readOnly.of(true)]);
 
+// A backstop for reading: no command, keymap or widget can change the text
+// while a page is read. Only a change from disk gets through.
+const readingGuard = EditorState.changeFilter.of((tr) => !isReading(tr.startState) || tr.annotation(fromDisk) === true);
+
+/** Line endings: the editor always works in "\n"; a Windows note is saved back with "\r\n". */
+const toLF = (text) => text.replace(/\r\n?/g, "\n");
+const usesCRLF = (text) => text.includes("\r\n") && !/(^|[^\r])\n/.test(text);
+// Notes kept in memory, most recently used last; older ones are dropped.
+const KEEP_STATES = 40;
+
 // Markdown for notes: CommonMark, GitHub's extensions (tables, task lists,
 // strikethrough), [[wikilinks]] and ==highlight==.
 // Built directly rather than with markdown(), which bundles HTML, CSS and
@@ -70,6 +80,7 @@ export function createEditor(parent, handlers) {
   };
   const extensions = [
     editability.of(editable(true)),
+    readingGuard,
     history(),
     drawSelection(),
     EditorView.lineWrapping,
@@ -130,18 +141,18 @@ export function createEditor(parent, handlers) {
 
   const view = new EditorView({ parent });
   const states = new Map(); // path -> EditorState, to keep undo history and cursor per note
+  let crlf = false; // the open note's line endings on disk
 
   return {
     view,
 
     /** Show a note. Reuses the note's previous state when its text is unchanged. */
-    open(path, text, { source = false, crlf = false, reading = false } = {}) {
+    open(path, text, { source = false, reading = false } = {}) {
+      crlf = usesCRLF(text);
+      const doc = toLF(text);
       let state = states.get(path);
-      if (!state || state.sliceDoc() !== text) {
-        // Keep Windows line endings as they are: CodeMirror would otherwise
-        // rewrite the whole file with "\n" on the first save.
-        const eol = crlf ? [EditorState.lineSeparator.of("\r\n")] : [];
-        state = EditorState.create({ doc: text, extensions: [extensions, eol] });
+      if (!state || state.sliceDoc() !== doc) {
+        state = EditorState.create({ doc, extensions });
         const fm = frontmatterRange(state.doc);
         state = state.update({ selection: { anchor: fm ? fm.bodyFrom : 0 } }).state;
       }
@@ -149,21 +160,27 @@ export function createEditor(parent, handlers) {
       view.dispatch({
         effects: [setSourceMode.of(source), setReading.of(reading), setQuiet.of(true), editability.reconfigure(editable(!reading))],
       });
+      handlers.afterOpen?.(view);
       handlers.onSelection?.(view.state);
     },
 
     /** Replace the text after an outside change, keeping the cursor near where it was. */
     replace(text) {
-      const head = Math.min(view.state.selection.main.head, view.state.toText(text).length);
+      crlf = usesCRLF(text);
+      const doc = toLF(text);
+      const head = Math.min(view.state.selection.main.head, doc.length);
       view.dispatch({
-        changes: { from: 0, to: view.state.doc.length, insert: text },
+        changes: { from: 0, to: view.state.doc.length, insert: doc },
         selection: EditorSelection.cursor(head),
         annotations: fromDisk.of(true),
       });
     },
 
     remember(path) {
-      if (path) states.set(path, view.state);
+      if (!path) return;
+      states.delete(path);
+      states.set(path, view.state);
+      while (states.size > KEEP_STATES) states.delete(states.keys().next().value);
     },
 
     forget(path) {
@@ -192,6 +209,7 @@ export function createEditor(parent, handlers) {
 
     /** Switch between reading a wiki page and editing it. */
     setReading(on) {
+      if (on && view.hasFocus) view.contentDOM.blur();
       view.dispatch({ effects: [setReading.of(on), editability.reconfigure(editable(!on))] });
     },
 
@@ -204,7 +222,7 @@ export function createEditor(parent, handlers) {
     },
 
     /** The note's text, with its own line endings. */
-    text: () => view.state.sliceDoc(),
+    text: () => (crlf ? view.state.sliceDoc().replace(/\n/g, "\r\n") : view.state.sliceDoc()),
 
     /** Upload files chosen from the toolbar and embed them at the cursor. */
     insertFiles(files) {

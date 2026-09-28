@@ -56,7 +56,9 @@ export async function insertFiles(view, files, pos, env) {
     try {
       const saved = await api.upload(file, { name: uploadName(file), note: env.notePath() });
       await env.afterUpload();
-      const at = view.state.field(pending).get(id) ?? view.state.selection.main.head;
+      // The note was left while the file uploaded: it's saved, but not embedded elsewhere.
+      const at = view.state.field(pending).get(id);
+      if (at == null || view.state.readOnly) return;
       const insert = `![[${env.linkTextFor(saved.path)}]]`;
       view.dispatch({
         changes: { from: at, insert: files.length > 1 ? insert + "\n" : insert },
@@ -87,7 +89,7 @@ export function attachments(env) {
     EditorView.domEventHandlers({
       paste(event, view) {
         const data = event.clipboardData;
-        if (!data) return false;
+        if (!data || view.state.readOnly) return false;
         const text = data.getData("text/plain");
         // Text wins: Word and Excel put a picture of the selection on the
         // clipboard too, but people mean the text.
@@ -103,7 +105,8 @@ export function attachments(env) {
         insertFiles(view, data.files, view.state.selection.main.head, env);
         return true;
       },
-      dragover(event) {
+      dragover(event, view) {
+        if (view.state.readOnly) return false;
         const types = event.dataTransfer?.types ?? [];
         if (types.includes("Files") || types.includes("application/x-ory-path")) {
           event.preventDefault();
@@ -114,7 +117,7 @@ export function attachments(env) {
       },
       drop(event, view) {
         const transfer = event.dataTransfer;
-        if (!transfer) return false;
+        if (!transfer || view.state.readOnly) return false;
         const pos = view.posAtCoords({ x: event.clientX, y: event.clientY }) ?? view.state.selection.main.head;
         // A note or file dragged from the tree becomes a link to it.
         const dragged = transfer.getData("application/x-ory-path");

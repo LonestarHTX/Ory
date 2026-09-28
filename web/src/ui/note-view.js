@@ -9,7 +9,7 @@
 import { closeNote, followLink, movePath, notify, onMove, openNote, trashPath } from "../actions.js";
 import { api } from "../api.js";
 import { createEditor } from "../editor/index.js";
-import { focusAddProperty, frontmatterRange } from "../editor/properties.js";
+import { focusAddProperty, frontmatterRange, syncFocus } from "../editor/properties.js";
 import { folderOf, noteName, parseLink } from "../links.js";
 import { emit, linkTextFor, loadIndex, resolve, setCurrent, store } from "../store.js";
 import { coverUrl, infoboxRows, isBlank, isHome, pageParts, pageTitle, wiki as wikiInfo, wikiFolder, wikiOf } from "../wikis.js";
@@ -76,9 +76,11 @@ export function createNoteView(el) {
       emit("note-state", state);
     },
     editLink: (view) => toolbar.editLink(view),
+    // A reused editor view keeps its focus across notes; the new state must know it.
+    afterOpen: (view) => syncFocus(view),
   });
 
-  let note = null; // {path, rev, mtime, crlf}
+  let note = null; // {path, rev, mtime}
   let wiki = null; // the open page's wiki, or null for a note
   let reading = false;
   let dirty = false;
@@ -216,14 +218,14 @@ export function createNoteView(el) {
       setCurrent(null);
       return { error: err };
     }
-    note = { path: data.path, rev: data.rev, mtime: data.mtime * 1000, crlf: data.text.includes("\r\n") };
+    note = { path: data.path, rev: data.rev, mtime: data.mtime * 1000 };
     dirty = false;
     conflict.hidden = true;
     wiki = wikiOf(data.path);
     reading = wiki != null && !isBlank(data.text);
     setCurrent(data.path);
     renderHead();
-    editor.open(data.path, data.text, { source: sourcePref, crlf: note.crlf, reading });
+    editor.open(data.path, data.text, { source: sourcePref, reading });
     renderMode();
     scroller.scrollTop = 0;
     setStatus("idle");

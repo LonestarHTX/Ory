@@ -455,7 +455,9 @@ function queryBlocks(state) {
     enter(node) {
       if (node.name !== "FencedCode") return;
       const info = node.node.getChild("CodeInfo");
-      if (info && state.sliceDoc(info.from, info.to).trim() === "notes") {
+      // Only a block on lines of its own can be replaced by the table (not one inside a list or quote).
+      const whole = state.doc.lineAt(node.from).from === node.from && state.doc.lineAt(node.to).to === node.to;
+      if (whole && info && state.sliceDoc(info.from, info.to).trim() === "notes") {
         const text = node.node.getChild("CodeText");
         out.push({ from: node.from, to: node.to, yaml: text ? state.sliceDoc(text.from, text.to) : "" });
       }

@@ -384,6 +384,11 @@ export function revealYaml(view) {
 
 const focusEffect = StateEffect.define();
 
+/** Tell a freshly set state whether the editor has focus (setState doesn't). */
+export function syncFocus(view) {
+  view.dispatch({ effects: focusEffect.of(view.hasFocus) });
+}
+
 /** Whether the editor has focus, as state, so decorations can depend on it. */
 export const focused = StateField.define({
   create: () => false,
