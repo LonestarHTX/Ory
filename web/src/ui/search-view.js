@@ -37,6 +37,7 @@ export function createSearchView(el) {
     const query = input.value.trim();
     const params = query ? "?" + new URLSearchParams({ q: query }) : "";
     history.replaceState(null, "", "#/search" + params);
+    const mine = ++seq; // a search still on its way must not replace what comes next
     if (!query) {
       count.textContent = "";
       list.replaceChildren(
@@ -45,11 +46,11 @@ export function createSearchView(el) {
           h("p", null, keys("Down"), " moves into the results, ", keys("Enter"), " opens one.")));
       return;
     }
-    const mine = ++seq;
     let results;
     try {
       ({ results } = await api.search(query));
     } catch (err) {
+      if (mine !== seq) return;
       error.hidden = false;
       error.replaceChildren(h("span", { class: "status-dot error" }), err.message);
       return;

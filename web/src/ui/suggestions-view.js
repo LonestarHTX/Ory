@@ -50,6 +50,8 @@ export function createSuggestionsView(el) {
   function render() {
     if (el.hidden) return;
     const scroll = el.querySelector(".sugg-body")?.scrollTop ?? 0;
+    const pasting = document.activeElement?.matches?.(".sugg-paste")
+      ? [document.activeElement.selectionStart, document.activeElement.selectionEnd] : null;
     const unread = unreadNotes().length;
     const last = suggestions.data.lastRun;
     el.replaceChildren(
@@ -74,6 +76,11 @@ export function createSuggestionsView(el) {
         tab === "findings" ? findingsTab() : tab === "drafts" ? draftsTab() : historyTab()));
     const body = el.querySelector(".sugg-body");
     if (body) body.scrollTop = scroll;
+    const paste = el.querySelector(".sugg-paste");
+    if (pasting && paste) {
+      paste.focus();
+      paste.setSelectionRange(...pasting);
+    }
   }
 
   function tabButton(name, label, count) {

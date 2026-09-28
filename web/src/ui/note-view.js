@@ -215,6 +215,8 @@ export function createNoteView(el) {
       data = await api.note(path);
     } catch (err) {
       note = null;
+      wiki = null;
+      reading = false;
       setCurrent(null);
       return { error: err };
     }
@@ -223,6 +225,7 @@ export function createNoteView(el) {
     conflict.hidden = true;
     wiki = wikiOf(data.path);
     reading = wiki != null && !isBlank(data.text);
+    toolbar.reset(); // a link field left open belongs to the note being left
     setCurrent(data.path);
     renderHead();
     editor.open(data.path, data.text, { source: sourcePref, reading });
@@ -259,6 +262,7 @@ export function createNoteView(el) {
 
   /** The page header and, for a wiki's Home, its pages and recent changes. */
   function renderPage() {
+    if (!note) return;
     pageHead.hidden = !(wiki && reading);
     pageFoot.hidden = !(wiki && reading && isHome(note.path));
     if (pageHead.hidden) {
@@ -487,9 +491,10 @@ export function createNoteView(el) {
 
   // E edits the page being read; Esc in the editor goes back to reading.
   window.addEventListener("keydown", (e) => {
-    if (el.hidden || !wiki || !reading || e.key.toLowerCase() !== "e" || e.metaKey || e.ctrlKey || e.altKey) return;
+    if (el.hidden || !wiki || !reading || e.key !== "e" || e.metaKey || e.ctrlKey || e.altKey) return;
     const t = e.target;
-    if (t.closest?.("input, textarea, select, [contenteditable='true'], [contenteditable='plaintext-only'], .menu, dialog")) return;
+    if (t.closest?.("input, textarea, select, [contenteditable='true'], [contenteditable='plaintext-only'], .menu, dialog, [role='dialog']")) return;
+    if (document.querySelector("[role='dialog']:not([hidden]), .menu")) return; // the switcher or a menu is open
     e.preventDefault();
     setReading(false);
   });
@@ -556,6 +561,9 @@ export function createNoteView(el) {
       await flush();
       editor.remember(note?.path);
       note = null;
+      wiki = null;
+      reading = false;
+      toolbar.reset();
       emit("note-state", null);
     },
     goToLine: (line) => editor.goToLine(line),

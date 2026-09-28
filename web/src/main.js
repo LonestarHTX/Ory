@@ -3,7 +3,7 @@
 import "./styles.css";
 
 import {
-  alertError, closeNote, currentRoute, newFolder, newNote, openNote, openSearch, openToday, openWikis, takeOpenOptions,
+  alertError, closeNote, currentRoute, newFolder, newNote, notify, openNote, openSearch, openToday, openWikis, takeOpenOptions,
 } from "./actions.js";
 import { api } from "./api.js";
 import { loadIndex, on, recentPaths, setCurrent, store } from "./store.js";
@@ -21,7 +21,7 @@ import { silverBulb } from "./ui/silver-icon.js";
 import { createSuggestionsView } from "./ui/suggestions-view.js";
 import { createWikiNav } from "./ui/wiki-nav.js";
 import { createWikisHome } from "./ui/wikis-home.js";
-import { inWikis } from "./wikis.js";
+import { wikiOf } from "./wikis.js";
 
 const POLL_MS = 2000;
 
@@ -81,7 +81,8 @@ const spaceTab = (name, iconName, label, run) => h("button", {
   class: "space-tab", type: "button", role: "tab", dataset: { space: name }, onClick: run,
 }, icon(iconName, 14), label);
 const notesTab = spaceTab("notes", "notebook", "Notes", () => {
-  const last = recentPaths().find((p) => store.paths.includes(p) && !inWikis(p));
+  const last = recentPaths().find((p) => store.paths.includes(p) && !wikiOf(p));
+  setSpace("notes");
   if (last) openNote(last);
   else closeNote();
 });
@@ -239,6 +240,7 @@ function arrive(view) {
 }
 
 let routing = Promise.resolve();
+let routeToken = 0;
 let arrivedPath = null;
 
 function route() {
@@ -254,11 +256,20 @@ function route() {
     arrive(searchEl);
   }
   if (r.view === "search") searchView.show(r.query);
+  const token = ++routeToken;
   // Search and the empty view keep whichever space you were in.
-  if (r.view === "wikis" || r.view === "suggestions" || ((r.view === "note" || r.view === "page") && inWikis(r.path))) setSpace("wikis");
+  if (r.view === "wikis" || r.view === "suggestions" || ((r.view === "note" || r.view === "page") && wikiOf(r.path))) setSpace("wikis");
   else if (r.view === "note" || r.view === "page") setSpace("notes");
   // Serialise: a route waits for the previous one (and its save) to finish.
   routing = routing.then(async () => {
+    // A newer route came in while this one waited: it decides what's shown.
+    if (token !== routeToken) return;
+    if (r.view === "search") {
+      await noteView.close();
+      setCurrent(null);
+      showOnly(searchEl); // a note route that finished meanwhile may have shown itself
+      return;
+    }
     if (r.view === "suggestions") {
       await noteView.close();
       setCurrent(null);
@@ -284,6 +295,7 @@ function route() {
     }
     if (r.view === "note") {
       const { error } = await noteView.show(r.path);
+      if (token !== routeToken) return; // you went elsewhere while it loaded
       if (error) {
         showOnly(emptyEl);
         renderEmpty(error.status === 404 ? `"${r.path}" does not exist. It may have been moved or deleted.` : error.message);
@@ -379,12 +391,13 @@ on("index", () => {
 (async () => {
   try {
     await loadIndex();
-    await loadSuggestions();
   } catch (err) {
     showOnly(emptyEl);
     renderEmpty(err.message);
     return;
   }
+  // A broken suggestions file mustn't keep the notes from opening.
+  loadSuggestions().catch((err) => notify(`Suggestions could not be loaded: ${err.message}`, "error"));
   if (!location.hash) {
     const last = recentPaths().find((p) => store.paths.includes(p));
     if (last) return openNote(last, { replace: true });

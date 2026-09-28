@@ -37,8 +37,9 @@ export const isUpkeep = (path) => wikiOf(path) != null && folderOf(path) === wik
 
 /** Page order: an `order` property first, then by name. */
 function byOrder(a, b) {
-  const oa = Number(a.properties?.order);
-  const ob = Number(b.properties?.order);
+  const num = (v) => (v == null || v === "" ? NaN : Number(v)); // an empty order: no order
+  const oa = num(a.properties?.order);
+  const ob = num(b.properties?.order);
   const ha = Number.isFinite(oa);
   const hb = Number.isFinite(ob);
   if (ha && hb && oa !== ob) return oa - ob;
@@ -116,8 +117,9 @@ export function pageTitle(path) {
 
 /** Split a page's text into its properties (parsed YAML) and body. */
 export function pageParts(text) {
-  const match = /^---\r?\n([\s\S]*?)\r?\n(?:---|\.\.\.)[ \t]*(?:\r?\n|$)/.exec(text);
+  const match = /^---\r?\n(?:([\s\S]*?)\r?\n)?(?:---|\.\.\.)[ \t]*(?:\r?\n|$)/.exec(text);
   if (!match) return { properties: {}, body: text };
+  if (match[1] == null) return { properties: {}, body: text.slice(match[0].length) }; // "---\n---"
   let properties = {};
   try {
     const data = parseYaml(match[1]);

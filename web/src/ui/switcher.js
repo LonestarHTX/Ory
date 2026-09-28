@@ -4,6 +4,7 @@
 import { createNote, openNote } from "../actions.js";
 import { folderOf } from "../links.js";
 import { recentPaths, store } from "../store.js";
+import { closeMenu } from "./menu.js";
 import { h, keys, leave } from "./dom.js";
 
 const LIMIT = 50;
@@ -61,6 +62,7 @@ export function createSwitcher() {
 
   function open() {
     if (dialog) return dialog.querySelector("input").focus();
+    closeMenu({ restoreFocus: false }); // a "…" menu would sit above the switcher
     returnFocus = document.activeElement;
     let items = [];
     let selected = 0;

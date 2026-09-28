@@ -13,7 +13,10 @@ import { h, icon, keys } from "./dom.js";
 export function createWikiNav(el) {
   function render() {
     const name = wikiOf(store.currentPath);
+    // Keep keyboard focus on the same row when the list is rebuilt.
+    const focused = el.contains(document.activeElement) ? document.activeElement.closest(".nav-item")?.textContent : null;
     el.replaceChildren(...(name ? inside(wikiInfo(name)) : library()));
+    if (focused != null) [...el.querySelectorAll(".nav-item")].find((b) => b.textContent === focused)?.focus();
   }
 
   // While suggestions wait, the row's lightbulb is cast in liquid silver. The

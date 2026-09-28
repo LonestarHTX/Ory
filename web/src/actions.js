@@ -13,7 +13,12 @@ import { todayISO } from "./ui/dom.js";
  * {view: "search", query} | {view: "wikis"} | {view: "suggestions"} | {view: "empty"}.
  */
 export function currentRoute() {
-  const hash = decodeURIComponent(location.hash.slice(1));
+  let hash;
+  try {
+    hash = decodeURIComponent(location.hash.slice(1));
+  } catch {
+    return { view: "empty" }; // a hand-typed "%" that isn't an escape
+  }
   if (hash === "/wikis") return { view: "wikis" };
   if (hash === "/suggestions") return { view: "suggestions" };
   if (hash === "/search" || hash.startsWith("/search?")) {
@@ -98,7 +103,8 @@ export async function newFolder(parent = "") {
 /** Follow a link from a note: open it, creating the note first if it is missing. */
 export async function followLink(link) {
   if (link.href) {
-    if (/^[a-z][a-z0-9+.-]*:/i.test(link.href)) window.open(link.href, "_blank", "noopener");
+    // Web, mail and phone links only: a javascript: or data: link in a note must never run.
+    if (/^(https?|mailto|tel):/i.test(link.href)) window.open(link.href, "_blank", "noopener");
     return;
   }
   const { target, heading } = parseLink(link.wikilink);
@@ -112,7 +118,10 @@ export async function followLink(link) {
     return notify(`"${target}" is not in the notes folder.`, "error");
   }
   try {
-    openNote(await createNote(target));
+    // A missing page linked from a wiki page is made in that wiki, beside it.
+    const current = store.currentPath ?? "";
+    const inWiki = current.startsWith(store.wikisFolder + "/") && current.split("/").length > 2 && !target.includes("/");
+    openNote(await createNote(inWiki ? `${folderOf(current)}/${target}` : target));
   } catch (err) {
     alertError(err);
   }
@@ -149,6 +158,9 @@ export function onMove(hooks) {
 }
 
 export async function movePath(from, to) {
+  // Where you were when the move began: by the time it ends you may have gone on.
+  const route = currentRoute();
+  const was = route.view === "note" || route.view === "page" ? route.path : null;
   for (const hook of moveHooks) await hook.before(from);
   let result = null;
   try {
@@ -157,9 +169,10 @@ export async function movePath(from, to) {
     for (const hook of moveHooks) hook.after(from, result?.path ?? null);
   }
   await loadIndex();
-  const current = store.currentPath;
-  if (current === from) openNote(result.path, { replace: true });
-  else if (current && current.startsWith(from + "/")) openNote(result.path + current.slice(from.length), { replace: true });
+  const now = currentRoute();
+  const still = now.view === "note" || now.view === "page" ? now.path : null;
+  if (still === was && was === from) openNote(result.path, { replace: true });
+  else if (still === was && was?.startsWith(from + "/")) openNote(result.path + was.slice(from.length), { replace: true });
   return result;
 }
 

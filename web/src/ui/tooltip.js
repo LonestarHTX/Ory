@@ -16,6 +16,7 @@ let warmUntil = 0;
 
 function show(el) {
   hide(false);
+  if (!el.isConnected) return; // re-rendered away while the tip waited
   target = el;
   const label = el.dataset.tip;
   if (!label) return;

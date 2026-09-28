@@ -139,10 +139,12 @@ export function createWikisHome(el) {
     }
   }
 
-  on("suggestions", () => !el.hidden && render());
+  // A refresh waits while a wiki's name is being typed.
+  const typing = () => el.contains(document.activeElement) && document.activeElement.matches("input");
+  on("suggestions", () => !el.hidden && !typing() && render());
 
   return {
     show,
-    refresh: () => !el.hidden && render(),
+    refresh: () => !el.hidden && !typing() && render(),
   };
 }

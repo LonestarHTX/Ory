@@ -94,7 +94,7 @@ export function createFormatToolbar(getView, options = {}) {
 
   // Overflow: tools that don't fit go into "More", from the end.
   const more = h("button", {
-    class: "format-btn format-more", type: "button", hidden: true,
+    class: "format-btn format-more", type: "button", hidden: true, tabindex: -1,
     "aria-label": "More formatting", "aria-haspopup": "menu", dataset: { tip: "More" },
     onClick: () => openMenu(more, items.filter((it) => it.tool && it.el.hidden).map(({ el, tool }) => ({
       label: tool.label,
@@ -116,6 +116,9 @@ export function createFormatToolbar(getView, options = {}) {
     // No separator right before "More".
     const last = items.findLast((it) => !it.el.hidden);
     if (last && !last.tool) last.el.hidden = true;
+    // The toolbar is one tab stop; if its button was hidden, the first one takes it.
+    const visible = focusables();
+    if (visible.length && !visible.some((b) => b.getAttribute("tabindex") === "0")) visible[0].setAttribute("tabindex", "0");
   }
   new ResizeObserver(() => fit()).observe(tools);
 
@@ -235,5 +238,12 @@ export function createFormatToolbar(getView, options = {}) {
     }
   }
 
-  return { el: bar, update, editLink };
+  /** Close the link field, as when the note it was editing is left. */
+  function reset() {
+    linkRow.hidden = true;
+    linkRow.replaceChildren();
+    tools.hidden = false;
+  }
+
+  return { el: bar, update, editLink, reset };
 }

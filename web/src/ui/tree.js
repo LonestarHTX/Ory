@@ -9,7 +9,7 @@ import {
 import { api } from "../api.js";
 import { fileName, folderOf, isImage, isPage } from "../links.js";
 import { loadIndex, on, store } from "../store.js";
-import { inWikis } from "../wikis.js";
+import { wikiOf } from "../wikis.js";
 import { h, icon } from "./dom.js";
 import { openMenu } from "./menu.js";
 
@@ -27,6 +27,7 @@ function loadExpanded() {
 export function createTree(el) {
   const expanded = loadExpanded();
   let renaming = null; // path being renamed inline
+  let renameText = null; // what has been typed in it so far
   let renameError = "";
 
   const saveExpanded = () => {
@@ -58,9 +59,10 @@ export function createTree(el) {
       return node;
     };
     // The wikis folder has its own space (ui/wiki-nav.js); the tree is notes.
-    for (const folder of store.folders) if (!inWikis(folder)) folderNode(folder);
-    for (const note of store.notes) if (!inWikis(note.path)) folderNode(folderOf(note.path)).notes.push({ ...note, kind: "note" });
-    for (const file of store.files) if (!inWikis(file.path)) folderNode(folderOf(file.path)).notes.push({ ...file, kind: "file" });
+    // A note loose in the wikis folder (in no wiki) is still a note, so it shows here.
+    for (const folder of store.folders) if (folder !== store.wikisFolder && !wikiOf(folder + "/x")) folderNode(folder);
+    for (const note of store.notes) if (!wikiOf(note.path)) folderNode(folderOf(note.path)).notes.push({ ...note, kind: "note" });
+    for (const file of store.files) if (!wikiOf(file.path)) folderNode(folderOf(file.path)).notes.push({ ...file, kind: "file" });
     return root;
   }
 
@@ -93,7 +95,8 @@ export function createTree(el) {
     if (renaming === path) {
       const input = h("input", {
         class: "input input--bare tree-rename",
-        value: name,
+        value: renameText ?? name, // what's been typed survives a refresh
+        onInput: (e) => (renameText = e.target.value),
         "aria-label": `Rename ${name}`,
         spellcheck: "false",
         onKeydown: (e) => {
@@ -172,6 +175,7 @@ export function createTree(el) {
 
   function startRename(path) {
     renaming = path;
+    renameText = null;
     renameError = "";
     render();
   }
