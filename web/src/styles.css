@@ -1277,6 +1277,24 @@ html[data-theme-fade]::view-transition-new(root) {
   border-bottom-right-radius: var(--r-sm);
 }
 
+/* Away from a code block its ``` fences give way: a sliver of padding, or the
+   language as a small label at the top. The cursor brings them back. */
+.note-editor .cm-line.cm-md-fence {
+  font-size: 0;
+  line-height: 8px;
+}
+
+.note-editor .cm-line.cm-md-fence-label {
+  padding-top: 4px;
+  line-height: 16px;
+}
+
+.cm-md-code-lang {
+  font-family: var(--font-sans);
+  font-size: 11px;
+  color: var(--text-3);
+}
+
 .cm-md-bullet {
   display: inline-block;
   width: 1ch;
@@ -2297,6 +2315,12 @@ mark {
 }
 
 /* ---------- Empty states ---------- */
+
+.empty-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
 
 .empty-state {
   display: flex;

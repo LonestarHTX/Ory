@@ -201,18 +201,24 @@ setSpace("notes");
 function renderEmpty(message) {
   document.title = "Ory";
   const row = (label, shortcut) => h("div", { class: "shortcut" }, h("dt", null, label), h("dd", null, shortcut));
+  const key = (text) => h("kbd", { class: "kbd" }, text);
   emptyEl.replaceChildren(
-    h("header", { class: "note-head" }, h("div", { class: "note-name" }, h("h1", { class: "note-heading" }, "No note open"))),
+    h("header", { class: "note-head" }, h("div", { class: "note-name" }, h("h1", { class: "note-heading" }, "Nothing open"))),
     h("div", { class: "empty-state" },
       message ? h("p", { class: "field-error" }, h("span", { class: "status-dot error" }), message) : null,
-      h("p", null, `Notes are Markdown files in the ${store.vaultName} folder. Links between them look like [[Note name]].`),
+      h("p", null, `Everything lives as Markdown files in the ${store.vaultName} folder. Notes are where you think; wikis, in ${store.wikisFolder}, are where finished pages live.`),
       h("dl", { class: "shortcuts" },
         row("Open or create a note", keys("Mod-O")),
-        row("Search all notes", keys("Mod-Shift-F")),
+        row("Search everything", keys("Mod-Shift-F")),
         row("Open today's note", keys("Mod-Shift-D")),
-        row("Link to a note", h("kbd", { class: "kbd" }, "[[")),
+        row("Link to a note or page", key("[[")),
         row("Open the link at the cursor", keys("Mod-Enter")),
-        row("Switch between live preview and source", keys("Mod-E")))));
+        row("Edit the wiki page you're reading", key("E")),
+        row("Go back to reading it", key("Esc")),
+        row("Switch between live preview and source", keys("Mod-E"))),
+      h("div", { class: "empty-actions" },
+        h("button", { class: "btn btn--small", type: "button", onClick: openToday }, icon("calendar", 14), "Today's note"),
+        h("button", { class: "btn btn--small", type: "button", onClick: () => openWikis() }, icon("book", 14), "Wikis"))));
 }
 
 // Routing ---------------------------------------------------------------------

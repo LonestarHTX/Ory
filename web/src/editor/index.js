@@ -16,7 +16,7 @@ import { attachments, insertFiles } from "./attachments.js";
 import { wikilinkCompletion } from "./autocomplete.js";
 import { setHeading, startNoteLink, toggleInline, toggleList } from "./format.js";
 import { highlightTag, HighlightSyntax } from "./highlight-syntax.js";
-import { indexChanged, isReading, linkAt, livePreview, setReading, setSourceMode, sourceMode } from "./live-preview.js";
+import { indexChanged, isReading, linkAt, livePreview, setQuiet, setReading, setSourceMode, sourceMode } from "./live-preview.js";
 import { frontmatterRange, properties } from "./properties.js";
 import { tables } from "./tables.js";
 import { propertyTables } from "./property-tables.js";
@@ -147,7 +147,7 @@ export function createEditor(parent, handlers) {
       }
       view.setState(state);
       view.dispatch({
-        effects: [setSourceMode.of(source), setReading.of(reading), editability.reconfigure(editable(!reading))],
+        effects: [setSourceMode.of(source), setReading.of(reading), setQuiet.of(true), editability.reconfigure(editable(!reading))],
       });
       handlers.onSelection?.(view.state);
     },

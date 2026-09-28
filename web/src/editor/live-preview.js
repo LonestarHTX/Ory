@@ -5,7 +5,7 @@
 // Wikilinks are styled in both modes: resolved links underlined, links to
 // missing notes dashed. Clicking a rendered link opens it; Mod-click always does.
 
-import { syntaxTree } from "@codemirror/language";
+import { ensureSyntaxTree, syntaxTree } from "@codemirror/language";
 import { Prec, StateEffect, StateField } from "@codemirror/state";
 import { Decoration, EditorView, keymap, ViewPlugin, WidgetType } from "@codemirror/view";
 
@@ -42,9 +42,24 @@ export const reading = StateField.define({
 
 export const isReading = (state) => state.field(reading, false) ?? false;
 
-/** Whether the selection touches [from, to]. Nothing is touched while unfocused or reading. */
+/**
+ * Quiet: a note just opened shows no marks at the cursor, so it doesn't open
+ * with "# " on its title. The first move, click or keystroke ends it.
+ */
+export const setQuiet = StateEffect.define();
+
+export const quiet = StateField.define({
+  create: () => true,
+  update(value, tr) {
+    for (const e of tr.effects) if (e.is(setQuiet)) return e.value;
+    if (value && (tr.docChanged || tr.isUserEvent("select") || tr.isUserEvent("input") || tr.isUserEvent("delete"))) return false;
+    return value;
+  },
+});
+
+/** Whether the selection touches [from, to]. Nothing is touched while unfocused, reading or quiet. */
 export function touches(view, from, to) {
-  if (!view.hasFocus || isReading(view.state)) return false;
+  if (!view.hasFocus || isReading(view.state) || view.state.field(quiet, false)) return false;
   return view.state.selection.ranges.some((r) => r.from <= to && r.to >= from);
 }
 
@@ -223,6 +238,23 @@ class PageEmbedWidget extends WidgetType {
 
 const PAGE_HEIGHT = 480;
 
+/** A code block's language, in place of its opening fence while you're not in it. */
+class LanguageWidget extends WidgetType {
+  constructor(lang) {
+    super();
+    this.lang = lang;
+  }
+  eq(other) {
+    return other.lang === this.lang;
+  }
+  toDOM() {
+    const el = document.createElement("span");
+    el.className = "cm-md-code-lang";
+    el.textContent = this.lang;
+    return el;
+  }
+}
+
 const hide = Decoration.replace({});
 
 class SeparatorWidget extends WidgetType {
@@ -395,12 +427,29 @@ function build(view, { resolve, fileSize, openPage }) {
           case "FencedCode": {
             const first = doc.lineAt(node.from).number;
             const last = doc.lineAt(node.to).number;
+            // Away from the block, its ``` fences give way: the opening one to
+            // the language, if any, the closing one to a sliver of padding.
+            const quietFences = live && !touches(view, node.from, node.to);
+            const marks = node.getChildren("CodeMark");
+            const info = node.getChild("CodeInfo");
+            const closes = marks.length > 1 && last !== first && doc.lineAt(marks[marks.length - 1].from).number === last;
             eachLine(node.from, node.to, (l) => {
               let cls = "cm-md-codeblock";
               if (l.number === first) cls += " cm-md-codeblock-first";
               if (l.number === last) cls += " cm-md-codeblock-last";
+              if (quietFences && ((l.number === first && !info) || (l.number === last && closes))) cls += " cm-md-fence";
+              if (quietFences && l.number === first && info) cls += " cm-md-fence-label";
               add(l.from, l.from, line(cls));
             });
+            if (quietFences) {
+              const open = doc.lineAt(node.from);
+              if (info) add(open.from, open.to, Decoration.replace({ widget: new LanguageWidget(doc.sliceString(info.from, info.to)) }));
+              else if (open.from < open.to) add(open.from, open.to, hide);
+              if (closes) {
+                const close = doc.lineAt(node.to);
+                if (close.from < close.to) add(close.from, close.to, hide);
+              }
+            }
             return false;
           }
           case "Table":
@@ -483,7 +532,8 @@ export function livePreview({ resolve, openLink, fileSize = () => null, openPage
       update(u) {
         if (u.docChanged || u.viewportChanged || u.selectionSet || u.focusChanged
             || syntaxTree(u.state) !== syntaxTree(u.startState)
-            || u.transactions.some((tr) => tr.effects.some((e) => e.is(setSourceMode) || e.is(setReading) || e.is(indexChanged)))) {
+            || u.transactions.some((tr) => tr.effects.some((e) => e.is(setSourceMode) || e.is(setReading) || e.is(setQuiet) || e.is(indexChanged)))
+            || u.startState.field(quiet, false) !== u.state.field(quiet, false)) {
           ({ decorations: this.decorations, atomic: this.atomic } = build(u.view, { resolve, fileSize, openPage }));
         }
       }
@@ -547,8 +597,56 @@ export function livePreview({ resolve, openLink, fileSize = () => null, openPage
     { key: "Delete", run: deleteAround(1) },
   ]));
 
-  return [sourceMode, reading, plugin, clicks, atomic, keys];
+  return [sourceMode, reading, quiet, plugin, clicks, atomic, keys, readingFlow];
 }
+
+// Reading: a paragraph written across several lines reads as one, as in any
+// Markdown viewer. Each soft line break becomes a space; a hard break (two
+// trailing spaces or a backslash) stays. Replacing a line break must come
+// from a state field, not the view plugin above.
+class SpaceWidget extends WidgetType {
+  eq() {
+    return true;
+  }
+  toDOM() {
+    return document.createTextNode(" ");
+  }
+}
+const space = Decoration.replace({ widget: new SpaceWidget() });
+
+function flow(state) {
+  if (!isReading(state)) return Decoration.none;
+  const doc = state.doc;
+  const tree = ensureSyntaxTree(state, doc.length, 200) ?? syntaxTree(state);
+  const out = [];
+  tree.iterate({
+    enter(node) {
+      if (node.name !== "Paragraph") return;
+      const a = doc.lineAt(node.from).number;
+      const b = doc.lineAt(node.to).number;
+      for (let n = a; n < b; n++) {
+        const here = doc.line(n);
+        if (/( {2,}|\\)$/.test(here.text)) continue;
+        const next = doc.line(n + 1);
+        const indent = /^[ \t]*/.exec(next.text)[0].length;
+        out.push(space.range(here.to, next.from + indent));
+      }
+      return false;
+    },
+  });
+  return Decoration.set(out, true);
+}
+
+const readingFlow = StateField.define({
+  create: flow,
+  update(deco, tr) {
+    if (tr.docChanged || tr.effects.some((e) => e.is(setReading)) || syntaxTree(tr.state) !== syntaxTree(tr.startState)) {
+      return flow(tr.state);
+    }
+    return deco;
+  },
+  provide: (f) => EditorView.decorations.from(f),
+});
 
 /** The link under the cursor, for opening it from the keyboard. */
 export function linkAt(state, pos) {
