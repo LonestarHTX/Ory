@@ -2505,10 +2505,22 @@ mark {
   color: var(--text-3);
 }
 
-.wiki-card-cover > img {
+.wiki-card-cover > img,
+.wiki-card-cover > .cover-pattern {
   width: 100%;
   height: 100%;
   object-fit: cover;
+}
+
+/* A drawn cover sits back: tertiary ink, fading in on hover. */
+.cover-pattern {
+  color: var(--text-3);
+  opacity: 0.55;
+  transition: opacity 0.12s;
+}
+
+.wiki-card:hover .cover-pattern {
+  opacity: 0.8;
 }
 
 .wiki-card-body {
@@ -3279,7 +3291,6 @@ mark {
 
 /* All wikis: what needs you, above the wikis. */
 .home-suggestions {
-  max-width: 880px;
   margin-bottom: 24px;
   padding: 4px 12px 8px;
   border: 1px solid var(--line);

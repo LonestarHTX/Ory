@@ -6,7 +6,8 @@ import { on, store } from "../store.js";
 import { decide, drafts, KINDS, openFindings, target, unreadNotes } from "../suggestions/state.js";
 import { coverUrl, HOME_TEMPLATE, wikiFolder, wikis } from "../wikis.js";
 import { h, icon, timeAgo } from "./dom.js";
-import { openWiki, thumb } from "./wiki-nav.js";
+import { coverPattern } from "./pattern.js";
+import { openWiki } from "./wiki-nav.js";
 
 export function createWikisHome(el) {
   let creating = false;
@@ -36,7 +37,7 @@ export function createWikisHome(el) {
           list.map((w) => {
             const cover = coverUrl(w.cover);
             return h("button", { class: "wiki-card", type: "button", onClick: () => openWiki(w) },
-              h("span", { class: "wiki-card-cover" }, cover ? h("img", { src: cover, alt: "" }) : thumb(w, true)),
+              h("span", { class: "wiki-card-cover" }, cover ? h("img", { src: cover, alt: "" }) : coverPattern(w.name)),
               h("span", { class: "wiki-card-body" },
                 h("span", { class: "wiki-card-name" }, w.name),
                 w.summary ? h("span", { class: "wiki-card-summary" }, w.summary) : null,
