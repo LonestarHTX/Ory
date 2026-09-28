@@ -14,7 +14,7 @@ import { folderOf, noteName, parseLink } from "../links.js";
 import { emit, linkTextFor, loadIndex, resolve, setCurrent, store } from "../store.js";
 import { coverUrl, infoboxRows, isBlank, isHome, pageParts, pageTitle, wiki as wikiInfo, wikiFolder, wikiOf } from "../wikis.js";
 import { clear, formatDate, h, icon, keys, timeAgo, todayISO } from "./dom.js";
-import { readsWiki } from "./settings-view.js";
+import { readsWiki } from "./settings.js";
 import { createFormatToolbar } from "./format-toolbar.js";
 import { headings } from "./outline.js";
 import { openMenu } from "./menu.js";

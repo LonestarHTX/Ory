@@ -21,7 +21,6 @@ export function currentRoute() {
   }
   if (hash === "/wikis") return { view: "wikis" };
   if (hash === "/suggestions") return { view: "suggestions" };
-  if (hash === "/settings") return { view: "settings" };
   if (hash === "/search" || hash.startsWith("/search?")) {
     return { view: "search", query: new URLSearchParams(location.hash.split("?")[1] || "").get("q") || "" };
   }
@@ -61,8 +60,9 @@ export function openWikis(options = {}) {
   go("#/wikis");
 }
 
-export function openSettings() {
-  go("#/settings");
+/** Settings is a window over whatever is open (ui/settings.js, opened by main.js). */
+export function openSettings(section) {
+  window.dispatchEvent(new CustomEvent("ory:settings", { detail: { section } }));
 }
 
 /** Suggestions for the wikis. {tab: "drafts"} opens on a tab. */

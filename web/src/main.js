@@ -19,7 +19,7 @@ import { installTooltips } from "./ui/tooltip.js";
 import { createTree } from "./ui/tree.js";
 import { loadSuggestions, suggestions, waiting } from "./suggestions/state.js";
 import { silverBulb } from "./ui/silver-icon.js";
-import { createSettingsView } from "./ui/settings-view.js";
+import { createSettings } from "./ui/settings.js";
 import { createSuggestionsView } from "./ui/suggestions-view.js";
 import { setBudget } from "./suggestions/prompts.js";
 import { createWikiNav } from "./ui/wiki-nav.js";
@@ -73,7 +73,12 @@ const switcher = createSwitcher();
 installTooltips();
 
 const navSearch = navItem("search", "Search", "Mod-Shift-F", () => openSearch());
-const settingsButton = navItem("settings", "Settings", "Mod-,", () => openSettings());
+const settingsButton = h("button", {
+  class: "iconbtn", type: "button", "aria-label": "Settings", "aria-haspopup": "dialog",
+  dataset: { tip: "Settings", tipKeys: "Mod-," }, onClick: () => openSettings(),
+}, icon("settings", 16));
+// The notes folder's name, so it's always clear which folder is open.
+const vaultName = h("span", { class: "side-foot-name" });
 const tree = h("div", { class: "tree" });
 
 // Notes and wikis are two spaces in one notes folder: the switch at the top
@@ -117,7 +122,7 @@ const left = h("nav", { class: "sidebar sidebar-left", "aria-label": "Sidebar" }
   h("div", { class: "side-head" }, spaceSwitch),
   notesPanel,
   wikisPanel,
-  h("div", { class: "side-foot" }, settingsButton));
+  h("div", { class: "side-foot" }, vaultName, settingsButton));
 
 const errorBar = h("div", { class: "app-error", role: "alert", hidden: true });
 const noteEl = h("section", { class: "view note-view", hidden: true });
@@ -126,8 +131,7 @@ const emptyEl = h("section", { class: "view empty-view", hidden: true });
 const pageEl = h("section", { class: "view page-view", hidden: true });
 const wikisEl = h("section", { class: "view wikis-view", hidden: true });
 const suggestionsEl = h("section", { class: "view suggestions-view", hidden: true });
-const settingsEl = h("section", { class: "view settings-view", hidden: true });
-const main = h("main", { class: "main" }, errorBar, noteEl, pageEl, wikisEl, suggestionsEl, settingsEl, searchEl, emptyEl);
+const main = h("main", { class: "main" }, errorBar, noteEl, pageEl, wikisEl, suggestionsEl, searchEl, emptyEl);
 const right = h("aside", { class: "sidebar sidebar-right", "aria-label": "Backlinks" });
 
 const app = h("div", { class: "app" }, left, main, right);
@@ -165,7 +169,8 @@ createTree(tree);
 const wikiNav = createWikiNav(wikisPanel);
 const wikisHome = createWikisHome(wikisEl);
 const suggestionsView = createSuggestionsView(suggestionsEl);
-const settingsView = createSettingsView(settingsEl, { theme: themeControl });
+const settings = createSettings({ theme: themeControl });
+window.addEventListener("ory:settings", (e) => settings.open(e.detail?.section));
 
 // What needs you in the wikis, on the Wikis side of the switch.
 on("suggestions", () => {
@@ -227,8 +232,7 @@ function renderEmpty(message) {
 // Routing ---------------------------------------------------------------------
 
 function showOnly(view) {
-  for (const el of [noteEl, pageEl, wikisEl, suggestionsEl, settingsEl, searchEl, emptyEl]) el.hidden = el !== view;
-  settingsButton.classList.toggle("is-selected", view === settingsEl);
+  for (const el of [noteEl, pageEl, wikisEl, suggestionsEl, searchEl, emptyEl]) el.hidden = el !== view;
   // Backlinks and the outline belong to a note; other views get the width.
   app.classList.toggle("has-rail", view === noteEl || view === pageEl);
   if (view !== pageEl) pageView.close(); // stop a page's animation when it is not shown
@@ -271,14 +275,6 @@ function route() {
       await noteView.close();
       setCurrent(null);
       showOnly(searchEl); // a note route that finished meanwhile may have shown itself
-      return;
-    }
-    if (r.view === "settings") {
-      await noteView.close();
-      setCurrent(null);
-      if (settingsEl.hidden) arrive(settingsEl);
-      showOnly(settingsEl);
-      settingsView.show();
       return;
     }
     if (r.view === "suggestions") {
@@ -356,7 +352,7 @@ window.addEventListener("keydown", (e) => {
     document.activeElement?.blur(); // keys typed while it loads must not land here
     openToday();
   } else if (key === "e" && !e.shiftKey && !noteEl.hidden) noteView.toggleSource();
-  else if (key === "," && !e.shiftKey) openSettings();
+  else if (key === "," && !e.shiftKey) settings.toggle();
   else handled = false;
   if (handled) {
     e.preventDefault();
@@ -391,6 +387,8 @@ async function poll() {
 // Any change to the notes folder, from the poll or from an action here (a
 // rename can rewrite links inside the open note), brings every view up to date.
 on("index", () => {
+  vaultName.textContent = store.vaultName;
+  vaultName.title = store.vaultName;
   noteView.refreshLinks();
   wikisHome.refresh();
   backlinks.refresh();

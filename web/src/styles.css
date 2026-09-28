@@ -3364,34 +3364,86 @@ mark {
   color: var(--text-3);
 }
 
-/* ---------- Settings ---------- */
+/* ---------- Settings ----------
+   A floating window with its own sidebar of sections (ui/settings.js). */
+
+.side-foot {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.side-foot-name {
+  overflow: hidden;
+  padding-left: 8px;
+  color: var(--text-3);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.scrim:has(.settings) {
+  align-items: center;
+  padding-top: 0;
+}
+
+.window.settings {
+  display: grid;
+  grid-template-columns: 200px minmax(0, 1fr);
+  width: min(840px, 100%);
+  height: min(600px, 86vh);
+  overflow: hidden;
+}
+
+.settings-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 16px 12px;
+  border-right: 1px solid var(--line);
+  background: var(--sidebar);
+  font-size: 13px;
+}
+
+.settings-title {
+  margin: 0 8px 12px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.settings-content {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+
+.settings-head {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: var(--head-h);
+  padding: 0 12px 0 var(--gutter);
+  border-bottom: 1px solid var(--line);
+}
+
+.settings-head h2 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+}
 
 .settings-body {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding: var(--gutter) var(--gutter) 48px;
-}
-
-.settings-section {
-  max-width: var(--prose-w);
-  padding-bottom: 32px;
-}
-
-.settings-section + .settings-section {
-  padding-top: 24px;
-  border-top: 1px solid var(--line);
-}
-
-.settings-section h2 {
-  margin: 0 0 4px;
-  font-size: 17px;
-  line-height: 24px;
-  font-weight: 600;
+  padding: 16px var(--gutter) var(--gutter);
 }
 
 .settings-intro {
-  margin: 0 0 16px;
+  margin: 0 0 20px;
   color: var(--text-2);
   font-size: 13px;
 }
@@ -3412,7 +3464,7 @@ mark {
 }
 
 .setting > .input {
-  max-width: 560px;
+  width: 100%;
 }
 
 .setting-label {

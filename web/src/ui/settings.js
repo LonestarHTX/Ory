@@ -1,11 +1,13 @@
-// Settings: folders (saved to ory.config.json on this computer), appearance
-// and editing (this browser), and AI (connecting Claude, the guide for
-// agents, and how long a Suggestions prompt may be).
+// Settings: a floating window, opened from the gear at the foot of the
+// sidebar (or Cmd+,), with its own sidebar of sections: Folders (saved to
+// ory.config.json on this computer), Appearance (this browser), and AI
+// (connecting Claude, the guide for agents, the Suggestions prompt size).
 
 import { alertError, notify } from "../actions.js";
 import { api } from "../api.js";
 import { setBudget } from "../suggestions/prompts.js";
-import { h, icon, keys } from "./dom.js";
+import { closeMenu } from "./menu.js";
+import { clear, h, icon, keys, leave } from "./dom.js";
 
 export const SOURCE_KEY = "ory.sourceMode";
 export const READ_WIKI_KEY = "ory.readWiki";
@@ -29,15 +31,46 @@ function setPref(key, value) {
 /** Whether wiki pages open for reading (the default) rather than editing. */
 export const readsWiki = () => pref(READ_WIKI_KEY, "1") === "1";
 
+const SECTIONS = [
+  { id: "folders", label: "Folders", icon: "folder" },
+  { id: "appearance", label: "Appearance", icon: "palette" },
+  { id: "ai", label: "AI", icon: "suggestions" },
+];
+const SECTION_KEY = "ory.settingsSection";
+
 /** theme: {get(), set(name)} from main.js, which owns the theme. */
-export function createSettingsView(el, { theme }) {
+export function createSettings({ theme }) {
   let settings = null;
   let error = "";
   let busy = false;
   let draft = null; // folder fields being edited
+  let section = pref(SECTION_KEY, "folders");
+  let dialog = null;
+  let content = null;
+  let nav = null;
+  let returnFocus = null;
 
-  async function show() {
-    document.title = "Settings · Ory";
+  async function open(which) {
+    if (which) section = which;
+    if (!dialog) {
+      closeMenu({ restoreFocus: false });
+      returnFocus = document.activeElement;
+      nav = h("nav", { class: "settings-nav", "aria-label": "Settings sections" });
+      content = h("div", { class: "settings-content" });
+      dialog = h("div", { class: "scrim", onMousedown: (e) => e.target === dialog && close() },
+        h("div", {
+          class: "window settings", role: "dialog", "aria-modal": "true", "aria-label": "Settings",
+          onKeydown: (e) => {
+            if (e.key === "Escape" && !e.defaultPrevented) {
+              e.preventDefault();
+              close();
+            }
+          },
+        }, nav, content));
+      document.body.append(dialog);
+    }
+    render();
+    nav.querySelector(".is-selected")?.focus();
     try {
       settings = await api.settings();
       setBudget(settings.promptBudget);
@@ -47,6 +80,17 @@ export function createSettingsView(el, { theme }) {
     }
     render();
   }
+
+  function close() {
+    if (!dialog) return;
+    const leaving = dialog;
+    leave(leaving.firstChild, () => {});
+    leave(leaving, () => leaving.remove());
+    dialog = null;
+    if (returnFocus?.isConnected) returnFocus.focus();
+  }
+
+  const el = { get hidden() { return !dialog; } };
 
   async function save(change, { reload = false } = {}) {
     if (busy) return;
@@ -70,13 +114,33 @@ export function createSettingsView(el, { theme }) {
   }
 
   function render() {
-    if (el.hidden) return;
-    el.replaceChildren(
-      h("header", { class: "note-head" },
-        h("div", { class: "note-name" }, h("h1", { class: "note-heading" }, "Settings"))),
+    if (!dialog) return;
+    const focusedNav = nav.contains(document.activeElement);
+    clear(nav,
+      h("h2", { class: "settings-title" }, "Settings"),
+      SECTIONS.map((s) => h("button", {
+        class: `nav-item${s.id === section ? " is-selected" : ""}`, type: "button",
+        "aria-current": s.id === section ? "page" : null,
+        onClick: () => {
+          section = s.id;
+          setPref(SECTION_KEY, section);
+          error = "";
+          render();
+        },
+      }, icon(s.icon, 16), h("span", { class: "nav-label" }, s.label))));
+    if (focusedNav) nav.querySelector(".is-selected")?.focus();
+    const current = SECTIONS.find((s) => s.id === section) ?? SECTIONS[0];
+    const scroll = content.querySelector(".settings-body")?.scrollTop ?? 0;
+    clear(content,
+      h("header", { class: "settings-head" },
+        h("h2", null, current.label),
+        h("button", { class: "iconbtn", type: "button", "aria-label": "Close settings", dataset: { tip: "Close", tipKeys: "Esc" }, onClick: close },
+          icon("close", 16))),
       h("div", { class: "settings-body" },
-        settings ? [folders(), appearance(), ai()] : null,
+        settings ? (current.id === "folders" ? folders() : current.id === "appearance" ? appearance() : ai()) : null,
         error ? h("p", { class: "field-error", role: "alert" }, h("span", { class: "status-dot error" }), error) : null));
+    const body = content.querySelector(".settings-body");
+    if (body) body.scrollTop = scroll;
   }
 
   // Folders -----------------------------------------------------------------------
@@ -106,7 +170,6 @@ export function createSettingsView(el, { theme }) {
       if (Object.keys(change).length) save(change, { reload: moving });
     };
     return h("section", { class: "settings-section" },
-      h("h2", null, "Folders"),
       h("p", { class: "settings-intro" }, "Saved on this computer in ", h("code", null, settings.configPath), ". Changing a folder's name here doesn't move anything; Ory looks in the folder you name."),
       field("notesDir", "Notes folder", settings.notesFromFlag
         ? "Ory was started with --notes; switching here also saves it for next time."
@@ -122,7 +185,6 @@ export function createSettingsView(el, { theme }) {
 
   function appearance() {
     return h("section", { class: "settings-section" },
-      h("h2", null, "Appearance and editing"),
       h("p", { class: "settings-intro" }, "Kept in this browser."),
       choice("Theme", [["system", "System"], ["light", "Light"], ["dark", "Dark"]], theme.get(), (v) => {
         theme.set(v);
@@ -156,7 +218,6 @@ export function createSettingsView(el, { theme }) {
     }, icon("copy", 14), "Copy");
     const sizes = settings.promptSizes.map((n) => [String(n), `${n / 1000}k`]);
     return h("section", { class: "settings-section" },
-      h("h2", null, "AI"),
       h("p", { class: "settings-intro" }, "Ory's tools let an AI search, read and write your notes, and file suggestions for you to review, over MCP."),
       h("div", { class: "setting" },
         h("span", { class: "setting-label" }, "Claude Desktop"),
@@ -168,7 +229,7 @@ export function createSettingsView(el, { theme }) {
               h("div", { class: "setting-row" },
                 h("code", { class: "setting-command" }, settings.mcp.desktopCommand),
                 copy(settings.mcp.desktopCommand),
-                h("button", { class: "btn btn--small btn--plain", type: "button", onClick: () => show() }, "Check again")),
+                h("button", { class: "btn btn--small btn--plain", type: "button", onClick: () => open() }, "Check again")),
             ]
               : h("div", { class: "setting-row" }, status(false, "Not connected"),
               h("button", {
@@ -215,5 +276,12 @@ export function createSettingsView(el, { theme }) {
       hint ? h("span", { class: "setting-hint" }, hint) : null);
   }
 
-  return { show };
+  return {
+    open,
+    close,
+    toggle: () => (dialog ? close() : open()),
+    get isOpen() {
+      return !!dialog;
+    },
+  };
 }

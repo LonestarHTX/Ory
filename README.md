@@ -134,7 +134,8 @@ version to keep instead of overwriting either.
 
 ## Settings
 
-Settings (the gear at the bottom of the sidebar, or Cmd+,) has three parts:
+Settings opens in a window over your notes, from the small gear at the bottom of the
+sidebar or Cmd+,. It has three sections:
 
 - **Folders:** switch the notes folder without restarting, and name the daily notes,
   attachments and wikis folders. These are saved in `ory.config.json` on this computer.

@@ -79,9 +79,11 @@ The rules Ory's interface follows. A value outside the scales below is a mistake
   green (status colours at 14%). Accept turns primary when chosen; a rejected change
   dims. The draft list on the left shows each page's +/− counts and a tick when every
   change is decided.
-- **Settings** is a screen like Search, reached from the gear at the foot of the
-  sidebar (which now holds only Settings) or Cmd+,. Sections are separated by a
-  hairline, each with a short line saying where its settings are kept. Choices of a few
+- **Settings** is a floating window over whatever is open, like the quick switcher,
+  opened by the small gear at the foot of the sidebar (beside the notes folder's name)
+  or Cmd+,; Esc, a click outside or Cmd+, again closes it. It has its own sidebar of
+  sections (Folders, Appearance, AI) and remembers the last one. Each section starts
+  with a short line saying where its settings are kept. Choices of a few
   options use the segmented control of the space switch; folders are fields saved
   together with one primary button; connection status is a status dot and a sentence.
 - **Wiki cards** (All wikis, and a Home's pages) are bordered cards that darken their

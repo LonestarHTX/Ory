@@ -1,4 +1,4 @@
-"""Settings: what the app's Settings screen reads and changes.
+"""Settings: what the app's Settings window reads and changes.
 
 Folder settings live in `ory.config.json` beside the code (one per machine;
 gitignored), and apply at once: switching the notes folder swaps the vault
