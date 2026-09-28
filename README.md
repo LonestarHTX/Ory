@@ -320,3 +320,7 @@ are not JSON. Paths are confined to the notes folder.
   the commands and MCP server. Next: API adapters so Find suggestions can call a model
   itself, and asking the wikis questions.
 - **v2:** one-way publishing of wiki pages to a shared site, with their `sources` left out.
+
+## License
+
+MIT. See [LICENSE](LICENSE).
