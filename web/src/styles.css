@@ -3363,3 +3363,145 @@ mark {
   font-size: 12px;
   color: var(--text-3);
 }
+
+/* ---------- Settings ---------- */
+
+.settings-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--gutter) var(--gutter) 48px;
+}
+
+.settings-section {
+  max-width: var(--prose-w);
+  padding-bottom: 32px;
+}
+
+.settings-section + .settings-section {
+  padding-top: 24px;
+  border-top: 1px solid var(--line);
+}
+
+.settings-section h2 {
+  margin: 0 0 4px;
+  font-size: 17px;
+  line-height: 24px;
+  font-weight: 600;
+}
+
+.settings-intro {
+  margin: 0 0 16px;
+  color: var(--text-2);
+  font-size: 13px;
+}
+
+.settings-intro code,
+.setting-command {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.setting {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  margin-bottom: 20px;
+}
+
+.setting > .input {
+  max-width: 560px;
+}
+
+.setting-label {
+  font-weight: 500;
+}
+
+.setting-hint {
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--text-3);
+}
+
+.setting-hint .kbd {
+  vertical-align: 1px;
+}
+
+.setting-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.setting-status {
+  display: inline-flex;
+  align-items: center;
+  color: var(--text-2);
+  font-size: 13px;
+}
+
+.setting-status .status-dot:not(.success) {
+  background: var(--text-3);
+}
+
+.setting-command {
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-ctl);
+  background: var(--sidebar);
+}
+
+.setting--check {
+  flex-direction: row;
+  gap: 12px;
+}
+
+.setting--check input {
+  margin-top: 3px;
+}
+
+.setting--check > span {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.setting-actions {
+  display: flex;
+  gap: 8px;
+}
+
+/* A choice of a few options, like the Notes | Wikis switch. */
+.seg-control {
+  display: inline-flex;
+  padding: 2px;
+  border-radius: var(--r-ctl);
+  background: var(--selected);
+}
+
+:root[data-theme="dark"] .seg-control {
+  background: var(--canvas);
+}
+
+.seg-option {
+  height: 28px;
+  padding: 0 12px;
+  border-radius: var(--r-sm);
+  color: var(--text-2);
+  font-size: 13px;
+  font-weight: 500;
+  transition: background 0.12s, color 0.12s;
+}
+
+.seg-option:hover {
+  color: var(--text);
+}
+
+.seg-option.is-selected {
+  background: var(--card);
+  color: var(--text);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.16);
+}

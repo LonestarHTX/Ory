@@ -8,8 +8,11 @@
 // Both work with any AI chat by copy and paste, so the formats are plain text
 // with "=== " markers that are easy for a model to follow and for Ory to read.
 
-/** Characters per prompt. Larger runs are split into rounds, each its own paste. */
-export const BUDGET = 60000;
+/** Characters per prompt (Settings › AI). Larger runs are split into rounds, each its own paste. */
+let BUDGET = 60000;
+export function setBudget(size) {
+  if (Number.isFinite(size) && size >= 5000) BUDGET = size;
+}
 const NOTE_LIMIT = 20000;
 
 export const KINDS = {

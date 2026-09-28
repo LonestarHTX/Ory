@@ -3,7 +3,8 @@
 import "./styles.css";
 
 import {
-  alertError, closeNote, currentRoute, newFolder, newNote, notify, openNote, openSearch, openToday, openWikis, takeOpenOptions,
+  alertError, closeNote, currentRoute, newFolder, newNote, notify, openNote, openSearch, openSettings, openToday, openWikis,
+  takeOpenOptions,
 } from "./actions.js";
 import { api } from "./api.js";
 import { loadIndex, on, recentPaths, setCurrent, store } from "./store.js";
@@ -18,7 +19,9 @@ import { installTooltips } from "./ui/tooltip.js";
 import { createTree } from "./ui/tree.js";
 import { loadSuggestions, suggestions, waiting } from "./suggestions/state.js";
 import { silverBulb } from "./ui/silver-icon.js";
+import { createSettingsView } from "./ui/settings-view.js";
 import { createSuggestionsView } from "./ui/suggestions-view.js";
+import { setBudget } from "./suggestions/prompts.js";
 import { createWikiNav } from "./ui/wiki-nav.js";
 import { createWikisHome } from "./ui/wikis-home.js";
 import { wikiOf } from "./wikis.js";
@@ -29,8 +32,6 @@ const POLL_MS = 2000;
 
 const THEME_KEY = "ory.theme";
 const THEMES = ["system", "light", "dark"];
-const THEME_LABELS = { system: "System theme", light: "Light theme", dark: "Dark theme" };
-const THEME_ICONS = { system: "system", light: "sun", dark: "moon" };
 
 function readTheme() {
   try {
@@ -72,7 +73,7 @@ const switcher = createSwitcher();
 installTooltips();
 
 const navSearch = navItem("search", "Search", "Mod-Shift-F", () => openSearch());
-const themeButton = h("button", { class: "nav-item", type: "button" });
+const settingsButton = navItem("settings", "Settings", "Mod-,", () => openSettings());
 const tree = h("div", { class: "tree" });
 
 // Notes and wikis are two spaces in one notes folder: the switch at the top
@@ -116,7 +117,7 @@ const left = h("nav", { class: "sidebar sidebar-left", "aria-label": "Sidebar" }
   h("div", { class: "side-head" }, spaceSwitch),
   notesPanel,
   wikisPanel,
-  h("div", { class: "side-foot" }, themeButton));
+  h("div", { class: "side-foot" }, settingsButton));
 
 const errorBar = h("div", { class: "app-error", role: "alert", hidden: true });
 const noteEl = h("section", { class: "view note-view", hidden: true });
@@ -125,7 +126,8 @@ const emptyEl = h("section", { class: "view empty-view", hidden: true });
 const pageEl = h("section", { class: "view page-view", hidden: true });
 const wikisEl = h("section", { class: "view wikis-view", hidden: true });
 const suggestionsEl = h("section", { class: "view suggestions-view", hidden: true });
-const main = h("main", { class: "main" }, errorBar, noteEl, pageEl, wikisEl, suggestionsEl, searchEl, emptyEl);
+const settingsEl = h("section", { class: "view settings-view", hidden: true });
+const main = h("main", { class: "main" }, errorBar, noteEl, pageEl, wikisEl, suggestionsEl, settingsEl, searchEl, emptyEl);
 const right = h("aside", { class: "sidebar sidebar-right", "aria-label": "Backlinks" });
 
 const app = h("div", { class: "app" }, left, main, right);
@@ -136,24 +138,23 @@ function navItem(iconName, label, shortcut, run) {
     icon(iconName, 16), h("span", { class: "nav-label" }, label), keys(shortcut));
 }
 
+// The theme is chosen in Settings; it follows the system until then.
 let theme = readTheme();
-function renderTheme(fade = false) {
-  if (fade) fadeTo(theme);
-  else applyTheme(theme);
-  themeButton.replaceChildren(icon(THEME_ICONS[theme], 16), h("span", { class: "nav-label" }, THEME_LABELS[theme]));
-  themeButton.setAttribute("aria-label", `${THEME_LABELS[theme]}. Change theme`);
-}
-themeButton.addEventListener("click", () => {
-  theme = THEMES[(THEMES.indexOf(theme) + 1) % THEMES.length];
-  try {
-    localStorage.setItem(THEME_KEY, theme);
-  } catch {
-    /* the choice lasts for this page only */
-  }
-  renderTheme(true);
-});
+const themeControl = {
+  get: () => theme,
+  set(next) {
+    if (!THEMES.includes(next) || next === theme) return;
+    theme = next;
+    try {
+      localStorage.setItem(THEME_KEY, theme);
+    } catch {
+      /* the choice lasts for this page only */
+    }
+    fadeTo(theme);
+  },
+};
 systemDark.addEventListener("change", () => theme === "system" && fadeTo("system"));
-renderTheme();
+applyTheme(theme);
 
 const noteView = createNoteView(noteEl);
 const pageView = createPageView(pageEl);
@@ -164,6 +165,7 @@ createTree(tree);
 const wikiNav = createWikiNav(wikisPanel);
 const wikisHome = createWikisHome(wikisEl);
 const suggestionsView = createSuggestionsView(suggestionsEl);
+const settingsView = createSettingsView(settingsEl, { theme: themeControl });
 
 // What needs you in the wikis, on the Wikis side of the switch.
 on("suggestions", () => {
@@ -225,7 +227,8 @@ function renderEmpty(message) {
 // Routing ---------------------------------------------------------------------
 
 function showOnly(view) {
-  for (const el of [noteEl, pageEl, wikisEl, suggestionsEl, searchEl, emptyEl]) el.hidden = el !== view;
+  for (const el of [noteEl, pageEl, wikisEl, suggestionsEl, settingsEl, searchEl, emptyEl]) el.hidden = el !== view;
+  settingsButton.classList.toggle("is-selected", view === settingsEl);
   // Backlinks and the outline belong to a note; other views get the width.
   app.classList.toggle("has-rail", view === noteEl || view === pageEl);
   if (view !== pageEl) pageView.close(); // stop a page's animation when it is not shown
@@ -268,6 +271,14 @@ function route() {
       await noteView.close();
       setCurrent(null);
       showOnly(searchEl); // a note route that finished meanwhile may have shown itself
+      return;
+    }
+    if (r.view === "settings") {
+      await noteView.close();
+      setCurrent(null);
+      if (settingsEl.hidden) arrive(settingsEl);
+      showOnly(settingsEl);
+      settingsView.show();
       return;
     }
     if (r.view === "suggestions") {
@@ -345,6 +356,7 @@ window.addEventListener("keydown", (e) => {
     document.activeElement?.blur(); // keys typed while it loads must not land here
     openToday();
   } else if (key === "e" && !e.shiftKey && !noteEl.hidden) noteView.toggleSource();
+  else if (key === "," && !e.shiftKey) openSettings();
   else handled = false;
   if (handled) {
     e.preventDefault();
@@ -396,6 +408,7 @@ on("index", () => {
     renderEmpty(err.message);
     return;
   }
+  api.settings().then((s) => setBudget(s.promptBudget)).catch(() => {});
   // A broken suggestions file mustn't keep the notes from opening.
   loadSuggestions().catch((err) => notify(`Suggestions could not be loaded: ${err.message}`, "error"));
   if (!location.hash) {

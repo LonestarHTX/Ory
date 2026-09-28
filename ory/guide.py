@@ -117,6 +117,22 @@ def claude_md() -> str:
     return f"{MARKER}\n@AGENTS.md\n"
 
 
+def remove_guides(vault: Vault) -> list:
+    """Remove the guides Ory wrote (never one whose marker was taken out)."""
+    removed = []
+    for name in ("AGENTS.md", "CLAUDE.md"):
+        full = os.path.join(vault.root, name)
+        try:
+            with open(full, encoding="utf-8") as fh:
+                if not fh.readline().startswith(MARKER):
+                    continue
+            os.remove(full)
+            removed.append(name)
+        except OSError:
+            continue
+    return removed
+
+
 def write_guides(vault: Vault) -> list:
     """Write AGENTS.md and CLAUDE.md where Ory still owns them. Returns what changed."""
     written = []

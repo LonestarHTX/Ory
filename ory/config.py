@@ -20,7 +20,11 @@ class Config:
     daily_folder: str = "Daily"
     attachments_folder: Optional[str] = None  # None means "Attachments"
     wikis_folder: str = "Wikis"
+    guides: bool = True  # keep AGENTS.md and CLAUDE.md in the notes folder (guide.py)
+    prompt_budget: int = 60000  # characters per Suggestions prompt, for pasting into a chat
     open_browser: bool = False
+    config_path: str = DEFAULT_CONFIG
+    notes_from_flag: bool = False  # --notes was given, so the file's notes_dir is not in use
     command: List[str] = field(default_factory=list)  # e.g. ["read", "Welcome"]; empty runs the app
 
 
@@ -87,6 +91,34 @@ def load(argv: Optional[List[str]] = None) -> Config:
         daily_folder=str(data.get("daily_folder", "Daily")),
         attachments_folder=data.get("attachments_folder"),
         wikis_folder=str(data.get("wikis_folder", "Wikis")),
+        guides=bool(data.get("guides", True)),
+        prompt_budget=int(data.get("prompt_budget", 60000)),
         open_browser=args.open,
         command=command,
+        config_path=os.path.abspath(args.config),
+        notes_from_flag=bool(args.notes),
     )
+
+
+def save(cfg: Config) -> None:
+    """Write the settings the Settings screen changes back to the config file,
+    keeping anything else in it."""
+    data: dict = {}
+    if os.path.exists(cfg.config_path):
+        try:
+            with open(cfg.config_path, encoding="utf-8") as fh:
+                data = json.load(fh)
+        except (OSError, ValueError):
+            data = {}
+    if not cfg.notes_from_flag:
+        data["notes_dir"] = cfg.notes_dir
+    data["daily_folder"] = cfg.daily_folder
+    data["attachments_folder"] = cfg.attachments_folder if cfg.attachments_folder is not None else "Attachments"
+    data["wikis_folder"] = cfg.wikis_folder
+    data["guides"] = cfg.guides
+    data["prompt_budget"] = cfg.prompt_budget
+    tmp = cfg.config_path + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as fh:
+        json.dump(data, fh, indent=2)
+        fh.write("\n")
+    os.replace(tmp, cfg.config_path)

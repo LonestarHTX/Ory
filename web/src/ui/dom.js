@@ -4,7 +4,7 @@
 import {
   AppWindow, ArrowRight, BookOpen, CalendarDays, Check, ChevronDown, ChevronLeft, ChevronRight, Code, Copy, Ellipsis, File,
   FileImage, FilePlus, FolderPlus, Highlighter, LayoutGrid, Link, List, ListChecks, ListOrdered, ListTree, Monitor, Moon,
-  Lightbulb, NotebookPen, Paperclip, Plus, Search, SquarePen, Sun, Table, TableProperties, TextQuote, TriangleAlert,
+  Lightbulb, NotebookPen, Paperclip, Plus, Search, Settings, SquarePen, Sun, Table, TableProperties, TextQuote, TriangleAlert,
 } from "lucide";
 
 export function h(tag, props, ...children) {
@@ -71,6 +71,7 @@ const ICONS = {
   copy: Copy,
   warning: TriangleAlert,
   suggestions: Lightbulb,
+  settings: Settings,
 };
 
 const SVG = "http://www.w3.org/2000/svg";

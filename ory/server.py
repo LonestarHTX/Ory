@@ -12,6 +12,9 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any, Callable, Dict, Optional, Tuple
 from urllib.parse import parse_qs, quote, unquote, urlparse
 
+from . import settings
+from .config import Config
+from .settings import State
 from .vault import Note, Vault, VaultError
 
 STATIC_DIR = os.path.join(os.path.dirname(os.path.realpath(__file__)), "static")
@@ -50,8 +53,12 @@ def page_policy(host: str) -> str:
 
 
 class Handler(BaseHTTPRequestHandler):
-    vault: Vault  # set by make_server
+    state: State  # set by make_server; its vault changes when Settings switches folder
     server_version = "Ory"
+
+    @property
+    def vault(self) -> Vault:
+        return self.state.vault
 
     # Routing ----------------------------------------------------------------
 
@@ -85,6 +92,18 @@ class Handler(BaseHTTPRequestHandler):
             self._send_json({"error": "Requests must come from the Ory page as JSON."}, HTTPStatus.FORBIDDEN)
             return
         route: Optional[Callable[..., Tuple[Any, int]]] = ROUTES.get((method, url.path))
+        state_route = STATE_ROUTES.get((method, url.path))
+        if state_route:
+            try:
+                payload, status = state_route(self.state, self._read_json() if method != "GET" else {})
+            except VaultError as exc:
+                payload, status = {"error": str(exc)}, exc.status
+            except (ValueError, TypeError) as exc:
+                payload, status = {"error": f"Bad request: {exc}"}, HTTPStatus.BAD_REQUEST
+            except OSError as exc:
+                payload, status = {"error": f"File system error: {exc.strerror or exc}"}, HTTPStatus.INTERNAL_SERVER_ERROR
+            self._send_json(payload, status)
+            return
         if not route:
             self._send_json({"error": "Not found."}, HTTPStatus.NOT_FOUND)
             return
@@ -317,6 +336,16 @@ ROUTES: Dict[Tuple[str, str], Callable[..., Tuple[Any, int]]] = {
 }
 
 
-def make_server(vault: Vault, port: int) -> ThreadingHTTPServer:
-    handler = type("OryHandler", (Handler,), {"vault": vault})
+# Settings routes take the server's state, since they can swap its vault.
+STATE_ROUTES: Dict[Tuple[str, str], Callable[..., Tuple[Any, int]]] = {
+    ("GET", "/api/settings"): lambda state, b: (settings.current(state), 200),
+    ("PUT", "/api/settings"): lambda state, b: (settings.update(state, b), 200),
+    ("POST", "/api/settings/connect-desktop"): lambda state, b: (settings.connect_desktop(), 200),
+}
+
+
+def make_server(vault: Vault, port: int, cfg: Optional[Config] = None) -> ThreadingHTTPServer:
+    cfg = cfg or Config(notes_dir=vault.root, daily_folder=vault.daily_folder,
+                        attachments_folder=vault.attachments_setting, wikis_folder=vault.wikis_folder)
+    handler = type("OryHandler", (Handler,), {"state": State(cfg, vault)})
     return ThreadingHTTPServer(("127.0.0.1", port), handler)

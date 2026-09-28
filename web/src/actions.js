@@ -21,6 +21,7 @@ export function currentRoute() {
   }
   if (hash === "/wikis") return { view: "wikis" };
   if (hash === "/suggestions") return { view: "suggestions" };
+  if (hash === "/settings") return { view: "settings" };
   if (hash === "/search" || hash.startsWith("/search?")) {
     return { view: "search", query: new URLSearchParams(location.hash.split("?")[1] || "").get("q") || "" };
   }
@@ -58,6 +59,10 @@ export function openNote(path, options = {}) {
 export function openWikis(options = {}) {
   pendingOptions = options;
   go("#/wikis");
+}
+
+export function openSettings() {
+  go("#/settings");
 }
 
 /** Suggestions for the wikis. {tab: "drafts"} opens on a tab. */

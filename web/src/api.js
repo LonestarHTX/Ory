@@ -42,6 +42,9 @@ export const api = {
   /** Several notes' text at once: {notes: [{path, text, rev, mtime}]}. */
   readNotes: (paths) => request("POST", "/api/read", { paths }),
   suggestions: () => request("GET", "/api/suggestions"),
+  settings: () => request("GET", "/api/settings"),
+  saveSettings: (change) => request("PUT", "/api/settings", change),
+  connectDesktop: () => request("POST", "/api/settings/connect-desktop", {}),
   saveSuggestions: (data, rev) => request("PUT", "/api/suggestions", { data, rev }),
   /** Upload a file; `note` places it by the attachments setting, `folder` overrides. */
   upload: async (file, { name, note, folder } = {}) => {

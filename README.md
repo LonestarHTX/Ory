@@ -132,6 +132,17 @@ Edits made outside Ory (in another editor, by git or by an AI tool) are picked u
 seconds. If a note changes on disk while you have unsaved edits to it, Ory asks which
 version to keep instead of overwriting either.
 
+## Settings
+
+Settings (the gear at the bottom of the sidebar, or Cmd+,) has three parts:
+
+- **Folders:** switch the notes folder without restarting, and name the daily notes,
+  attachments and wikis folders. These are saved in `ory.config.json` on this computer.
+- **Appearance and editing:** the theme, whether notes open in live preview or source,
+  and whether wiki pages open for reading or editing. These are kept in the browser.
+- **AI:** whether Claude Desktop and Claude Code are connected to Ory's tools, a switch
+  for the guide for agents, and the longest prompt Suggestions asks you to paste.
+
 ## Using Ory with AI
 
 AI agents can use a notes folder as fully as you do, through three ways in that share one
@@ -155,7 +166,9 @@ set of operations (`ory/agent.py`):
   claude mcp add ory --env PYTHONPATH=/path/to/Ory -- python3 -m ory --notes /path/to/notes mcp
   ```
 
-  For Claude Desktop, add this under `mcpServers` in its settings file:
+  For Claude Desktop, quit it and run `python3 -m ory connect-desktop` (or use Settings),
+  then open it again. Claude Desktop rewrites its settings file while it is open, so an
+  entry added then is lost. By hand, add this under `mcpServers` in that file:
 
   ```json
   "ory": {

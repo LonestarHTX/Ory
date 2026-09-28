@@ -14,6 +14,7 @@ import { folderOf, noteName, parseLink } from "../links.js";
 import { emit, linkTextFor, loadIndex, resolve, setCurrent, store } from "../store.js";
 import { coverUrl, infoboxRows, isBlank, isHome, pageParts, pageTitle, wiki as wikiInfo, wikiFolder, wikiOf } from "../wikis.js";
 import { clear, formatDate, h, icon, keys, timeAgo, todayISO } from "./dom.js";
+import { readsWiki } from "./settings-view.js";
 import { createFormatToolbar } from "./format-toolbar.js";
 import { headings } from "./outline.js";
 import { openMenu } from "./menu.js";
@@ -224,7 +225,8 @@ export function createNoteView(el) {
     dirty = false;
     conflict.hidden = true;
     wiki = wikiOf(data.path);
-    reading = wiki != null && !isBlank(data.text);
+    reading = wiki != null && readsWiki() && !isBlank(data.text);
+    sourcePref = readSourcePref(); // Settings may have changed it
     toolbar.reset(); // a link field left open belongs to the note being left
     setCurrent(data.path);
     renderHead();

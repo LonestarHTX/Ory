@@ -32,9 +32,10 @@ def main() -> int:
     if cfg.command:
         return cli.run(vault, cfg.command)
 
-    write_guides(vault)
+    if cfg.guides:
+        write_guides(vault)
     try:
-        server = make_server(vault, cfg.port)
+        server = make_server(vault, cfg.port, cfg)
     except OSError as exc:
         print(f"Could not listen on port {cfg.port}: {exc.strerror}. Try --port 4748.", file=sys.stderr)
         return 1

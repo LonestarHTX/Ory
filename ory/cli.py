@@ -31,6 +31,7 @@ USAGE = """Commands (every one prints JSON):
   suggestions                  findings and drafts waiting for review
   suggest                      file suggestions: JSON on stdin
   guide                        print the guide for agents (AGENTS.md)
+  connect-desktop              add Ory to Claude Desktop (quit Claude Desktop first)
   mcp                          serve these as tools over MCP (stdio)
 """
 
@@ -62,6 +63,15 @@ def run(vault: Vault, argv: List[str]) -> int:
         return serve(vault)
     if name == "guide":
         print(agents_md(vault))
+        return 0
+    if name == "connect-desktop":
+        from .settings import connect_desktop
+        try:
+            status = connect_desktop()
+        except VaultError as exc:
+            return fail(str(exc))
+        print(json.dumps({"connected": status["desktop"]["connected"],
+                          "next": "Open Claude Desktop; Ory's tools load when it starts."}, indent=2))
         return 0
     agent = Agent(vault)
     try:
