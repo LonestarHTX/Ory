@@ -1,0 +1,11 @@
+# Local settings: each machine points at its own notes folder
+ory.config.json
+
+# Sample vault for trying Ory (python3 scripts/sample_notes.py)
+sample-notes/
+
+# Build and tooling
+web/node_modules/
+__pycache__/
+*.pyc
+.DS_Store

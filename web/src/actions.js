@@ -1,0 +1,201 @@
+// Things the user can do from anywhere: open, create, rename, trash and search.
+// Views call these; navigation goes through the URL hash so Back and Forward work.
+
+import { api } from "./api.js";
+import { folderOf, isPage, noteName, parseLink } from "./links.js";
+import { loadIndex, resolve, store } from "./store.js";
+import { todayISO } from "./ui/dom.js";
+
+// Routing ----------------------------------------------------------------------
+
+/**
+ * Parse the hash into a route: {view: "note", path} | {view: "page", path} |
+ * {view: "search", query} | {view: "wikis"} | {view: "suggestions"} | {view: "empty"}.
+ */
+export function currentRoute() {
+  const hash = decodeURIComponent(location.hash.slice(1));
+  if (hash === "/wikis") return { view: "wikis" };
+  if (hash === "/suggestions") return { view: "suggestions" };
+  if (hash === "/search" || hash.startsWith("/search?")) {
+    return { view: "search", query: new URLSearchParams(location.hash.split("?")[1] || "").get("q") || "" };
+  }
+  if (hash.length > 1 && hash.startsWith("/")) {
+    const path = hash.slice(1);
+    return { view: isPage(path) ? "page" : "note", path };
+  }
+  return { view: "empty" };
+}
+
+/**
+ * Change route now. Setting location.hash would route a task later, and keys
+ * typed in between would land in the note being left.
+ */
+function go(hash, replace = false) {
+  if (location.hash !== hash) history[replace ? "replaceState" : "pushState"](null, "", hash);
+  window.dispatchEvent(new HashChangeEvent("hashchange"));
+}
+
+let pendingOptions = null;
+
+/** Options for the next note shown (line to jump to, focus the title), consumed once. */
+export function takeOpenOptions() {
+  const options = pendingOptions ?? {};
+  pendingOptions = null;
+  return options;
+}
+
+export function openNote(path, options = {}) {
+  pendingOptions = options;
+  go("#/" + encodeURI(path), options.replace);
+}
+
+/** The Wikis space's home: every wiki. {create: true} opens the new-wiki field. */
+export function openWikis(options = {}) {
+  pendingOptions = options;
+  go("#/wikis");
+}
+
+/** Suggestions for the wikis. {tab: "drafts"} opens on a tab. */
+export function openSuggestions(options = {}) {
+  pendingOptions = options;
+  go("#/suggestions");
+}
+
+export function openSearch(query = "") {
+  go("#/search" + (query ? "?" + new URLSearchParams({ q: query }) : ""));
+}
+
+export function closeNote() {
+  go("#/", true);
+}
+
+// Notes ------------------------------------------------------------------------
+
+export async function createNote(path, text = "") {
+  const note = await api.create(path, text);
+  await loadIndex();
+  return note.path;
+}
+
+/** Create "Untitled", "Untitled 1", ... in a folder and open it with the title ready to type. */
+export async function newNote(folder = "") {
+  const prefix = folder ? folder + "/" : "";
+  let name = "Untitled";
+  for (let n = 1; store.paths.includes(`${prefix}${name}.md`); n++) name = `Untitled ${n}`;
+  const path = await createNote(prefix + name);
+  openNote(path, { focusTitle: true });
+}
+
+export async function newFolder(parent = "") {
+  const prefix = parent ? parent + "/" : "";
+  let name = "New folder";
+  for (let n = 1; store.folders.includes(prefix + name); n++) name = `New folder ${n}`;
+  const { path } = await api.createFolder(prefix + name);
+  await loadIndex();
+  return path;
+}
+
+/** Follow a link from a note: open it, creating the note first if it is missing. */
+export async function followLink(link) {
+  if (link.href) {
+    if (/^[a-z][a-z0-9+.-]*:/i.test(link.href)) window.open(link.href, "_blank", "noopener");
+    return;
+  }
+  const { target, heading } = parseLink(link.wikilink);
+  // [[#Section]] jumps within the open note; [[Note#Section]] opens at it.
+  if (!target) return heading && store.currentPath ? openNote(store.currentPath, { heading }) : undefined;
+  const path = resolve(target);
+  if (path && isPage(path)) return openNote(path);
+  if (path && !/\.md$/i.test(path)) return openFile(path);
+  if (path) return openNote(path, heading ? { heading } : {});
+  if (/\.[A-Za-z0-9]{1,8}$/.test(target) && !/\.(md|\d+)$/i.test(target)) {
+    return notify(`"${target}" is not in the notes folder.`, "error");
+  }
+  try {
+    openNote(await createNote(target));
+  } catch (err) {
+    alertError(err);
+  }
+}
+
+/** Open an attachment in a new tab (or download it, for types a browser cannot show). */
+export function openFile(path) {
+  window.open("/files/" + path.split("/").map(encodeURIComponent).join("/"), "_blank", "noopener");
+}
+
+export async function openToday() {
+  try {
+    const { path } = await api.daily(todayISO());
+    await loadIndex();
+    openNote(path);
+  } catch (err) {
+    alertError(err);
+  }
+}
+
+/**
+ * Rename or move a note or folder. `to` is a full vault path. Returns the new
+ * path; the server rewrites links in other notes that pointed here.
+ */
+const moveHooks = [];
+
+/**
+ * Register {before(from), after(from, to)} around every move. The note view
+ * uses it to save before a move and to follow its note to the new path.
+ * `after` gets to = null when the move fails.
+ */
+export function onMove(hooks) {
+  moveHooks.push(hooks);
+}
+
+export async function movePath(from, to) {
+  for (const hook of moveHooks) await hook.before(from);
+  let result = null;
+  try {
+    result = await api.move(from, to);
+  } finally {
+    for (const hook of moveHooks) hook.after(from, result?.path ?? null);
+  }
+  await loadIndex();
+  const current = store.currentPath;
+  if (current === from) openNote(result.path, { replace: true });
+  else if (current && current.startsWith(from + "/")) openNote(result.path + current.slice(from.length), { replace: true });
+  return result;
+}
+
+export function renamePath(path, newName) {
+  const folder = folderOf(path);
+  const isNote = store.paths.includes(path);
+  const to = (folder ? folder + "/" : "") + newName.trim() + (isNote ? ".md" : "");
+  return movePath(path, to);
+}
+
+export async function trashPath(path) {
+  try {
+    // Same hooks as a move: pending edits are saved before the file goes.
+    for (const hook of moveHooks) await hook.before(path);
+    try {
+      await api.trash(path);
+    } finally {
+      for (const hook of moveHooks) hook.after(path, null);
+    }
+    await loadIndex();
+    const current = store.currentPath;
+    if (current === path || (current && current.startsWith(path + "/"))) closeNote();
+  } catch (err) {
+    alertError(err);
+  }
+}
+
+export function displayName(path) {
+  return store.paths.includes(path) ? noteName(path) : path.slice(path.lastIndexOf("/") + 1);
+}
+
+// Errors and notices that have no field to sit beside go in the app's message line.
+export function notify(message, level = "warning") {
+  window.dispatchEvent(new CustomEvent("ory:message", { detail: { message, level } }));
+}
+
+export function alertError(err) {
+  notify(err.message || String(err), "error");
+}

@@ -1,0 +1,3294 @@
+/* Ory styles. The design rules behind them are in DESIGN.md.
+
+   Surfaces. Three levels, each visibly apart from the last:
+     --canvas   ground  field wells in dark mode, the backdrop of the app
+     --sidebar  panel   the frame: both sidebars
+     --card     raised  the note, menus, windows
+   Hover and selected are overlays, so they work on any level.
+
+   Scales. Values outside these are mistakes:
+     type      11 12 13 14 17 24, on whole-pixel line heights 16 20 24 32
+     spacing   4 8 12 16 24 32 48
+     corners   4 small, 6 standard, 10 floating; circles only for status dots
+     motion    0.12s for state changes, 0.24s for things arriving
+     shadow    --float on floating layers only */
+
+:root {
+  --canvas: #0a0a0b;
+  --sidebar: #19191b;
+  --card: #252528;
+  --hover: rgba(255, 255, 255, 0.05);
+  --selected: rgba(255, 255, 255, 0.1);
+  --field: #0a0a0b;
+  --line: rgba(255, 255, 255, 0.1);
+  --line-strong: rgba(255, 255, 255, 0.18);
+  --border-strong: rgba(255, 255, 255, 0.24);
+  --text: #f2f2f3;
+  --text-2: #a5a5aa; /* passes 4.5:1 on a selected card row */
+  --text-3: #97979d; /* passes 4.5:1 on a card */
+  --text-selection: rgba(255, 255, 255, 0.18);
+  --success: #85b49a;
+  --warning: #d5ab68;
+  --error: #d78c85;
+  --veil: rgba(2, 4, 8, 0.62);
+  --float: 0 24px 60px -20px rgba(0, 0, 0, 0.7);
+  --primary: #f2f2f3;
+  --on-primary: #0c0c0d;
+  --primary-hover: #ffffff;
+  /* Text inks: rich-text colours that follow the theme. */
+  --ink-blue: #82b2dc;
+  --ink-green: #85b49a;
+  --ink-amber: #d5ab68;
+  --ink-red: #dc958e; /* a step lighter, to pass 4.5:1 inside a highlight */
+  --ink-grey: #a5a5aa;
+  --scheme: dark;
+
+  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+
+  --r-card: 6px;
+  --r-ctl: 6px;
+  --r-sm: 4px;
+  --r-window: 10px;
+
+  --gutter: 24px; /* shared left edge of everything in the sidebars and headers */
+  --side-w: 280px;
+  --head-h: 48px;
+  --row-h: 28px;
+  --prose-w: 720px;
+
+  color-scheme: var(--scheme);
+}
+
+/* Light mode is designed, not inverted: white on a grey ground. */
+:root[data-theme="light"] {
+  --canvas: #e9e9eb;
+  --sidebar: #f4f4f5;
+  --card: #ffffff;
+  --hover: rgba(0, 0, 0, 0.04);
+  --selected: rgba(0, 0, 0, 0.08);
+  --field: #ffffff;
+  --line: rgba(0, 0, 0, 0.11);
+  --line-strong: rgba(0, 0, 0, 0.2);
+  --border-strong: rgba(0, 0, 0, 0.26);
+  --text: #111113;
+  --text-2: #55555b;
+  --text-3: #63636a; /* passes 4.5:1 on the canvas */
+  --text-selection: rgba(0, 0, 0, 0.14);
+  --success: #35694f;
+  --warning: #7a5518;
+  --error: #974940;
+  --veil: rgba(27, 27, 30, 0.34);
+  --float: 0 24px 60px -24px rgba(0, 0, 0, 0.25);
+  --primary: #111113;
+  --on-primary: #ffffff;
+  --primary-hover: #2c2c30;
+  --ink-blue: #2c6089;
+  --ink-green: #35694f;
+  --ink-amber: #7a5518;
+  --ink-red: #974940;
+  --ink-grey: #55555b;
+  --scheme: light;
+}
+
+/* Names the first version of text colour wrote into notes. */
+:root {
+  --color-blue: var(--ink-blue);
+  --color-green: var(--ink-green);
+  --color-orange: var(--ink-amber);
+  --color-red: var(--ink-red);
+  --text-muted: var(--ink-grey);
+}
+
+/* A picked colour, shown readably: its own value where that passes 4.5:1,
+   else a lighter or darker step (worked out in ui/color.js). */
+.ink {
+  color: var(--ink-light);
+}
+
+:root[data-theme="dark"] .ink {
+  color: var(--ink-dark);
+}
+
+/* ---------- Base ---------- */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--card);
+  color: var(--text);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  /* Line heights are whole pixels on the scale (16, 20, 24, 32), so every
+     hairline below a line of text lands on a whole pixel. */
+  line-height: 20px;
+  font-variant-numeric: tabular-nums;
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+}
+
+button,
+input {
+  font: inherit;
+  color: inherit;
+}
+
+button {
+  background: none;
+  border: 0;
+  padding: 0;
+  text-align: left;
+  cursor: pointer;
+}
+
+h1,
+h2,
+p,
+dl,
+dd {
+  margin: 0;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+/* Focus is a crisp ring with a gap. No blur, no glow. */
+:focus-visible {
+  outline: 2px solid var(--text);
+  outline-offset: 2px;
+}
+
+::selection {
+  background: var(--text-selection);
+}
+
+.icon {
+  flex: none;
+  display: block;
+}
+
+/* Thin scrollbars in the line colour. */
+.tree,
+.sidebar-right,
+.search-body,
+.switcher-list,
+.note-scroll,
+.wiki-contents,
+.wikis-home {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
+}
+
+/* ---------- Type ----------
+   Two faces, each with one job. The text face is for anything you read;
+   monospace is for data compared or copied character by character: counts,
+   keys and code. This is the only place a font family is chosen. */
+
+.kbd,
+.count,
+.cm-md-code,
+.cm-line.cm-md-codeblock,
+.cm-line.cm-md-table,
+.cm-prop-raw {
+  font-family: var(--font-mono);
+  font-variant-numeric: slashed-zero tabular-nums;
+  letter-spacing: 0;
+}
+
+/* Labels: sidebar section labels are 11px, medium, secondary. */
+.side-title {
+  font-size: 11px;
+  line-height: 16px;
+  font-weight: 500;
+  color: var(--text-2);
+}
+
+/* ---------- Motion ----------
+   Every hover and state change fades at one speed. */
+
+.nav-item,
+.iconbtn,
+.btn,
+.input,
+.tree-row,
+.tree-item,
+.menu-item,
+.switcher-item,
+.result-note,
+.result-line,
+.backlink-note,
+.backlink-line,
+.note-title,
+.kbd {
+  transition: background-color 0.12s ease, border-color 0.12s ease, color 0.12s ease, opacity 0.12s ease;
+}
+
+/* The theme cross-fades over 0.24s (a view transition); colour transitions
+   are held off meanwhile so nothing fades between themes on its own. */
+.theme-switching *,
+.theme-switching *::before,
+.theme-switching *::after {
+  transition: none !important;
+}
+
+html[data-theme-fade]::view-transition-old(root) {
+  animation: theme-out 0.24s ease;
+}
+
+html[data-theme-fade]::view-transition-new(root) {
+  animation: theme-in 0.24s ease;
+}
+
+@keyframes theme-out {
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes theme-in {
+  from {
+    opacity: 0;
+  }
+}
+
+/* Navigating to a note or view fades it in; ordinary updates do not. */
+.view.is-arriving {
+  animation: page-in 0.12s ease;
+}
+
+@keyframes page-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes window-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.985);
+  }
+}
+
+@keyframes window-out {
+  to {
+    opacity: 0;
+    transform: scale(0.985);
+  }
+}
+
+@keyframes veil-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes veil-out {
+  to {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+
+/* ---------- Layout ---------- */
+
+.app {
+  display: grid;
+  grid-template-columns: var(--side-w) minmax(0, 1fr) var(--side-w);
+  height: 100vh;
+}
+
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--sidebar);
+  font-size: 13px;
+}
+
+.sidebar-left {
+  border-right: 1px solid var(--line);
+}
+
+.sidebar-right {
+  border-left: 1px solid var(--line);
+  overflow-y: auto;
+  padding-bottom: var(--gutter);
+}
+
+@media (max-width: 1100px) {
+  .app {
+    grid-template-columns: var(--side-w) minmax(0, 1fr);
+  }
+
+  .sidebar-right {
+    display: none;
+  }
+}
+
+.main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  background: var(--card);
+}
+
+.view {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+/* ---------- Sidebars ---------- */
+
+.side-head {
+  flex: none;
+  display: flex;
+  align-items: center;
+  height: var(--head-h);
+  padding: 0 calc(var(--gutter) - 8px);
+}
+
+/* Notes | Wikis: the two spaces, as a segmented control. */
+.space-switch {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  width: 100%;
+  height: 32px;
+  padding: 2px;
+  border-radius: var(--r-ctl);
+  background: var(--selected);
+}
+
+/* In dark mode the track sits below the panel, so the raised card stands out. */
+:root[data-theme="dark"] .space-switch {
+  background: var(--canvas);
+}
+
+.space-tab {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border-radius: var(--r-sm);
+  color: var(--text-2);
+  font-weight: 500;
+  transition: background 0.12s, color 0.12s;
+}
+
+.space-tab:hover {
+  color: var(--text);
+}
+
+.space-tab.is-selected {
+  background: var(--card);
+  color: var(--text);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.16);
+}
+
+.space-panel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.space-panel[hidden] {
+  display: none;
+}
+
+/* List rows sit 8px inside the gutter so their text lines up with it. */
+.nav-list {
+  display: flex;
+  flex-direction: column;
+  padding: 0 calc(var(--gutter) - 8px) 8px;
+}
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: var(--row-h);
+  padding: 0 8px;
+  border-radius: var(--r-ctl);
+  color: var(--text-2);
+}
+
+.nav-item:hover {
+  background: var(--hover);
+  color: var(--text);
+}
+
+.nav-item.is-selected {
+  background: var(--selected);
+  color: var(--text);
+  font-weight: 500;
+}
+
+.nav-label {
+  flex: 1;
+}
+
+/* A row's shortcut shows while you point at it or focus it. */
+.nav-item .kbd {
+  opacity: 0;
+}
+
+.nav-item:hover .kbd,
+.nav-item:focus-visible .kbd {
+  opacity: 1;
+}
+
+.side-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 32px;
+  margin-top: 8px;
+  padding: 0 calc(var(--gutter) - 8px) 0 var(--gutter);
+}
+
+.sidebar-right .side-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: var(--head-h);
+  padding: 0 var(--gutter);
+}
+
+.count {
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--text-3);
+}
+
+.side-actions {
+  display: flex;
+}
+
+.side-foot {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  padding: 8px calc(var(--gutter) - 8px);
+  border-top: 1px solid var(--line);
+}
+
+.side-empty {
+  padding: 0 var(--gutter);
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--text-2);
+}
+
+/* ---------- Controls ---------- */
+
+.iconbtn {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: var(--r-ctl);
+  color: var(--text-2);
+}
+
+.iconbtn:hover,
+.iconbtn[aria-expanded="true"] {
+  background: var(--hover);
+  color: var(--text);
+}
+
+.btn {
+  display: inline-block;
+  padding: 8px 16px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-ctl);
+  font-size: 14px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.btn:hover {
+  border-color: var(--text);
+}
+
+.btn--small {
+  padding: 4px 12px;
+  font-size: 13px;
+}
+
+/* A button holding an icon or a key cap lines them up with its label. */
+.btn:has(.icon, .kbd) {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.btn:disabled {
+  border-color: var(--line);
+  color: var(--text-3);
+  cursor: default;
+}
+
+.btn--primary {
+  border-color: transparent;
+  background: var(--primary);
+  color: var(--on-primary);
+}
+
+.btn--primary:hover {
+  border-color: transparent;
+  background: var(--primary-hover);
+}
+
+.btn--primary:disabled {
+  background: var(--selected);
+  color: var(--text-3);
+}
+
+.btn--primary .kbd {
+  border-color: currentColor;
+  color: inherit;
+  opacity: 0.7;
+}
+
+.btn--plain {
+  border-color: transparent;
+  color: var(--text-2);
+}
+
+.btn--plain:hover {
+  border-color: transparent;
+  color: var(--text);
+}
+
+.input {
+  width: 100%;
+  height: 40px;
+  padding: 0 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-ctl);
+  background: var(--field);
+  color: var(--text);
+}
+
+.input::placeholder {
+  color: var(--text-3);
+}
+
+.input:hover {
+  border-color: var(--text-2);
+}
+
+.input:focus-visible {
+  outline-offset: 0;
+  border-color: transparent;
+}
+
+.input[type="search"]::-webkit-search-cancel-button {
+  filter: grayscale(1);
+  opacity: 0.6;
+}
+
+/* An input that reads as plain text until you point at or edit it. */
+.input--bare {
+  height: 32px;
+  padding: 0 8px;
+  border-color: transparent;
+  background: none;
+}
+
+.input--bare:hover {
+  border-color: var(--line-strong);
+}
+
+.input--bare:focus-visible {
+  background: var(--field);
+}
+
+.kbd {
+  flex: none;
+  padding: 0 8px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-sm);
+  font-size: 11px;
+  line-height: 16px;
+  color: var(--text-2);
+}
+
+.status-dot {
+  display: inline-block;
+  flex: none;
+  width: 6px;
+  height: 6px;
+  margin-right: 8px;
+  border-radius: 50%;
+  vertical-align: 1px;
+}
+
+.status-dot.success {
+  background: var(--success);
+}
+
+.status-dot.warning {
+  background: var(--warning);
+}
+
+.status-dot.error {
+  background: var(--error);
+}
+
+.field-error {
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--text);
+}
+
+.app-error {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: var(--head-h);
+  padding: 8px 16px 8px var(--gutter);
+  border-bottom: 1px solid var(--line);
+  background: var(--sidebar);
+}
+
+/* ---------- Tooltips ----------
+   A floating label for icon buttons: raised, hairline border, the float
+   shadow, 12px text and the shortcut as a key cap. The standard corner, not
+   the 10px window corner, which would read as a pill at this size. */
+
+.tip {
+  position: fixed;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 320px;
+  padding: 4px 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-ctl);
+  background: var(--card);
+  box-shadow: var(--float);
+  color: var(--text);
+  font-size: 12px;
+  line-height: 16px;
+  pointer-events: none;
+  animation: tip-in 0.12s ease;
+}
+
+@keyframes tip-in {
+  from {
+    opacity: 0;
+  }
+}
+
+/* ---------- Tree ---------- */
+
+.tree {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 0 calc(var(--gutter) - 8px) var(--gutter);
+}
+
+.tree-row {
+  display: flex;
+  align-items: center;
+  height: var(--row-h);
+  border-radius: var(--r-ctl);
+}
+
+.tree-row:hover {
+  background: var(--hover);
+}
+
+.tree-row.is-selected {
+  background: var(--selected);
+}
+
+.tree-item {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 100%;
+  /* 18px = chevron (14) + gap (4), so note names line up with folder names */
+  padding: 0 8px 0 calc(8px + var(--depth) * 12px + 18px);
+  border-radius: var(--r-ctl);
+  color: var(--text-2);
+}
+
+.tree-row[data-kind="folder"] .tree-item,
+.tree-row[data-kind="file"] .tree-item {
+  padding-left: calc(8px + var(--depth) * 12px);
+}
+
+/* An attachment's icon sits where a folder's chevron does. */
+.tree-file-icon {
+  display: inline-flex;
+  color: var(--text-3);
+}
+
+/* Where a drag would land: the folder row, or the whole tree for the root. */
+.tree-row.is-drop,
+.tree.is-drop-root {
+  background: var(--selected);
+}
+
+.tree.is-drop-root {
+  border-radius: var(--r-ctl);
+}
+
+.tree-row:hover .tree-item,
+.tree-row.is-selected .tree-item {
+  color: var(--text);
+}
+
+.tree-row.is-selected .tree-item {
+  font-weight: 500;
+}
+
+.tree-item:focus-visible {
+  outline-offset: -2px;
+}
+
+.tree-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tree-chevron {
+  display: inline-flex;
+  color: var(--text-3);
+  transition: transform 0.12s ease;
+}
+
+.tree-chevron.is-open {
+  transform: rotate(90deg);
+}
+
+.tree-more {
+  width: 24px;
+  height: 24px;
+  margin-right: 2px;
+  opacity: 0;
+}
+
+.tree-row:hover .tree-more,
+.tree-row:focus-within .tree-more,
+.tree-more[aria-expanded="true"] {
+  opacity: 1;
+}
+
+/* The rename field's text sits where the name was: its padding and border
+   (9px) come off the indent. */
+.tree-rename {
+  flex: 1;
+  min-width: 0;
+  height: 24px;
+  margin: 0 4px 0 calc(8px + var(--depth) * 12px + 9px);
+  font-size: 13px;
+}
+
+.tree-error {
+  padding: 4px 8px 4px calc(8px + var(--depth) * 12px + 18px);
+}
+
+/* ---------- Note header ---------- */
+
+.note-head {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  height: var(--head-h);
+  padding: 0 16px 0 var(--gutter);
+  border-bottom: 1px solid var(--line);
+  font-size: 13px;
+}
+
+.note-name {
+  display: flex;
+  align-items: center;
+  flex: 1;
+  min-width: 0;
+}
+
+.note-crumb {
+  flex: none;
+  color: var(--text-3);
+  white-space: pre;
+}
+
+.note-title,
+.note-heading {
+  font-size: 13px;
+  font-weight: 500;
+}
+
+/* The bare input's padding and border (9px) hang outside the text edge. */
+.note-title {
+  field-sizing: content;
+  min-width: 4ch;
+  max-width: 100%;
+  margin-left: -9px;
+  text-overflow: ellipsis;
+}
+
+.note-crumb + .note-title {
+  margin-left: -8px;
+}
+
+.note-meta {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 12px;
+}
+
+.note-status,
+.note-mode {
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--text-3);
+  white-space: nowrap;
+}
+
+.note-mode {
+  color: var(--text-2);
+}
+
+.note-view > .field-error,
+.note-conflict {
+  padding: 8px 16px 8px var(--gutter);
+  border-bottom: 1px solid var(--line);
+}
+
+.note-conflict {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  background: var(--sidebar);
+}
+
+.note-conflict-actions {
+  display: flex;
+  gap: 8px;
+}
+
+/* ---------- Formatting toolbar ----------
+   Above the note: 30x28 buttons, pressed state as the selected fill,
+   hairline separators. */
+
+.format-bar {
+  flex: none;
+  padding: 4px 16px;
+  border-bottom: 1px solid var(--line);
+}
+
+.format-tools,
+.format-link {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px;
+  min-height: 28px;
+}
+
+.format-link {
+  gap: 8px;
+}
+
+.format-btn,
+.format-style {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 28px;
+  border-radius: var(--r-ctl);
+  font-size: 14px;
+  color: var(--text-2);
+  transition: background-color 0.12s ease, color 0.12s ease;
+}
+
+.format-style {
+  display: flex;
+  justify-content: space-between;
+  gap: 4px;
+  width: 112px;
+  padding: 0 8px;
+  font-size: 13px;
+}
+
+.format-btn:hover,
+.format-style:hover,
+.format-style[aria-expanded="true"] {
+  background: var(--hover);
+  color: var(--text);
+}
+
+.format-btn[aria-pressed="true"] {
+  background: var(--selected);
+  color: var(--text);
+}
+
+.format-btn.is-bold {
+  font-weight: 600;
+}
+
+.format-btn.is-italic {
+  font-style: italic;
+}
+
+.format-btn.is-strike {
+  text-decoration: line-through;
+}
+
+/* Text colour: an "A" over a bar in the colour at the cursor. */
+.format-btn--ink {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  line-height: 1;
+}
+
+.format-ink {
+  width: 14px;
+  height: 3px;
+  border-radius: var(--r-sm);
+  background: currentColor;
+}
+
+.format-sep {
+  width: 1px;
+  height: 16px;
+  margin: 0 4px;
+  background: var(--line-strong);
+}
+
+.format-link-field {
+  flex: 0 1 480px;
+  height: 28px;
+  padding: 0 8px;
+  font-size: 13px;
+}
+
+.menu-item.is-selected {
+  background: var(--selected);
+  font-weight: 500;
+}
+
+/* ---------- Editor ---------- */
+
+/* The note scrolls as one: a wiki page's header, the text, and a Home's pages. */
+.note-scroll {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+}
+
+.note-editor {
+  flex: 1 0 auto;
+  display: flex;
+}
+
+.note-editor .cm-editor {
+  flex: 1;
+  min-width: 0;
+  background: var(--card);
+  color: var(--text);
+  font-size: 14px;
+}
+
+.note-editor .cm-editor.cm-focused {
+  outline: none;
+}
+
+.note-editor .cm-scroller {
+  font-family: var(--font-sans);
+  line-height: 24px;
+  overflow: visible;
+}
+
+.note-editor .cm-content {
+  width: 100%;
+  max-width: calc(var(--prose-w) + 2 * 32px);
+  margin: 0 auto;
+  padding: 24px 32px 48px;
+  caret-color: var(--text);
+}
+
+.note-editor .cm-line {
+  padding: 0;
+}
+
+.note-editor .cm-cursor {
+  border-left: 1.5px solid var(--text);
+}
+
+.note-editor .cm-selectionBackground,
+.note-editor .cm-focused > .cm-scroller > .cm-selectionLayer .cm-selectionBackground {
+  background: var(--text-selection);
+}
+
+.note-editor .cm-placeholder {
+  color: var(--text-3);
+}
+
+/* Markdown styling, shared by live preview and source. Headings are medium
+   weight, with large type tightened slightly. */
+.cm-md-h1 {
+  font-size: 24px;
+  line-height: 32px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+}
+
+.cm-md-h2 {
+  font-size: 17px;
+  font-weight: 500;
+}
+
+.cm-md-h3,
+.cm-md-h4 {
+  font-weight: 500;
+}
+
+.cm-md-h4 {
+  color: var(--text-2);
+}
+
+.cm-md-strong {
+  font-weight: 600;
+}
+
+.cm-md-em {
+  font-style: italic;
+}
+
+/* ==Highlight== is marked text, drawn like a search match. */
+.cm-md-highlight {
+  border-radius: 2px;
+  background: var(--selected);
+}
+
+.cm-md-strike {
+  color: var(--text-2);
+  text-decoration: line-through;
+}
+
+/* Inline monospace sits 1px under the text beside it. */
+.cm-md-code {
+  font-size: 13px;
+}
+
+.cm-md-syntax,
+.cm-md-url {
+  color: var(--text-3);
+}
+
+.cm-md-quote-text {
+  color: var(--text-2);
+}
+
+.cm-line.cm-md-quote {
+  padding-left: 12px;
+  box-shadow: inset 2px 0 0 var(--line-strong);
+}
+
+.cm-line.cm-md-codeblock {
+  padding: 0 12px;
+  background: var(--hover);
+  font-size: 13px;
+}
+
+.cm-line.cm-md-table {
+  font-size: 13px;
+}
+
+/* ---------- Tables ----------
+   A Markdown table drawn as a grid: a card with a hairline border, 12px
+   medium headings, row lines and row hover, plus spreadsheet column lines and a
+   heading band. The cell being edited gets the focus ring, like Excel's active
+   cell. */
+
+.md-table-wrap {
+  position: relative;
+  margin: 8px 0;
+}
+
+.md-table-scroll {
+  overflow-x: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
+}
+
+.md-table {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-top-color: var(--line-strong);
+  border-radius: var(--r-card);
+  border-collapse: separate;
+  border-spacing: 0;
+  background: var(--card);
+  font-size: 14px;
+  line-height: 20px;
+}
+
+.md-table th,
+.md-table td {
+  min-width: 96px;
+  padding: 0;
+  border-top: 1px solid var(--line);
+  text-align: left;
+  vertical-align: top;
+  font-variant-numeric: tabular-nums;
+}
+
+.md-table th + th,
+.md-table td + td {
+  border-left: 1px solid var(--line);
+}
+
+.md-table tr:first-child th {
+  border-top: 0;
+  background: var(--hover);
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 500;
+  color: var(--text-2);
+}
+
+.md-table tr:first-child th:first-child {
+  border-top-left-radius: var(--r-card);
+}
+
+.md-table tr:first-child th:last-child {
+  border-top-right-radius: var(--r-card);
+}
+
+.md-table tr:hover td {
+  background: var(--hover);
+}
+
+.md-table [data-align="center"] {
+  text-align: center;
+}
+
+.md-table [data-align="right"],
+.md-table td.is-number[data-align=""] {
+  text-align: right;
+}
+
+.md-cell {
+  min-height: 36px;
+  padding: 8px 12px;
+  outline: none;
+  cursor: text;
+  overflow-wrap: anywhere;
+}
+
+.md-table th .md-cell {
+  min-height: 32px;
+}
+
+.md-cell:focus {
+  box-shadow: inset 0 0 0 2px var(--text);
+}
+
+.md-table tr:first-child th:first-child .md-cell:focus {
+  border-top-left-radius: var(--r-card);
+}
+
+/* Hangs under the table, over the blank line Markdown needs after it, so the
+   hidden button takes no room. */
+.md-table-add {
+  position: absolute;
+  top: calc(100% + 2px);
+  left: 0;
+  z-index: 1;
+  padding: 4px 12px;
+  border-radius: var(--r-ctl);
+  font-size: 13px;
+  color: var(--text-3);
+  opacity: 0;
+  transition: opacity 0.12s ease, background-color 0.12s ease, color 0.12s ease;
+}
+
+.md-table-wrap:hover .md-table-add,
+.md-table-wrap:focus-within .md-table-add,
+.md-table-add:focus-visible {
+  opacity: 1;
+}
+
+.md-table-add:hover {
+  background: var(--hover);
+  color: var(--text);
+}
+
+.cm-line.cm-md-codeblock-first {
+  border-top-left-radius: var(--r-sm);
+  border-top-right-radius: var(--r-sm);
+}
+
+.cm-line.cm-md-codeblock-last {
+  border-bottom-left-radius: var(--r-sm);
+  border-bottom-right-radius: var(--r-sm);
+}
+
+.cm-md-bullet {
+  display: inline-block;
+  width: 1ch;
+  color: var(--text-3);
+}
+
+.cm-md-task {
+  width: 14px;
+  height: 14px;
+  margin: 0 4px 0 0;
+  vertical-align: -2px;
+  accent-color: var(--text);
+}
+
+.cm-md-rule {
+  display: inline-block;
+  width: 100%;
+  height: 1px;
+  vertical-align: middle;
+  background: var(--line-strong);
+}
+
+/* Links are underlined text. A link to a missing note is
+   secondary with a dashed underline, so it does not rest on colour alone. */
+.cm-wikilink,
+.cm-md-link,
+.backlink-link {
+  color: var(--text);
+  text-decoration: underline;
+  text-decoration-color: var(--border-strong);
+  text-underline-offset: 3px;
+}
+
+.cm-wikilink-missing {
+  color: var(--text-2);
+  text-decoration-style: dashed;
+}
+
+.cm-link-live {
+  cursor: pointer;
+}
+
+.cm-link-live:hover {
+  text-decoration-color: currentColor;
+}
+
+/* Embedded attachments: images at their size up to the text width, other
+   files as a chip that opens them. */
+.cm-embed-image {
+  display: block;
+  max-width: 100%;
+  margin: 8px 0;
+  border: 1px solid var(--line);
+  border-radius: var(--r-card);
+}
+
+.cm-embed-image.is-broken {
+  min-width: 96px;
+  min-height: 48px;
+  border-style: dashed;
+}
+
+.cm-embed-file {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 4px 0;
+  padding: 4px 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-ctl);
+  color: var(--text);
+  font-size: 13px;
+  line-height: 20px;
+  text-decoration: none;
+  transition: border-color 0.12s ease;
+}
+
+.cm-embed-file:hover {
+  border-color: var(--text);
+}
+
+.cm-embed-file .icon {
+  color: var(--text-2);
+}
+
+.cm-embed-size {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text-3);
+}
+
+/* An HTML page embedded in a note: a titled frame with Open, full text width. */
+.cm-embed-page {
+  margin: 8px 0;
+  border: 1px solid var(--line);
+  border-top-color: var(--line-strong);
+  border-radius: var(--r-card);
+  overflow: hidden;
+}
+
+.cm-embed-page-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 4px 4px 4px 12px;
+  border-bottom: 1px solid var(--line);
+  background: var(--hover);
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.cm-embed-page-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 500;
+}
+
+.cm-embed-page-title .icon {
+  color: var(--text-3);
+}
+
+/* Frames take the theme's colour scheme, which is what the page inside sees
+   as prefers-color-scheme. */
+.page-frame {
+  display: block;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color-scheme: var(--scheme);
+}
+
+/* Properties: a table you edit in place. Rows share their columns (subgrid)
+   so keys line up; a row's "..." appears on hover, like the tree's. */
+.cm-props {
+  display: grid;
+  grid-template-columns: minmax(96px, max-content) minmax(0, 1fr) 24px;
+  column-gap: 16px;
+  margin-bottom: 16px;
+  padding: 4px 0 8px;
+  border-bottom: 1px solid var(--line);
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.cm-prop-row,
+.cm-prop-add {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: subgrid;
+  align-items: center;
+  min-height: 28px;
+  border-radius: var(--r-ctl);
+  transition: background-color 0.12s ease;
+}
+
+.cm-prop-row:hover,
+.cm-prop-row:focus-within {
+  background: var(--hover);
+}
+
+.cm-prop-key {
+  justify-self: start;
+  padding: 4px 8px;
+  border-radius: var(--r-sm);
+  color: var(--text-2);
+}
+
+.cm-prop-key:hover {
+  color: var(--text);
+}
+
+.cm-prop-value {
+  min-width: 0;
+  padding: 4px 8px;
+  border-radius: var(--r-sm);
+  cursor: text;
+  overflow-wrap: anywhere;
+}
+
+.cm-prop-value:focus-visible {
+  outline-offset: -2px;
+}
+
+.cm-prop-input {
+  width: 100%;
+  height: 28px;
+  font-size: 13px;
+}
+
+.cm-prop-more {
+  width: 24px;
+  height: 24px;
+  opacity: 0;
+}
+
+.cm-prop-row:hover .cm-prop-more,
+.cm-prop-row:focus-within .cm-prop-more,
+.cm-prop-more[aria-expanded="true"] {
+  opacity: 1;
+}
+
+/* The add row: plus, plain field, and an Enter hint that becomes Add. */
+.cm-prop-add {
+  grid-template-columns: 16px minmax(0, 1fr) auto auto;
+  column-gap: 8px;
+  padding-left: 8px;
+  color: var(--text-3);
+}
+
+.cm-prop-add .cm-prop-input {
+  padding-left: 0;
+  border-color: transparent;
+  background: none;
+}
+
+.cm-prop-add .kbd {
+  display: none;
+}
+
+.cm-prop-add:focus-within .kbd:not([hidden]) {
+  display: inline-block;
+}
+
+.cm-prop-add .field-error {
+  grid-column: 2 / -1;
+}
+
+.cm-prop-hint,
+.cm-prop-empty {
+  color: var(--text-3);
+}
+
+.cm-prop-raw {
+  font-size: 12px;
+}
+
+.cm-props-error {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Autocomplete and in-note find, restyled as Ory's menus and fields. */
+.cm-tooltip {
+  overflow: hidden;
+  border: 1px solid var(--line) !important;
+  border-radius: var(--r-card);
+  background: var(--card) !important;
+  box-shadow: var(--float);
+}
+
+.cm-tooltip-autocomplete > ul {
+  max-height: 280px !important;
+  padding: 4px !important;
+  font-family: var(--font-sans) !important;
+  font-size: 14px;
+}
+
+.cm-tooltip-autocomplete > ul > li {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  padding: 8px !important;
+  border-radius: var(--r-ctl);
+  line-height: 20px;
+}
+
+.cm-tooltip-autocomplete > ul > li[aria-selected] {
+  background: var(--selected) !important;
+  color: var(--text) !important;
+}
+
+.cm-completionLabel {
+  color: var(--text);
+}
+
+.cm-completionMatchedText {
+  font-weight: 500;
+  text-decoration: none !important;
+}
+
+.cm-completionDetail {
+  margin-left: auto !important;
+  font-size: 12px;
+  font-style: normal !important;
+  color: var(--text-3);
+}
+
+.cm-panels {
+  background: var(--sidebar) !important;
+  color: var(--text) !important;
+}
+
+.cm-panels-top {
+  border-bottom: 1px solid var(--line) !important;
+}
+
+.cm-panel.cm-search {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px 8px var(--gutter) !important;
+  font-size: 12px;
+}
+
+.cm-panel.cm-search br {
+  display: none;
+}
+
+.cm-panel.cm-search .cm-textfield {
+  height: 28px;
+  margin: 0;
+  padding: 0 8px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-ctl);
+  background: var(--field);
+  font-size: 13px;
+}
+
+.cm-panel.cm-search .cm-button {
+  margin: 0;
+  padding: 4px 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-ctl);
+  background: none;
+  font-size: 13px;
+}
+
+.cm-panel.cm-search .cm-button:hover {
+  border-color: var(--text);
+}
+
+.cm-panel.cm-search label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--text-2);
+}
+
+.cm-panel.cm-search [name="close"] {
+  margin-left: auto;
+  color: var(--text-2);
+}
+
+.cm-searchMatch {
+  background: var(--selected);
+}
+
+.cm-searchMatch-selected {
+  background: var(--text-selection);
+}
+
+/* ---------- Menus and windows ---------- */
+
+.menu {
+  position: fixed;
+  z-index: 30;
+  min-width: 176px;
+  max-width: 320px;
+  padding: 4px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-card);
+  background: var(--card);
+  box-shadow: var(--float);
+  animation: window-in 0.12s cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+.menu-item {
+  display: block;
+  width: 100%;
+  padding: 8px;
+  border-radius: var(--r-ctl);
+  font-size: 14px;
+}
+
+.menu-item:hover,
+.menu-item:focus-visible {
+  background: var(--hover);
+  outline: 0;
+}
+
+.menu-confirm {
+  padding: 8px;
+}
+
+.menu-actions {
+  display: flex;
+  gap: 8px;
+  padding: 0 8px 8px;
+}
+
+.scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 12vh 16px 0;
+  background: var(--veil);
+  animation: veil-in 0.24s ease;
+}
+
+.window {
+  border: 1px solid var(--line);
+  border-top-color: var(--line-strong);
+  border-radius: var(--r-window);
+  background: var(--card);
+  box-shadow: var(--float);
+  animation: window-in 0.24s cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+/* Floating layers leave the way they arrived (leave() in ui/dom.js). */
+.menu.is-leaving,
+.window.is-leaving {
+  animation: window-out 0.12s ease forwards;
+  pointer-events: none;
+}
+
+.scrim.is-leaving {
+  animation: veil-out 0.12s ease forwards;
+  pointer-events: none;
+}
+
+/* Hint text never sits on a selected fill: inside a selected row it steps up
+   to secondary, which passes 4.5:1 there. */
+.is-selected .switcher-path,
+.cm-tooltip-autocomplete li[aria-selected] .cm-completionDetail {
+  color: var(--text-2);
+}
+
+/* ---------- Colour picker ----------
+   The design system's one playful object, and its one deliberate exception
+   to the scales: the 20px corner, the odd
+   paddings, the 15px hex text and the round pill are all its own. */
+
+.cp {
+  --pick: #d9a05b;
+  position: fixed;
+  z-index: 30;
+  display: grid;
+  gap: 14px;
+  padding: 22px 18px 16px 22px;
+  border-radius: 20px;
+  border: 1px solid var(--line);
+  border-top-color: var(--line-strong);
+  background: var(--card);
+  box-shadow: var(--float);
+  animation: cp-in 0.2s cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+.cp.is-leaving {
+  animation: window-out 0.12s ease forwards;
+  pointer-events: none;
+}
+
+.cp__stage {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* The dish is backlit by the chosen colour, like the corona around an eclipse. */
+.cp__dish {
+  position: relative;
+  width: 232px;
+  height: 232px;
+  flex: none;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--pick) 16%, var(--canvas));
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--pick) 50%, transparent),
+    0 0 0 9px color-mix(in srgb, var(--pick) 14%, transparent),
+    0 0 44px color-mix(in srgb, var(--pick) 32%, transparent);
+  transition: background 0.2s ease, box-shadow 0.2s ease;
+}
+
+.cp__petal {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  border-radius: 50%;
+  border: 1.5px solid rgba(255, 255, 255, 0.55);
+  transform: translate(calc(-50% + var(--x)), calc(-50% + var(--y)));
+  transition: transform 0.15s ease;
+  animation: cp-bloom 0.45s cubic-bezier(0.2, 0.8, 0.2, 1) var(--d) backwards;
+}
+
+.cp__petal:hover,
+.cp__petal:focus-visible {
+  z-index: 2;
+  transform: translate(calc(-50% + var(--x)), calc(-50% + var(--y))) scale(1.12);
+}
+
+.cp__heart {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  z-index: 1;
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.8);
+  background: var(--pick);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  transition: background 0.2s ease;
+}
+
+.cp__arc {
+  width: 56px;
+  height: 232px;
+  flex: none;
+  overflow: visible;
+  cursor: pointer;
+  touch-action: none;
+  border-radius: 12px;
+}
+
+.cp__thumb {
+  fill: var(--pick);
+  stroke: #fff;
+  stroke-width: 2.5;
+}
+
+.cp__inks {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.cp__ink {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 1.5px solid var(--line-strong);
+  transition: transform 0.12s ease;
+}
+
+.cp__ink:hover {
+  transform: scale(1.12);
+}
+
+.cp__reset {
+  margin-left: auto;
+}
+
+.cp__pill {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 5px 5px 5px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--line-strong);
+  background: var(--field);
+}
+
+.cp__pill:focus-within {
+  border-color: var(--text);
+  box-shadow: 0 0 0 1px var(--text);
+}
+
+.cp__swatch {
+  width: 24px;
+  height: 24px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--pick);
+}
+
+.cp__hex {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: none;
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 15px;
+  font-variant-numeric: slashed-zero;
+}
+
+.cp__hex.is-invalid {
+  color: var(--error);
+}
+
+.cp__done {
+  width: 30px;
+  height: 30px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--primary);
+  color: var(--on-primary);
+}
+
+.cp__done:hover {
+  background: var(--primary-hover);
+}
+
+@keyframes cp-in {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+}
+
+@keyframes cp-bloom {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.3) rotate(-40deg);
+  }
+}
+
+/* Calendar: a date field opens it underneath. */
+.cal {
+  width: 312px;
+  padding: 12px;
+}
+
+.cal__head {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+
+.cal__month {
+  flex: 1;
+  padding-left: 4px;
+  font-weight: 500;
+}
+
+.cal__grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+}
+
+.cal__dow {
+  padding: 4px 0;
+  font-size: 11px;
+  line-height: 16px;
+  text-align: center;
+  color: var(--text-3);
+}
+
+.cal__day {
+  height: 32px;
+  border-radius: var(--r-ctl);
+  font-size: 13px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  transition: background-color 0.12s ease;
+}
+
+.cal__day:hover {
+  background: var(--hover);
+}
+
+.cal__day.is-out {
+  color: var(--text-3);
+}
+
+.cal__day.is-now {
+  box-shadow: inset 0 0 0 1px var(--line-strong);
+}
+
+.cal__day.is-picked,
+.cal__day.is-picked:hover {
+  background: var(--primary);
+  color: var(--on-primary);
+  font-weight: 500;
+}
+
+.cal__foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 8px;
+  font-size: 12px;
+  line-height: 16px;
+}
+
+.cal__none {
+  color: var(--text-3);
+}
+
+.cal__actions {
+  display: flex;
+}
+
+.switcher {
+  display: flex;
+  flex-direction: column;
+  width: min(640px, 100%);
+  max-height: 70vh;
+  overflow: hidden;
+}
+
+.switcher-field {
+  flex: none;
+  width: auto;
+  margin: 12px 12px 4px;
+}
+
+.switcher > .field-error {
+  padding: 4px 16px 0;
+}
+
+.switcher-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 4px;
+}
+
+.switcher-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px;
+  border-radius: var(--r-ctl);
+  cursor: pointer;
+}
+
+.switcher-item:hover {
+  background: var(--hover);
+}
+
+.switcher-item.is-selected {
+  background: var(--selected);
+}
+
+.switcher-item.is-selected .switcher-name {
+  font-weight: 500;
+}
+
+.switcher-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.switcher-hint {
+  font-size: 12px;
+  color: var(--text-2);
+}
+
+.switcher-path {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--text-3);
+  white-space: nowrap;
+}
+
+.switcher-item .kbd {
+  margin-left: auto;
+}
+
+.switcher-empty {
+  padding: 12px;
+  color: var(--text-2);
+}
+
+.switcher-foot {
+  flex: none;
+  display: flex;
+  gap: 16px;
+  padding: 8px 16px;
+  border-top: 1px solid var(--line);
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--text-2);
+}
+
+.switcher-foot .kbd {
+  margin-right: 4px;
+}
+
+/* ---------- Pages ---------- */
+
+.page-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+
+.page-body .page-frame {
+  flex: 1;
+  height: auto;
+}
+
+/* ---------- Search ---------- */
+
+.search-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--gutter) var(--gutter) 48px;
+}
+
+.search-field {
+  margin-bottom: 16px;
+}
+
+.search-body > .field-error {
+  margin: -8px 0 16px;
+}
+
+.result {
+  display: flex;
+  flex-direction: column;
+  padding: 8px 0;
+  border-top: 1px solid var(--line);
+}
+
+.result-note,
+.result-line,
+.backlink-note,
+.backlink-line {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  width: 100%;
+  border-radius: var(--r-sm);
+}
+
+.result-note:hover,
+.result-line:hover,
+.backlink-note:hover,
+.backlink-line:hover {
+  background: var(--hover);
+}
+
+.result-note {
+  padding: 4px 8px;
+}
+
+.result-name {
+  font-weight: 500;
+}
+
+.result-path {
+  font-size: 12px;
+  color: var(--text-3);
+}
+
+.result-line {
+  display: block;
+  padding: 2px 8px;
+  overflow: hidden;
+  font-size: 13px;
+  color: var(--text-2);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+mark {
+  border-radius: 2px;
+  background: var(--selected);
+  color: var(--text);
+  font-weight: 500;
+}
+
+/* ---------- Backlinks ---------- */
+
+.backlinks {
+  padding: 0 calc(var(--gutter) - 8px);
+}
+
+.backlink {
+  display: flex;
+  flex-direction: column;
+  padding-bottom: 8px;
+}
+
+.backlink-note {
+  padding: 4px 8px;
+  font-weight: 500;
+}
+
+.backlink-line {
+  display: block;
+  padding: 2px 8px;
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--text-2);
+}
+
+.backlink-link {
+  text-underline-offset: 2px;
+}
+
+/* ---------- Property tables ----------
+   A ```notes block: a heading row with the view's name (or its tabs), the
+   count and Edit, over a read-only table in the same style as note tables. */
+
+.ptable {
+  margin: 8px 0;
+}
+
+.ptable-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 28px;
+  margin-bottom: 8px;
+}
+
+.ptable-name {
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.ptable-count {
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--text-3);
+}
+
+.ptable-edit {
+  margin-left: auto;
+}
+
+.ptable-tabs {
+  display: flex;
+  gap: 4px;
+}
+
+.ptable-tab {
+  padding: 4px 12px;
+  border-radius: var(--r-ctl);
+  font-size: 13px;
+  color: var(--text-2);
+  transition: background-color 0.12s ease, color 0.12s ease;
+}
+
+.ptable-tab:hover {
+  background: var(--hover);
+  color: var(--text);
+}
+
+.ptable-tab.is-selected {
+  background: var(--selected);
+  color: var(--text);
+  font-weight: 500;
+}
+
+.ptable-sort {
+  display: block;
+  width: 100%;
+  padding: 8px 12px;
+  color: inherit;
+  text-align: inherit;
+  white-space: nowrap;
+}
+
+.ptable-sort:hover {
+  color: var(--text);
+}
+
+.ptable-table .md-cell {
+  cursor: default;
+}
+
+.ptable-empty,
+.ptable-error {
+  color: var(--text-2);
+}
+
+.ptable-error {
+  display: flex;
+  align-items: center;
+}
+
+/* ---------- Outline ---------- */
+
+.outline {
+  display: flex;
+  flex-direction: column;
+  padding: 0 calc(var(--gutter) - 8px);
+}
+
+.outline-item {
+  padding: 4px 8px 4px calc(8px + var(--level) * 12px);
+  border-radius: var(--r-sm);
+  color: var(--text-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transition: background-color 0.12s ease, color 0.12s ease;
+}
+
+.outline-item:hover {
+  background: var(--hover);
+  color: var(--text);
+}
+
+.outline-item.is-selected {
+  background: var(--selected);
+  color: var(--text);
+  font-weight: 500;
+}
+
+/* ---------- Empty states ---------- */
+
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-width: var(--prose-w);
+  padding: var(--gutter);
+  color: var(--text-2);
+}
+
+.search-body .empty-state {
+  padding: 0;
+}
+
+.shortcuts {
+  display: grid;
+  grid-template-columns: max-content max-content;
+  column-gap: 32px;
+  row-gap: 8px;
+  margin-top: 8px;
+}
+
+.shortcut {
+  display: contents;
+}
+
+.shortcut dt {
+  color: var(--text);
+}
+
+/* ---------- Wikis ---------- */
+
+/* The wiki sidebar: the wikis, or one wiki's contents. */
+.wiki-list .nav-item,
+.wiki-contents .nav-item {
+  min-width: 0;
+}
+
+.wiki-list .nav-label,
+.wiki-contents .nav-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nav-item.nav-back {
+  color: var(--text-3);
+}
+
+.nav-item.is-indented .nav-label {
+  padding-left: 24px;
+}
+
+.nav-item.is-quiet {
+  color: var(--text-3);
+}
+
+.wiki-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px calc(var(--gutter) - 8px) 12px var(--gutter);
+}
+
+.wiki-head-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.wiki-head-name {
+  overflow: hidden;
+  font-size: 14px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wiki-head-count {
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--text-3);
+}
+
+.wiki-contents {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding-bottom: var(--gutter);
+}
+
+.wiki-section {
+  margin-top: 4px;
+}
+
+.wiki-upkeep {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--line);
+}
+
+/* A wiki's picture: its cover, or its initial. */
+.wiki-thumb {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--card);
+  color: var(--text-2);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.wiki-thumb.is-large {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--r-ctl);
+  font-size: 14px;
+}
+
+.wiki-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* All wikis */
+.wikis-home {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--gutter) 32px 48px;
+}
+
+.wikis-intro {
+  max-width: var(--prose-w);
+  margin: 0 0 24px;
+  color: var(--text-2);
+}
+
+.wiki-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(224px, 1fr));
+  gap: 16px;
+}
+
+.wiki-card {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--r-window);
+  background: var(--card);
+  text-align: left;
+  transition: border-color 0.12s;
+}
+
+.wiki-card:hover {
+  border-color: var(--line-strong);
+}
+
+.wiki-card.is-new {
+  border-style: dashed;
+  background: transparent;
+}
+
+.wiki-card.is-editing {
+  border-style: solid;
+  border-color: var(--line-strong);
+}
+
+.wiki-card-cover {
+  display: grid;
+  place-items: center;
+  height: 96px;
+  overflow: hidden;
+  border-bottom: 1px solid var(--line);
+  background: var(--sidebar);
+  color: var(--text-3);
+}
+
+.wiki-card-cover > img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.wiki-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px;
+}
+
+.wiki-card-name {
+  font-weight: 600;
+}
+
+.wiki-card-summary {
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--text-2);
+}
+
+.wiki-card-meta {
+  margin-top: 4px;
+  font-size: 11px;
+  line-height: 16px;
+  color: var(--text-3);
+}
+
+.wiki-new-input {
+  height: 32px;
+}
+
+/* A wiki page, read as a finished page. */
+.note-view.is-reading .cm-content {
+  padding-top: 8px;
+  padding-bottom: 32px;
+  caret-color: transparent;
+}
+
+.note-editor .cm-line.cm-reading-hidden {
+  display: none;
+}
+
+.page-cover {
+  height: 176px;
+  overflow: hidden;
+  border-bottom: 1px solid var(--line);
+  background: var(--sidebar);
+}
+
+.page-cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.page-intro {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 24px;
+  width: 100%;
+  max-width: calc(var(--prose-w) + 2 * 32px);
+  margin: 0 auto;
+  padding: 32px 32px 24px;
+  border-bottom: 1px solid var(--line);
+}
+
+.page-intro.has-infobox {
+  grid-template-columns: minmax(0, 1fr) 240px;
+}
+
+.page-title {
+  margin: 0 0 8px;
+  font-size: 24px;
+  line-height: 32px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.page-summary {
+  margin: 0 0 12px;
+  font-size: 17px;
+  line-height: 24px;
+  color: var(--text-2);
+}
+
+.page-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--text-3);
+}
+
+.tag {
+  display: inline-flex;
+  align-items: center;
+  height: 20px;
+  padding: 0 8px;
+  border-radius: var(--r-sm);
+  background: var(--selected);
+  color: var(--text-2);
+  font-size: 11px;
+}
+
+.page-start {
+  margin-top: 16px;
+}
+
+.infobox {
+  align-self: start;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--r-ctl);
+  font-size: 13px;
+}
+
+.infobox dl {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0 12px;
+  margin: 0;
+  padding: 8px 12px;
+}
+
+.infobox dt {
+  padding: 4px 0;
+  color: var(--text-3);
+  font-size: 12px;
+}
+
+.infobox dd {
+  margin: 0;
+  padding: 4px 0;
+  overflow-wrap: anywhere;
+}
+
+.wl {
+  color: var(--text);
+  text-decoration: underline;
+  text-decoration-color: var(--line-strong);
+  text-underline-offset: 3px;
+}
+
+.wl.is-missing {
+  text-decoration-style: dashed;
+}
+
+/* A wiki's Home: its pages and what changed, below its own text. */
+.page-foot {
+  width: 100%;
+  max-width: calc(var(--prose-w) + 2 * 32px);
+  margin: 0 auto;
+  padding: 0 32px 48px;
+}
+
+.page-foot section + section {
+  margin-top: 32px;
+}
+
+.page-foot-title {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 0 0 12px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-2);
+}
+
+.page-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 12px;
+}
+
+.page-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-ctl);
+  text-align: left;
+  transition: border-color 0.12s;
+}
+
+.page-card:hover {
+  border-color: var(--line-strong);
+}
+
+.page-card-title {
+  font-weight: 600;
+}
+
+.page-card-summary {
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--text-2);
+}
+
+.page-recent-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+}
+
+.page-recent-row:hover span:first-child {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.page-recent-when {
+  font-size: 12px;
+  color: var(--text-3);
+}
+
+/* ---------- Suggestions ---------- */
+
+/* How many suggestions wait, on the Suggestions row in the Wikis sidebar. */
+.nav-badge {
+  min-width: 16px;
+  padding: 0 4px;
+  border-radius: 8px;
+  background: var(--primary);
+  color: var(--on-primary);
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 16px;
+  text-align: center;
+}
+
+/* A lightbulb cast in liquid silver (ui/silver-icon.js): suggestions are waiting. */
+.silver-bulb {
+  display: inline-block;
+  flex: none;
+  -webkit-mask-size: contain;
+  mask-size: contain;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  mask-position: center;
+}
+
+.silver-bulb[hidden] {
+  display: none;
+}
+
+.silver-bulb canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.silver-bulb.is-flat {
+  background: currentColor;
+}
+
+.sugg-tabs {
+  flex: none;
+  display: flex;
+  gap: 16px;
+  height: 40px;
+  padding: 0 var(--gutter);
+  border-bottom: 1px solid var(--line);
+}
+
+.sugg-tab {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: -1px;
+  border-bottom: 2px solid transparent;
+  color: var(--text-2);
+  font-size: 13px;
+}
+
+.sugg-tab:hover {
+  color: var(--text);
+}
+
+.sugg-tab.is-selected {
+  border-bottom-color: var(--text);
+  color: var(--text);
+  font-weight: 500;
+}
+
+.sugg-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--gutter) var(--gutter) 48px;
+}
+
+.sugg-body.is-review {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 0;
+}
+
+.sugg-empty {
+  max-width: var(--prose-w);
+  color: var(--text-2);
+}
+
+.sugg-empty p {
+  margin: 0 0 12px;
+}
+
+/* The copy-and-paste panel. */
+.sugg-run {
+  max-width: 880px;
+  margin-bottom: 24px;
+  padding: 16px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-window);
+  background: var(--sidebar);
+}
+
+.sugg-run-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.sugg-run-head h2 {
+  flex: 1;
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.sugg-run-head .count {
+  flex: none;
+}
+
+.sugg-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin: 0;
+  padding-left: 24px;
+}
+
+.sugg-step-title {
+  font-weight: 500;
+}
+
+.sugg-step-note {
+  margin: 4px 0 8px;
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--text-2);
+}
+
+.sugg-step-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.sugg-prompt,
+.sugg-paste {
+  display: block;
+  height: 144px;
+  margin-top: 8px;
+  padding: 8px 12px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 16px;
+  resize: vertical;
+}
+
+.sugg-problems {
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--text-2);
+}
+
+/* Findings */
+.sugg-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: 880px;
+}
+
+.sugg-group {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 8px 0 0;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-3);
+}
+
+.sugg-group:first-child {
+  margin-top: 0;
+}
+
+.finding {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 4px 16px;
+  padding: 12px 12px 12px 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-ctl);
+}
+
+.finding.is-approved {
+  background: var(--sidebar);
+}
+
+.finding > :not(.finding-actions) {
+  grid-column: 1;
+}
+
+.finding-kind {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  line-height: 16px;
+  color: var(--text-3);
+}
+
+.finding-kind.is-warning {
+  color: var(--warning);
+}
+
+.finding-title {
+  font-weight: 600;
+}
+
+.finding-target {
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--text-3);
+}
+
+.finding-why {
+  margin: 0;
+  color: var(--text-2);
+}
+
+.finding-sources {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 4px;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 20px;
+  padding: 0 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  color: var(--text-2);
+  font-size: 12px;
+}
+
+.chip:hover {
+  border-color: var(--line-strong);
+  color: var(--text);
+}
+
+.finding-actions {
+  grid-column: 2;
+  grid-row: 1 / span 5;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.finding-done {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 28px;
+  font-size: 12px;
+  color: var(--success);
+}
+
+.sugg-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+  font-size: 12px;
+  color: var(--text-3);
+}
+
+.sugg-bar .grow {
+  flex: 1;
+}
+
+/* Drafts: the list on the left, one page's changes on the right. */
+.review {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 240px minmax(0, 1fr);
+}
+
+.review-list {
+  overflow-y: auto;
+  padding: 12px 8px;
+  border-right: 1px solid var(--line);
+}
+
+.review-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 40px;
+  padding: 4px 8px;
+  border-radius: var(--r-ctl);
+  color: var(--text-2);
+  text-align: left;
+}
+
+.review-item:hover {
+  background: var(--hover);
+  color: var(--text);
+}
+
+.review-item.is-selected {
+  background: var(--selected);
+  color: var(--text);
+}
+
+.review-item-name {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.review-item-name > span:first-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.review-item-wiki {
+  font-size: 11px;
+  line-height: 16px;
+  color: var(--text-3);
+}
+
+.review-item-stat {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--text-3);
+}
+
+.review-item-stat .icon {
+  color: var(--success);
+}
+
+.is-add {
+  color: var(--success);
+}
+
+.is-del {
+  color: var(--error);
+}
+
+.review-page {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  padding: 0 var(--gutter) 16px;
+}
+
+.review-draft {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-top: 16px;
+}
+
+.review-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.review-head h2 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 17px;
+  line-height: 24px;
+  font-weight: 600;
+}
+
+.review-path {
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--text-3);
+}
+
+.review-head-actions {
+  display: flex;
+  flex: none;
+  gap: 8px;
+}
+
+.review-note {
+  margin: 0;
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-ctl);
+  color: var(--text-2);
+}
+
+.review-findings,
+.review-reasons {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  color: var(--text-2);
+}
+
+.review-sources {
+  display: inline-flex;
+  gap: 4px;
+  margin-left: 8px;
+  vertical-align: 1px;
+}
+
+.hunk {
+  flex: none;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--r-ctl);
+}
+
+.hunk.is-accepted {
+  border-color: var(--line-strong);
+}
+
+.hunk.is-rejected .hunk-lines {
+  opacity: 0.5;
+}
+
+.hunk-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 4px 8px 4px 12px;
+  border-bottom: 1px solid var(--line);
+  background: var(--sidebar);
+  font-size: 12px;
+  color: var(--text-2);
+}
+
+.hunk-why {
+  flex: 1;
+  min-width: 0;
+}
+
+.hunk-why b {
+  color: var(--text);
+  font-weight: 500;
+}
+
+.btn.is-on {
+  background: var(--selected);
+}
+
+.hunk-lines {
+  padding: 4px 0;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 20px;
+}
+
+.dl {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr);
+}
+
+.dl > span:last-child {
+  padding-right: 12px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.dl-mark {
+  color: var(--text-3);
+  text-align: center;
+  user-select: none;
+}
+
+.dl.is-ctx > span:last-child {
+  color: var(--text-3);
+}
+
+.dl.is-add {
+  background: color-mix(in srgb, var(--success) 14%, transparent);
+}
+
+.dl.is-add .dl-mark {
+  color: var(--success);
+}
+
+.dl.is-del {
+  background: color-mix(in srgb, var(--error) 14%, transparent);
+}
+
+.dl.is-del .dl-mark {
+  color: var(--error);
+}
+
+.review-page > .sugg-bar {
+  flex: none;
+}
+
+/* History */
+.history-row {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 3fr) auto;
+  align-items: center;
+  gap: 16px;
+  min-height: 40px;
+  border-bottom: 1px solid var(--line);
+}
+
+.history-page {
+  font-weight: 500;
+  text-align: left;
+}
+
+.history-what,
+.history-when {
+  font-size: 12px;
+  color: var(--text-3);
+}
+
+/* All wikis: what needs you, above the wikis. */
+.home-suggestions {
+  max-width: 880px;
+  margin-bottom: 24px;
+  padding: 4px 12px 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-window);
+  background: var(--sidebar);
+}
+
+.home-suggestions-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 48px;
+  padding: 0 4px;
+}
+
+.home-suggestions-title {
+  font-weight: 600;
+}
+
+.home-suggestions-sub {
+  flex: 1;
+  font-size: 12px;
+  color: var(--text-3);
+}
+
+.home-suggestion {
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 4px;
+  border-top: 1px solid var(--line);
+}
+
+.home-suggestion-text {
+  overflow: hidden;
+  color: var(--text-2);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.home-suggestion-text b {
+  color: var(--text);
+  font-weight: 500;
+}
+
+.home-suggestions-more {
+  padding: 8px 4px 0;
+  border-top: 1px solid var(--line);
+  font-size: 12px;
+  color: var(--text-3);
+}

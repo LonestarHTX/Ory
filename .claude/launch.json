@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "ory",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": ["-m", "ory"],
+      "port": 4747
+    }
+  ]
+}
