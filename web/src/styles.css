@@ -932,6 +932,25 @@ html[data-theme-fade]::view-transition-new(root) {
   min-height: 28px;
 }
 
+/* One row: what doesn't fit moves into "More" (ui/format-toolbar.js). */
+.format-tools {
+  flex-wrap: nowrap;
+  overflow: hidden;
+}
+
+.format-tools > [hidden] {
+  display: none !important;
+}
+
+.format-tools > * {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.format-more {
+  margin-left: auto;
+}
+
 .format-link {
   gap: 8px;
 }

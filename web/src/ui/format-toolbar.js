@@ -1,6 +1,7 @@
 // The formatting toolbar above a note: a style picker, then inline styles,
 // lists and inserts. Every button writes Markdown. The link button swaps the
-// tools for an address field.
+// tools for an address field. When the note is too narrow for every tool, the
+// last ones move into a "More" menu at the end instead of wrapping.
 
 import {
   applyLink, formatState, insertPropertyTable, insertTable, linkAt, setColor, setHeading, startNoteLink,
@@ -65,10 +66,13 @@ export function createFormatToolbar(getView, options = {}) {
   }, styleLabel, icon("chevronDown", 14));
 
   const buttons = [];
+  const items = []; // the tools after the style picker, separators included, in order
   tools.append(styleButton, h("span", { class: "format-sep" }));
   for (const tool of TOOLS) {
     if (!tool) {
-      tools.append(h("span", { class: "format-sep" }));
+      const sep = h("span", { class: "format-sep" });
+      items.push({ el: sep, tool: null });
+      tools.append(sep);
       continue;
     }
     const button = h("button", {
@@ -84,8 +88,36 @@ export function createFormatToolbar(getView, options = {}) {
             : runOnEditor(tool.run)),
     }, tool.ink ? [h("span", null, "A"), h("span", { class: "format-ink" })] : tool.icon ? icon(tool.icon, 16) : tool.text);
     buttons.push({ button, tool });
+    items.push({ el: button, tool });
     tools.append(button);
   }
+
+  // Overflow: tools that don't fit go into "More", from the end.
+  const more = h("button", {
+    class: "format-btn format-more", type: "button", hidden: true,
+    "aria-label": "More formatting", "aria-haspopup": "menu", dataset: { tip: "More" },
+    onClick: () => openMenu(more, items.filter((it) => it.tool && it.el.hidden).map(({ el, tool }) => ({
+      label: tool.label,
+      checked: tool.state ? el.getAttribute("aria-pressed") === "true" : null,
+      run: () => (tool.link ? editLink(getView())
+        : tool.attach ? picker.click()
+          : tool.ink ? openInks(more)
+            : runOnEditor(tool.run)),
+    }))),
+  }, icon("more", 16));
+  tools.append(more);
+
+  function fit() {
+    for (const it of items) it.el.hidden = false;
+    more.hidden = true;
+    if (tools.hidden || tools.clientWidth === 0 || tools.scrollWidth <= tools.clientWidth) return;
+    more.hidden = false;
+    for (let i = items.length - 1; i >= 0 && tools.scrollWidth > tools.clientWidth; i--) items[i].el.hidden = true;
+    // No separator right before "More".
+    const last = items.findLast((it) => !it.el.hidden);
+    if (last && !last.tool) last.el.hidden = true;
+  }
+  new ResizeObserver(() => fit()).observe(tools);
 
   // Clicking a tool must not take focus or the selection away from the note.
   tools.addEventListener("mousedown", (e) => {
@@ -93,7 +125,7 @@ export function createFormatToolbar(getView, options = {}) {
   });
 
   // One tab stop for the whole toolbar; arrow keys move between its buttons.
-  const focusables = () => [...tools.querySelectorAll("button")];
+  const focusables = () => [...tools.querySelectorAll("button")].filter((b) => !b.hidden);
   focusables().forEach((b, i) => b.setAttribute("tabindex", i === 0 ? "0" : "-1"));
   tools.addEventListener("keydown", (e) => {
     const list = focusables();
