@@ -4,7 +4,7 @@
 // onto a folder to add them.
 
 import {
-  alertError, displayName, movePath, newFolder, newNote, openFile, openNote, renamePath, trashPath,
+  alertError, archivePath, ARCHIVE_NOTE, displayName, movePath, newFolder, newNote, openFile, openNote, renamePath,
 } from "../actions.js";
 import { api } from "../api.js";
 import { fileName, folderOf, isImage, isPage } from "../links.js";
@@ -132,7 +132,7 @@ export function createTree(el) {
       tabindex: -1,
       "aria-label": `Actions for ${name}`,
       "aria-haspopup": "menu",
-      dataset: { tip: kind === "folder" ? "New note or folder, rename, trash" : "Rename or move to trash" },
+      dataset: { tip: kind === "folder" ? "New note or folder, rename, archive" : "Rename or archive" },
       onClick: (e) => {
         e.stopPropagation();
         openMenu(more, menuItems(kind, path, name));
@@ -166,9 +166,9 @@ export function createTree(el) {
     }
     items.push({ label: "Rename", run: () => startRename(path) });
     items.push({
-      label: "Move to trash",
-      confirm: kind === "folder" ? `Move "${name}" and everything in it to the trash?` : `Move "${name}" to the trash?`,
-      run: () => trashPath(path),
+      label: "Archive",
+      confirm: kind === "folder" ? `Archive "${name}" and everything in it? ${ARCHIVE_NOTE}` : `Archive "${name}"? ${ARCHIVE_NOTE}`,
+      run: () => archivePath(path),
     });
     return items;
   }

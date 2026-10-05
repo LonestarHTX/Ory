@@ -35,7 +35,11 @@ export const api = {
   create: (path, text = "") => request("POST", "/api/notes", { path, text }),
   createFolder: (path) => request("POST", "/api/folders", { path }),
   move: (from, to) => request("POST", "/api/move", { from, to }),
-  trash: (path) => request("POST", "/api/trash", { path }),
+  archive: (path) => request("POST", "/api/archive", { path }),
+  /** {days, items: [{id, kind, name, from, notes, archivedAt, deletesAt}]} */
+  archived: () => request("GET", "/api/archive"),
+  restore: (id) => request("POST", "/api/archive/restore", { id }),
+  deleteArchived: (id) => request("POST", "/api/archive/delete", { id }),
   daily: (date) => request("POST", "/api/daily", { date }),
   backlinks: (path) => request("GET", `/api/backlinks?${q({ path })}`),
   search: (query) => request("GET", `/api/search?${q({ q: query })}`),

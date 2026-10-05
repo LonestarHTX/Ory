@@ -6,7 +6,7 @@
 // Edit switches to the editor, Esc or Done back. A blank page opens ready to
 // write. A wiki's Home adds its pages and recent changes below the text.
 
-import { closeNote, followLink, movePath, notify, onMove, openNote, trashPath } from "../actions.js";
+import { archivePath, ARCHIVE_NOTE, closeNote, followLink, movePath, notify, onMove, openNote } from "../actions.js";
 import { api } from "../api.js";
 import { createEditor } from "../editor/index.js";
 import { focusAddProperty, frontmatterRange, syncFocus } from "../editor/properties.js";
@@ -523,11 +523,11 @@ export function createNoteView(el) {
     }
     items.push({ label: "Copy link", run: () => navigator.clipboard?.writeText(`[[${linkTextFor(note.path, null)}]]`) });
     items.push({
-      label: "Move to trash",
-      confirm: `Move "${noteName(note.path)}" to the trash?`,
+      label: "Archive",
+      confirm: `Archive "${noteName(note.path)}"? ${ARCHIVE_NOTE}`,
       run: () => {
         editor.forget(note.path);
-        trashPath(note.path);
+        archivePath(note.path);
       },
     });
     return items;

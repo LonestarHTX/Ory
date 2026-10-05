@@ -26,7 +26,9 @@ USAGE = """Commands (every one prints JSON):
   append PATH                  add the text on stdin to the end of a note
   daily [--date YYYY-MM-DD]    today's daily note, creating it
   move FROM TO                 rename or move, rewriting links
-  trash PATH                   move to .trash/
+  archive PATH                 move to .archive/ (restorable for 30 days)
+  archived                     what is in the archive
+  restore ID                   put an archived item back where it came from
   unread                       notes changed since suggestions last read them
   suggestions                  findings and drafts waiting for review
   suggest                      file suggestions: JSON on stdin
@@ -117,8 +119,12 @@ def dispatch(agent: Agent, name: str, rest: List[str]) -> Any:
     if name == "move":
         args = parser("source", "dest")
         return agent.move(args.source, args.dest)
-    if name == "trash":
-        return agent.trash(parser("path").path)
+    if name == "archive":
+        return agent.archive(parser("path").path)
+    if name == "archived":
+        return agent.archived()
+    if name == "restore":
+        return agent.restore(parser("id").id)
     if name == "unread":
         return agent.unread()
     if name == "suggestions":

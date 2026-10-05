@@ -16,6 +16,7 @@ import re
 import shutil
 import tempfile
 import threading
+import time
 from dataclasses import dataclass, field
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
@@ -24,7 +25,12 @@ from . import markdown
 NOTE_EXT = ".md"
 # Guides for AI agents at the top of the notes folder (guide.py); not notes.
 AGENT_GUIDES = ("AGENTS.md", "CLAUDE.md")
-TRASH_DIR = ".trash"
+# Archived notes, files and folders, kept ARCHIVE_DAYS days and then deleted.
+ARCHIVE_DIR = ".archive"
+ARCHIVE_DAYS = 30
+_ARCHIVE_LOG = ".archive.json"  # in ARCHIVE_DIR: where each item came from, and when
+_OLD_TRASH_DIR = ".trash"  # where deleting used to put things; moved into the archive
+_PURGE_EVERY = 3600  # seconds between looks for archived items past their time
 DEFAULT_ATTACHMENTS = "Attachments"
 # A link target ending in one of these is a file rather than a note.
 _FILE_EXT = re.compile(r"\.[A-Za-z0-9]{1,8}$")
@@ -115,6 +121,7 @@ class Vault:
         self._by_file: Dict[str, List[str]] = {}
         self._lock = threading.RLock()
         self.version = 0
+        self._purged_at = 0.0
 
     # Paths ----------------------------------------------------------------
 
@@ -127,7 +134,7 @@ class Vault:
         if norm.startswith("..") or posixpath.isabs(norm) or norm == ".":
             raise VaultError(f"'{rel}' is outside the notes folder.")
         # Check the real folder the path sits in, but act on the path itself, so
-        # a symlinked note is renamed or trashed as the link, not its target.
+        # a symlinked note is renamed or archived as the link, not its target.
         full = os.path.join(self.root, *norm.split("/"))
         parent = os.path.realpath(os.path.dirname(full))
         if os.path.commonpath([parent, self.root]) != self.root:
@@ -186,10 +193,10 @@ class Vault:
         return "/".join(parts)
 
     def _source(self, rel: str) -> str:
-        """A path to move or trash: cleaned, spelt as on disk, never inside a dot-folder."""
+        """A path to move or archive: cleaned, spelt as on disk, never inside a dot-folder."""
         rel = self._clean(rel)
         if not rel or any(part.startswith(".") for part in rel.split("/")):
-            raise VaultError(f"'{rel or '.'}' cannot be moved or trashed.")
+            raise VaultError(f"'{rel or '.'}' cannot be moved or archived.")
         found = self._existing(rel) or self._existing(self._note_path(rel))
         if not found:
             raise VaultError(f"'{rel}' does not exist.", 404)
@@ -200,6 +207,12 @@ class Vault:
     def refresh(self) -> int:
         """Bring the index in line with the disk. Returns the index version."""
         with self._lock:
+            if time.time() - self._purged_at > _PURGE_EVERY:
+                self._purged_at = time.time()
+                try:
+                    self.archived()  # deletes what has been archived too long
+                except OSError:
+                    pass
             seen: Dict[str, Tuple[os.stat_result, str]] = {}
             files: Dict[str, Attachment] = {}
             folders: List[str] = []
@@ -493,23 +506,154 @@ class Vault:
             raise VaultError(f"'{rel}' does not exist.", 404)
         return full
 
-    def trash(self, rel: str) -> str:
-        """Move a note, file or folder into `.trash/`. Nothing is deleted outright."""
+    # Archive --------------------------------------------------------------
+    # Deleting archives: the note, file or folder moves into `.archive/`, and the
+    # log there records where it came from and when. It can be restored for
+    # ARCHIVE_DAYS days; after that Ory deletes it for good.
+
+    def _archive_root(self) -> str:
+        return os.path.join(self.root, ARCHIVE_DIR)
+
+    def _read_archive_log(self) -> Dict[str, Dict[str, Any]]:
+        try:
+            with open(os.path.join(self._archive_root(), _ARCHIVE_LOG), encoding="utf-8") as fh:
+                data = json.load(fh)
+        except (OSError, ValueError):
+            return {}
+        items = data.get("items") if isinstance(data, dict) else None
+        return {k: v for k, v in items.items() if isinstance(v, dict)} if isinstance(items, dict) else {}
+
+    def _archive_log(self, now: float) -> Dict[str, Dict[str, Any]]:
+        """The log, matched to what is in the folder. Things moved in from the old
+        `.trash/` were deleted already, so their 30 days count from now. Anything
+        else it doesn't know was put there some other way: it is listed, but kept
+        (no time) until someone restores or deletes it."""
+        root = self._archive_root()
+        log = self._read_archive_log()
+        changed = False
+        old = os.path.join(self.root, _OLD_TRASH_DIR)
+        if os.path.isdir(old):
+            os.makedirs(root, exist_ok=True)
+            for name in sorted(os.listdir(old)):
+                if name.startswith("."):
+                    continue
+                dest = _free_name(root, name)
+                shutil.move(os.path.join(old, name), dest)
+                log[os.path.basename(dest)] = {"from": None, "at": now}
+                changed = True
+            try:
+                os.rmdir(old)
+            except OSError:
+                pass  # something hidden is left in it; leave the folder
+        present = {n for n in os.listdir(root) if not n.startswith(".")} if os.path.isdir(root) else set()
+        for name in present - set(log):
+            log[name] = {"from": None, "at": None}
+            changed = True
+        for name in set(log) - present:
+            del log[name]
+            changed = True
+        if changed:
+            self._write_archive_log(log)
+        return log
+
+    def _write_archive_log(self, log: Dict[str, Dict[str, Any]]) -> None:
+        os.makedirs(self._archive_root(), exist_ok=True)
+        _atomic_write(os.path.join(self._archive_root(), _ARCHIVE_LOG), json.dumps({"items": log}, indent=2) + "\n")
+
+    def _archive_lock(self) -> "_file_lock":
+        os.makedirs(self._archive_root(), exist_ok=True)
+        return _file_lock(os.path.join(self._archive_root(), ".lock"))
+
+    def _archived_name(self, log: Dict[str, Any], item: Any) -> str:
+        if not isinstance(item, str) or item not in log or "/" in item or "\\" in item or item.startswith("."):
+            raise VaultError("That isn't in the archive.", 404)
+        return item
+
+    def archive(self, rel: str, now: Optional[float] = None) -> str:
+        """Move a note, file or folder into `.archive/`. Returns where it went."""
+        now = time.time() if now is None else now
         with self._lock:
             self.refresh()
             rel = self._source(rel)
             full = self._abs(rel)
-            trash_root = os.path.join(self.root, TRASH_DIR)
-            dest = os.path.join(trash_root, os.path.basename(full))
-            stem, ext = os.path.splitext(dest)
-            n = 1
-            while os.path.exists(dest):
-                dest = f"{stem} {n}{ext}"
-                n += 1
-            os.makedirs(trash_root, exist_ok=True)
-            shutil.move(full, dest)
+            with self._archive_lock():
+                log = self._archive_log(now)
+                dest = _free_name(self._archive_root(), os.path.basename(full))
+                shutil.move(full, dest)
+                log[os.path.basename(dest)] = {"from": rel, "at": now}
+                self._write_archive_log(log)
             self.refresh()
-            return os.path.relpath(dest, self.root).replace(os.sep, "/")
+            return f"{ARCHIVE_DIR}/{os.path.basename(dest)}"
+
+    def archived(self, now: Optional[float] = None) -> List[Dict[str, Any]]:
+        """What is in the archive, newest first, after deleting anything archived
+        more than ARCHIVE_DAYS days ago."""
+        now = time.time() if now is None else now
+        keep = ARCHIVE_DAYS * 86400
+        with self._lock:
+            if not os.path.isdir(self._archive_root()) and not os.path.isdir(os.path.join(self.root, _OLD_TRASH_DIR)):
+                return []
+            with self._archive_lock():
+                log = self._archive_log(now)
+                expired = [name for name, entry in log.items()
+                           if _number(entry.get("at")) is not None and _number(entry.get("at")) + keep <= now]
+                for name in expired:
+                    _remove(os.path.join(self._archive_root(), name))
+                    del log[name]
+                if expired:
+                    self._write_archive_log(log)
+            items = []
+            for name, entry in log.items():
+                full = os.path.join(self._archive_root(), name)
+                origin = entry.get("from") if isinstance(entry.get("from"), str) else None
+                at = _number(entry.get("at"))
+                folder = os.path.isdir(full)
+                kind = "folder" if folder else "note" if name.lower().endswith(NOTE_EXT) else "file"
+                if folder and origin and posixpath.dirname(origin) == self.wikis_folder:
+                    kind = "wiki"
+                shown = posixpath.basename(origin) if origin else name
+                items.append({
+                    "id": name,
+                    "kind": kind,
+                    "name": note_name(shown) if kind == "note" else shown,
+                    "from": origin,
+                    "notes": _count_notes(full) if folder else None,
+                    "archivedAt": at,
+                    "deletesAt": None if at is None else at + keep,
+                })
+            items.sort(key=lambda i: (i["archivedAt"] is not None, i["archivedAt"] or 0), reverse=True)
+            return items
+
+    def restore(self, item: str) -> str:
+        """Put an archived item back where it came from (under another name if that
+        is taken now; at the top of the notes folder if where is unknown)."""
+        with self._lock:
+            with self._archive_lock():
+                log = self._archive_log(time.time())
+                name = self._archived_name(log, item)
+                origin = log[name].get("from")
+                rel = self._clean(origin) if isinstance(origin, str) and origin else name
+                if any(part.startswith(".") for part in rel.split("/")):
+                    rel = posixpath.basename(rel).lstrip(".") or name
+                target = self._abs(rel)
+                os.makedirs(os.path.dirname(target), exist_ok=True)
+                target = _free_name(os.path.dirname(target), os.path.basename(target))
+                shutil.move(os.path.join(self._archive_root(), name), target)
+                del log[name]
+                self._write_archive_log(log)
+            self.refresh()
+            return os.path.relpath(target, self.root).replace(os.sep, "/")
+
+    def delete_archived(self, item: str) -> None:
+        """Delete an archived item for good, before its time is up."""
+        with self._lock:
+            with self._archive_lock():
+                log = self._archive_log(time.time())
+                name = self._archived_name(log, item)
+                _remove(os.path.join(self._archive_root(), name))
+                del log[name]
+                self._write_archive_log(log)
+            self.version += 1
 
     def move(self, src: str, dest: str) -> Dict[str, Any]:
         """Rename or move a note or folder and update links that point into it."""
@@ -685,6 +829,34 @@ def _snippets(text: str, terms: List[str], max_lines: int = 3, width: int = 160)
         if len(out) >= max_lines:
             break
     return out
+
+
+def _free_name(directory: str, name: str) -> str:
+    """A path in `directory` for `name`, numbered ("Plan 1.md") if it is taken."""
+    dest = os.path.join(directory, name)
+    stem, ext = os.path.splitext(dest)
+    if os.path.isdir(dest):
+        stem, ext = dest, ""
+    n = 1
+    while os.path.lexists(dest):
+        dest = f"{stem} {n}{ext}"
+        n += 1
+    return dest
+
+
+def _remove(full: str) -> None:
+    if os.path.isdir(full) and not os.path.islink(full):
+        shutil.rmtree(full)
+    elif os.path.lexists(full):
+        os.remove(full)
+
+
+def _count_notes(folder: str) -> int:
+    return sum(1 for _, _, files in os.walk(folder) for f in files if f.lower().endswith(NOTE_EXT))
+
+
+def _number(value: Any) -> Optional[float]:
+    return float(value) if isinstance(value, (int, float)) and not isinstance(value, bool) else None
 
 
 class _file_lock:

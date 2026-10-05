@@ -62,8 +62,11 @@ tools can show:
 - `[[Note name]]`, `[[Folder/Note]]`, `[[Note#Heading]]` and `[[Note|shown text]]` links.
   A bare name matches any note with that file name, preferring the linking note's folder.
 - YAML frontmatter at the top of a note is shown as properties.
-- Deleted notes go to `.trash/` in the notes folder, so nothing is lost by accident.
-- Folders that start with a dot (such as `.git` or `.trash`) are ignored.
+- Nothing is deleted straight away: archiving a note, file, folder or wiki moves it to
+  the Archive (`.archive/` in the notes folder). The Archive button at the foot of the
+  sidebar lists it, with Restore, for 30 days; then Ory deletes it for good. Anything put
+  in `.archive/` some other way is listed but kept until you restore or delete it.
+- Folders that start with a dot (such as `.git` or `.archive`) are ignored.
 - Screenshots and files pasted or dropped into a note are saved to the attachments
   folder and embedded as `![[Pasted image 20260927194019.png]]`.
 
@@ -80,9 +83,9 @@ Ory has two spaces over the same folder, switched at the top left of the window:
 summary and size, and a card to start a new one. Opening a wiki turns the sidebar into
 its contents: Home, its pages, a heading for each subfolder, and upkeep pages
 (`Instructions.md`, `Log.md`) at the bottom. An `order:` property sets a page's place;
-otherwise pages go by name. To delete a wiki, choose Move to trash from its "..." (on
-its card, beside it in the sidebar, or in its header once it's open): the whole folder
-goes to `.trash/`, so nothing is lost.
+otherwise pages go by name. To remove a wiki, choose Archive from its "..." (on its
+card, beside it in the sidebar, or in its header once it's open): the whole folder goes
+to the Archive, where you can restore it for 30 days.
 
 A wiki page opens for **reading**: a header with the title, the `summary:` property, the
 tags and a `cover:` image, then the text with no Markdown showing and nothing editable.
@@ -162,7 +165,8 @@ set of operations (`ory/agent.py`):
   of either to keep your own version; Ory then leaves it alone.
 - **Commands.** `python3 -m ory [--notes PATH] COMMAND` prints JSON:
   - Reading: `index`, `wikis`, `read`, `search` and `backlinks`.
-  - Changing notes: `write` and `append` (the text comes on stdin), `daily`, `move` (which rewrites links) and `trash`.
+  - Changing notes: `write` and `append` (the text comes on stdin), `daily`, `move` (which rewrites links) and `archive`.
+  - The Archive: `archived` lists it and `restore` puts an item back.
   - Suggestions: `unread`, `suggestions` and `suggest`.
 
   Run `python3 -m ory help` for the list.
@@ -186,7 +190,8 @@ set of operations (`ory/agent.py`):
   ```
 
 Agents have full access, the same as you. Moves go through Ory, so links follow, and
-nothing is deleted outright: `trash` moves files to `.trash/`. For changes you'd rather
+nothing is deleted outright: `archive` moves files to the Archive, where you can restore
+them for 30 days, and agents have no way to delete for good. For changes you'd rather
 weigh first, an agent files suggestions (`suggest`): findings and whole-page drafts that
 appear in Ory's Suggestions within a couple of seconds, lighting the silver bulb, for you
 to approve change by change. This is also the quickest way to run Suggestions: ask an

@@ -2,7 +2,7 @@
 // one it becomes that wiki's contents: Home, its pages, a heading for each
 // subfolder, then the wiki's upkeep pages (Instructions, Log) at the bottom.
 
-import { alertError, createNote, currentRoute, newNote, openNote, openSuggestions, openWikis, trashWiki } from "../actions.js";
+import { alertError, createNote, currentRoute, newNote, openNote, openSuggestions, openWikis, archiveWiki, ARCHIVE_NOTE } from "../actions.js";
 import { waiting } from "../suggestions/state.js";
 import { silverBulb } from "./silver-icon.js";
 import { noteName } from "../links.js";
@@ -119,9 +119,9 @@ export function createWikiNav(el) {
 export function wikiActions(w) {
   const pages = `${w.count} ${w.count === 1 ? "page" : "pages"}`;
   return [{
-    label: "Move to trash",
-    confirm: `Move the ${w.name} wiki and its ${pages} to the trash?`,
-    run: () => trashWiki(w.name),
+    label: "Archive",
+    confirm: `Archive the ${w.name} wiki and its ${pages}? ${ARCHIVE_NOTE}`,
+    run: () => archiveWiki(w.name),
   }];
 }
 
@@ -129,7 +129,7 @@ export function wikiActions(w) {
 export function moreButton(w, { tabindex = null, cls = "" } = {}) {
   const button = h("button", {
     class: `iconbtn${cls ? " " + cls : ""}`, type: "button", tabindex,
-    "aria-label": `Actions for the ${w.name} wiki`, "aria-haspopup": "menu", dataset: { tip: "Move to trash" },
+    "aria-label": `Actions for the ${w.name} wiki`, "aria-haspopup": "menu", dataset: { tip: "Archive" },
     onClick: (e) => {
       e.stopPropagation();
       openMenu(button, wikiActions(w));

@@ -1,4 +1,5 @@
 import os
+import shutil
 import tempfile
 import unittest
 
@@ -162,13 +163,70 @@ class VaultTests(unittest.TestCase):
     def test_relative_link_above_root(self):
         self.assertIsNone(self.vault.resolve("../../Home", "Other/Notes.md"))
 
-    def test_daily_and_trash(self):
+    def test_daily_and_archive(self):
         note, created = self.vault.daily("2026-09-27")
         self.assertTrue(created)
         self.assertEqual(note.path, "Daily/2026-09-27.md")
         self.assertFalse(self.vault.daily("2026-09-27")[1])
-        self.assertEqual(self.vault.trash("Daily/2026-09-27.md"), ".trash/2026-09-27.md")
+        self.assertEqual(self.vault.archive("Daily/2026-09-27.md"), ".archive/2026-09-27.md")
         self.assertNotIn("Daily/2026-09-27.md", [n["path"] for n in self.vault.listing()["notes"]])
+
+    def test_archive_restores_to_where_it_was(self):
+        self.vault.archive("Other/Mars.md", now=1000.0)
+        [item] = self.vault.archived(now=2000.0)
+        self.assertEqual((item["kind"], item["name"], item["from"]), ("note", "Mars", "Other/Mars.md"))
+        self.assertEqual(item["deletesAt"], 1000.0 + 30 * 86400)
+        shutil.rmtree(os.path.join(self.root, "Other"))  # its folder is gone meanwhile
+        self.assertEqual(self.vault.restore(item["id"]), "Other/Mars.md")
+        self.assertIn("Other/Mars.md", [n["path"] for n in self.vault.listing()["notes"]])
+        self.assertEqual(self.vault.archived(now=2000.0), [])
+
+    def test_restore_beside_a_note_of_the_same_name(self):
+        self.vault.archive("Other/Mars.md")
+        write(self.root, "Other/Mars.md", "a new Mars\n")
+        self.vault.refresh()
+        [item] = self.vault.archived()
+        self.assertEqual(self.vault.restore(item["id"]), "Other/Mars 1.md")
+        self.assertEqual(read(self.root, "Other/Mars.md"), "a new Mars\n")
+
+    def test_archive_deletes_after_thirty_days(self):
+        self.vault.archive("Other/Mars.md", now=1000.0)
+        self.assertEqual(len(self.vault.archived(now=1000.0 + 30 * 86400 - 1)), 1)
+        self.assertEqual(self.vault.archived(now=1000.0 + 30 * 86400), [])
+        self.assertFalse(os.path.exists(os.path.join(self.root, ".archive", "Mars.md")))
+
+    def test_archived_folders_and_wikis(self):
+        write(self.root, "Wikis/Night sky/Home.md", "# Night sky\n")
+        write(self.root, "Wikis/Night sky/Saturn.md", "# Saturn\n")
+        self.vault.refresh()
+        self.vault.archive("Wikis/Night sky")
+        self.vault.archive("Other")
+        kinds = {i["name"]: (i["kind"], i["notes"]) for i in self.vault.archived()}
+        self.assertEqual(kinds, {"Night sky": ("wiki", 2), "Other": ("folder", 2)})
+
+    def test_things_already_in_the_archive_folder_are_kept(self):
+        write(self.root, ".archive/Course/Lesson.md", "a lesson\n")
+        [item] = self.vault.archived(now=1000.0)
+        self.assertEqual((item["name"], item["archivedAt"], item["deletesAt"]), ("Course", None, None))
+        self.assertEqual(len(self.vault.archived(now=1000.0 + 365 * 86400)), 1)  # never deleted on its own
+        self.assertTrue(os.path.isfile(os.path.join(self.root, ".archive", "Course", "Lesson.md")))
+
+    def test_old_trash_moves_into_the_archive(self):
+        write(self.root, ".trash/Old.md", "old\n")
+        [item] = self.vault.archived(now=5000.0)
+        self.assertEqual((item["name"], item["from"], item["archivedAt"]), ("Old", None, 5000.0))
+        self.assertFalse(os.path.exists(os.path.join(self.root, ".trash")))
+        self.assertEqual(self.vault.restore(item["id"]), "Old.md")
+
+    def test_delete_archived_and_bad_ids(self):
+        self.vault.archive("Other/Mars.md")
+        [item] = self.vault.archived()
+        for bad in ("../Home.md", ".archive.json", "Nothing.md", None):
+            with self.assertRaises(VaultError):
+                self.vault.delete_archived(bad)
+        self.vault.delete_archived(item["id"])
+        self.assertEqual(self.vault.archived(), [])
+        self.assertTrue(os.path.isfile(os.path.join(self.root, "Home.md")))
 
     def test_search(self):
         results = self.vault.search('mars "second"')

@@ -1,9 +1,10 @@
 """What an AI agent can do with a notes folder: the one set of operations
 behind the command line (cli.py) and the MCP server (mcp.py).
 
-Agents have full access: they read, write, append, move and trash like the
-person does. Moves go through the vault so links follow; trashing moves files
-to `.trash/`, never deletes. Changes the person should review first are filed
+Agents have full access: they read, write, append, move and archive like the
+person does. Moves go through the vault so links follow; archiving moves files
+to `.archive/`, where the person can restore them for 30 days, and never
+deletes. Changes the person should review first are filed
 as suggestions, in the same file and shape the app uses
 (`<wikis>/.ory/suggestions.json`), and show up in the app within seconds.
 """
@@ -15,7 +16,7 @@ import itertools
 import time
 from typing import Any, Dict, List, Optional
 
-from .vault import NOTE_EXT, Vault, VaultError
+from .vault import ARCHIVE_DAYS, NOTE_EXT, Vault, VaultError
 
 FINDING_KINDS = ("page", "add", "conflict", "link", "wiki", "fix")
 _KIND_WORDS = {
@@ -134,8 +135,16 @@ class Agent:
         """Rename or move a note or folder; links to it are rewritten."""
         return self.vault.move(src, dest)
 
-    def trash(self, path: str) -> Dict[str, Any]:
-        return {"trashed": self.vault.trash(path)}
+    def archive(self, path: str) -> Dict[str, Any]:
+        return {"archived": self.vault.archive(path)}
+
+    def archived(self) -> Dict[str, Any]:
+        """What is in the archive, and when Ory deletes each item."""
+        return {"days": ARCHIVE_DAYS, "items": self.vault.archived()}
+
+    def restore(self, item: str) -> Dict[str, Any]:
+        """Put an archived item (an id from archived) back where it came from."""
+        return {"path": self.vault.restore(item)}
 
     # Suggestions ------------------------------------------------------------
 

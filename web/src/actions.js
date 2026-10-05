@@ -1,4 +1,4 @@
-// Things the user can do from anywhere: open, create, rename, trash and search.
+// Things the user can do from anywhere: open, create, rename, archive and search.
 // Views call these; navigation goes through the URL hash so Back and Forward work.
 
 import { api } from "./api.js";
@@ -10,7 +10,7 @@ import { todayISO } from "./ui/dom.js";
 
 /**
  * Parse the hash into a route: {view: "note", path} | {view: "page", path} |
- * {view: "search", query} | {view: "wikis"} | {view: "suggestions"} | {view: "empty"}.
+ * {view: "search", query} | {view: "wikis"} | {view: "suggestions"} | {view: "archive"} | {view: "empty"}.
  */
 export function currentRoute() {
   let hash;
@@ -21,6 +21,7 @@ export function currentRoute() {
   }
   if (hash === "/wikis") return { view: "wikis" };
   if (hash === "/suggestions") return { view: "suggestions" };
+  if (hash === "/archive") return { view: "archive" };
   if (hash === "/search" || hash.startsWith("/search?")) {
     return { view: "search", query: new URLSearchParams(location.hash.split("?")[1] || "").get("q") || "" };
   }
@@ -58,6 +59,11 @@ export function openNote(path, options = {}) {
 export function openWikis(options = {}) {
   pendingOptions = options;
   go("#/wikis");
+}
+
+/** What has been archived, to restore or delete now. */
+export function openArchive() {
+  go("#/archive");
 }
 
 /** Settings is a window over whatever is open (ui/settings.js, opened by main.js). */
@@ -188,20 +194,21 @@ export function renamePath(path, newName) {
   return movePath(path, to);
 }
 
-/** Move a note, file or folder to `.trash/`. Returns whether it went. */
-export async function trashPath(path) {
+/** Archive a note, file or folder: it moves to `.archive/`, restorable for 30
+    days, then Ory deletes it. Returns whether it went. */
+export async function archivePath(path) {
   try {
     // Same hooks as a move: pending edits are saved before the file goes.
     for (const hook of moveHooks) await hook.before(path);
     try {
-      await api.trash(path);
+      await api.archive(path);
     } finally {
       for (const hook of moveHooks) hook.after(path, null);
     }
     await loadIndex();
     const current = store.currentPath;
     if (current === path || (current && current.startsWith(path + "/"))) {
-      // Trashing a wiki page lands on that wiki's Home, if it still has one.
+      // Archiving a wiki page lands on that wiki's Home, if it still has one.
       const m = current.startsWith(store.wikisFolder + "/") ? /^([^/]+)\//.exec(current.slice(store.wikisFolder.length + 1)) : null;
       const home = m ? `${store.wikisFolder}/${m[1]}/Home.md` : null;
       if (home && home !== current && store.paths.includes(home)) openNote(home, { replace: true });
@@ -214,13 +221,16 @@ export async function trashPath(path) {
   }
 }
 
-/** Move a wiki, its folder and everything in it, to `.trash/`. From inside it,
-    you land on All wikis. */
-export async function trashWiki(name) {
+/** Archive a wiki, its folder and everything in it. From inside it, you land
+    on All wikis. */
+export async function archiveWiki(name) {
   const folder = `${store.wikisFolder}/${name}`;
   const inside = !!store.currentPath?.startsWith(folder + "/");
-  if ((await trashPath(folder)) && inside) openWikis();
+  if ((await archivePath(folder)) && inside) openWikis();
 }
+
+/** Words for how long the archive keeps things, for confirmations. */
+export const ARCHIVE_NOTE = "You can restore it from the Archive for 30 days.";
 
 export function displayName(path) {
   return store.paths.includes(path) ? noteName(path) : path.slice(path.lastIndexOf("/") + 1);

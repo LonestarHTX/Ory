@@ -45,7 +45,7 @@ This folder belongs to Ory: plain Markdown files, written and read by a person i
   - `Log.md` records what changed and why.
   - Subfolders are sections. An `order:` property sets a page's place; otherwise pages go by name.
 - **Attachments** (pasted images, files) go in `{attachments}`.
-- Folders starting with a dot are ignored. `.trash/` holds deleted files. `{wikis}/.ory/suggestions.json` is Ory's own state: don't edit it by hand; use the commands below.
+- Folders starting with a dot are ignored. `.archive/` holds archived files, which Ory deletes 30 days after they were archived. `{wikis}/.ory/suggestions.json` is Ory's own state: don't edit it by hand; use the commands below.
 
 ## Conventions
 
@@ -62,7 +62,7 @@ This folder belongs to Ory: plain Markdown files, written and read by a person i
 ## Working here
 
 - **Keep file names unless asked.** To rename or move a file, use the `move` command below: it rewrites every link to the file. Renaming the file yourself leaves those links broken.
-- **Never delete permanently.** Use the `trash` command, which moves files to `.trash/`.
+- **Never delete permanently.** Use the `archive` command, which moves files to `.archive/`; the person can restore them for 30 days.
 - **When you add to a wiki from notes:**
   - Add those notes to the page's `sources`.
   - Add an entry to the wiki's `Log.md`: a line `## YYYY-MM-DD · <what happened>`, then items like `- Changed [[Page]]: why (from [[note]])`.
@@ -85,7 +85,9 @@ Every command prints JSON. Run them from anywhere:
 | `append PATH` | Add the text on stdin to the end of a note (creating it) |
 | `daily [--date YYYY-MM-DD]` | Today's (or that day's) daily note, creating it |
 | `move FROM TO` | Rename or move, rewriting links |
-| `trash PATH` | Move to `.trash/` |
+| `archive PATH` | Move to `.archive/`, restorable for 30 days |
+| `archived` | What is in the archive, with ids and when each is deleted |
+| `restore ID` | Put an archived item back where it came from |
 | `unread` | Notes changed since suggestions last read them |
 | `suggestions` | Findings and drafts waiting for the person |
 | `suggest` | File suggestions: JSON on stdin (below) |

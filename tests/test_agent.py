@@ -45,13 +45,15 @@ class AgentTests(unittest.TestCase):
         self.assertEqual(self.agent.read("Ideas")["text"], "one\ntwo\n")
         self.assertTrue(self.agent.append("Fresh", "hello")["created"])
 
-    def test_move_rewrites_links_and_trash_keeps_files(self):
+    def test_move_rewrites_links_and_archive_keeps_files(self):
         result = self.agent.move("Planets/Mars.md", "Planets/Red planet.md")
         self.assertIn("Planets/Saturn.md", result["updated"])
         self.assertIn("[[Red planet]]", self.agent.read("Planets/Saturn")["text"])
-        trashed = self.agent.trash("Planets/Red planet.md")["trashed"]
-        self.assertTrue(trashed.startswith(".trash/"))
-        self.assertTrue(os.path.exists(os.path.join(self.root, trashed)))
+        archived = self.agent.archive("Planets/Red planet.md")["archived"]
+        self.assertTrue(archived.startswith(".archive/"))
+        self.assertTrue(os.path.exists(os.path.join(self.root, archived)))
+        [item] = self.agent.archived()["items"]
+        self.assertEqual(self.agent.restore(item["id"]), {"path": "Planets/Red planet.md"})
 
     def test_wikis_and_backlinks(self):
         wikis = self.agent.wikis()
@@ -185,9 +187,9 @@ class HardeningTests(unittest.TestCase):
     def test_dot_folders_stay_private(self):
         with self.assertRaises(VaultError):
             self.vault.file_path("x\\..\\.git\\config")  # a backslash is still a path separator
-        for path in (".git", ".trash", "x/../.git"):
+        for path in (".git", ".archive", "x/../.git"):
             with self.assertRaises(VaultError):
-                self.agent.trash(path)
+                self.agent.archive(path)
         with self.assertRaises(VaultError):
             self.agent.move(".git", "Visible")
 

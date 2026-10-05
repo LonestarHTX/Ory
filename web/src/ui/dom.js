@@ -5,7 +5,7 @@ import {
   AppWindow, ArrowRight, BookOpen, CalendarDays, Check, ChevronDown, ChevronLeft, ChevronRight, Code, Copy, Ellipsis, File,
   FileImage, FilePlus, FolderPlus, Highlighter, LayoutGrid, Link, List, ListChecks, ListOrdered, ListTree, Monitor, Moon,
   Lightbulb, NotebookPen, Palette, Paperclip, Plus, Search, Settings, SquarePen, Sun, Table, TableProperties, TextQuote,
-  TriangleAlert, Folder, Keyboard, X,
+  TriangleAlert, Folder, Keyboard, X, Archive,
 } from "lucide";
 
 export function h(tag, props, ...children) {
@@ -77,6 +77,7 @@ const ICONS = {
   palette: Palette,
   close: X,
   keyboard: Keyboard,
+  archive: Archive,
 };
 
 const SVG = "http://www.w3.org/2000/svg";

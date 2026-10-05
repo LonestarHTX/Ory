@@ -66,7 +66,7 @@ The rules Ory's interface follows. A value outside the scales below is a mistake
   it becomes that wiki's contents under an "All wikis" back row and a header with the
   wiki's 32px picture, name and size. Subfolders are section headings with their
   pages indented; upkeep pages sit last, in tertiary text, above a hairline. A wiki's
-  "..." holds Move to trash, confirmed in place with the page count; it is on each
+  "..." holds Archive, confirmed in place with the page count; it is on each
   wiki row (on hover, in place of the count, and on right-click), in the header
   inside a wiki, and on each All wikis card (on hover, over the cover).
 - **Reading view.** Wiki pages open read-only with every mark hidden, no caret and no
@@ -173,7 +173,15 @@ The rules Ory's interface follows. A value outside the scales below is a mistake
 - **Search** is a view in the main area: the field at the top, results filtering
   as you type. The quick switcher is a short job, so it floats, docked over the
   header's field.
-- **Destructive actions** live in "..." menus and confirm in place. Deleting moves
-  the note to `.trash/`.
+- **Destructive actions** live in "..." menus and confirm in place. Nothing is
+  deleted at once: Archive moves a note, file, folder or wiki to `.archive/`, and the
+  confirmation says it can be restored for 30 days.
+- **The Archive** is a full page (the archive button at the foot of the sidebar,
+  beside Settings, selected while you're on it). One row per item, newest first:
+  name with its kind's icon (and note count for folders and wikis), where it was,
+  when it was archived, and when it will be deleted, with a warning dot in the last
+  three days. Restore is the row's button; Delete now is in its "..." menu and
+  confirms in place. Items the archive didn't record itself (put in `.archive/` some
+  other way) are never deleted on their own: they read "Not scheduled".
 - **Tree indents** are derived values (depth × 12 plus the 18px chevron and gap), so
   note names line up with folder names. They are the only off-scale spacing.

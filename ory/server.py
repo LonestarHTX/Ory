@@ -15,7 +15,7 @@ from urllib.parse import parse_qs, quote, unquote, urlparse
 from . import settings
 from .config import Config
 from .settings import State
-from .vault import Note, Vault, VaultError
+from .vault import ARCHIVE_DAYS, Note, Vault, VaultError
 
 STATIC_DIR = os.path.join(os.path.dirname(os.path.realpath(__file__)), "static")
 LOCAL_HOSTS = ("127.0.0.1", "localhost", "[::1]")
@@ -286,8 +286,21 @@ def _move(v: Vault, q, b):
     return v.move(b["from"], b["to"]), 200
 
 
-def _trash(v: Vault, q, b):
-    return {"trashed": v.trash(b["path"])}, 200
+def _archive(v: Vault, q, b):
+    return {"archived": v.archive(b["path"])}, 200
+
+
+def _archived(v: Vault, q, b):
+    return {"days": ARCHIVE_DAYS, "items": v.archived()}, 200
+
+
+def _restore(v: Vault, q, b):
+    return {"path": v.restore(b["id"])}, 200
+
+
+def _delete_archived(v: Vault, q, b):
+    v.delete_archived(b["id"])
+    return {"deleted": b["id"]}, 200
 
 
 def _daily(v: Vault, q, b):
@@ -326,7 +339,10 @@ ROUTES: Dict[Tuple[str, str], Callable[..., Tuple[Any, int]]] = {
     ("POST", "/api/notes"): _create_note,
     ("POST", "/api/folders"): _create_folder,
     ("POST", "/api/move"): _move,
-    ("POST", "/api/trash"): _trash,
+    ("POST", "/api/archive"): _archive,
+    ("GET", "/api/archive"): _archived,
+    ("POST", "/api/archive/restore"): _restore,
+    ("POST", "/api/archive/delete"): _delete_archived,
     ("POST", "/api/daily"): _daily,
     ("GET", "/api/backlinks"): _backlinks,
     ("GET", "/api/search"): _search,

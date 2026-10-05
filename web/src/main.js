@@ -3,11 +3,12 @@
 import "./styles.css";
 
 import {
-  alertError, closeNote, currentRoute, newFolder, newNote, notify, openNote, openSearch, openSettings, openToday, openWikis,
+  alertError, closeNote, currentRoute, newFolder, newNote, notify, openArchive, openNote, openSearch, openSettings, openToday, openWikis,
   takeOpenOptions,
 } from "./actions.js";
 import { api } from "./api.js";
 import { loadIndex, on, recentPaths, setCurrent, store } from "./store.js";
+import { createArchiveView } from "./ui/archive-view.js";
 import { createBacklinks } from "./ui/backlinks.js";
 import { h, icon, keys, mod } from "./ui/dom.js";
 import { createNoteView } from "./ui/note-view.js";
@@ -85,6 +86,11 @@ const settingsButton = h("button", {
   class: "iconbtn", type: "button", "aria-label": "Settings", "aria-haspopup": "dialog",
   dataset: { tip: "Settings", tipKeys: "Mod-," }, onClick: () => openSettings(),
 }, icon("settings", 16));
+// The Archive, beside Settings: both are places outside your notes.
+const archiveButton = h("button", {
+  class: "iconbtn", type: "button", "aria-label": "Archive",
+  dataset: { tip: "Archive: kept 30 days" }, onClick: () => openArchive(),
+}, icon("archive", 16));
 // The notes folder's name, so it's always clear which folder is open.
 const vaultName = h("span", { class: "side-foot-name" });
 const tree = h("div", { class: "tree" });
@@ -127,7 +133,7 @@ const wikisPanel = h("div", { class: "space-panel", dataset: { space: "wikis" },
 const left = h("nav", { class: "sidebar sidebar-left", "aria-label": "Sidebar" },
   notesPanel,
   wikisPanel,
-  h("div", { class: "side-foot" }, vaultName, settingsButton));
+  h("div", { class: "side-foot" }, vaultName, h("div", { class: "side-actions" }, archiveButton, settingsButton)));
 
 const errorBar = h("div", { class: "app-error", role: "alert", hidden: true });
 const noteEl = h("section", { class: "view note-view", hidden: true });
@@ -136,7 +142,8 @@ const emptyEl = h("section", { class: "view empty-view", hidden: true });
 const pageEl = h("section", { class: "view page-view", hidden: true });
 const wikisEl = h("section", { class: "view wikis-view", hidden: true });
 const suggestionsEl = h("section", { class: "view suggestions-view", hidden: true });
-const main = h("main", { class: "main" }, errorBar, noteEl, pageEl, wikisEl, suggestionsEl, searchEl, emptyEl);
+const archiveEl = h("section", { class: "view archive-view", hidden: true });
+const main = h("main", { class: "main" }, errorBar, noteEl, pageEl, wikisEl, suggestionsEl, archiveEl, searchEl, emptyEl);
 const right = h("aside", { class: "sidebar sidebar-right", "aria-label": "Backlinks" });
 
 const app = h("div", { class: "app" }, h("div", { class: "app-head-switch" }, spaceSwitch), headField, left, main, right);
@@ -179,6 +186,7 @@ createTree(tree);
 const wikiNav = createWikiNav(wikisPanel);
 const wikisHome = createWikisHome(wikisEl);
 const suggestionsView = createSuggestionsView(suggestionsEl);
+const archiveView = createArchiveView(archiveEl);
 const settings = createSettings({ theme: themeControl });
 window.addEventListener("ory:settings", (e) => settings.open(e.detail?.section));
 
@@ -242,7 +250,10 @@ function renderEmpty(message) {
 // Routing ---------------------------------------------------------------------
 
 function showOnly(view) {
-  for (const el of [noteEl, pageEl, wikisEl, suggestionsEl, searchEl, emptyEl]) el.hidden = el !== view;
+  for (const el of [noteEl, pageEl, wikisEl, suggestionsEl, archiveEl, searchEl, emptyEl]) el.hidden = el !== view;
+  if (view !== archiveEl) archiveView.hide();
+  archiveButton.classList.toggle("is-selected", view === archiveEl);
+  archiveButton.toggleAttribute("aria-current", view === archiveEl);
   // Backlinks and the outline belong to a note; other views get the width.
   app.classList.toggle("has-rail", view === noteEl || view === pageEl);
   if (view !== pageEl) pageView.close(); // stop a page's animation when it is not shown
@@ -292,6 +303,14 @@ function route() {
       if (suggestionsEl.hidden) arrive(suggestionsEl);
       showOnly(suggestionsEl);
       suggestionsView.show(options);
+      return;
+    }
+    if (r.view === "archive") {
+      await noteView.close();
+      setCurrent(null);
+      if (archiveEl.hidden) arrive(archiveEl);
+      showOnly(archiveEl);
+      archiveView.show();
       return;
     }
     if (r.view === "wikis") {
