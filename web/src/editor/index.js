@@ -5,7 +5,7 @@ import { closeBrackets, closeBracketsKeymap, completionKeymap } from "@codemirro
 import { defaultKeymap, history, historyKeymap, indentWithTab } from "@codemirror/commands";
 import { markdownKeymap, markdownLanguage } from "@codemirror/lang-markdown";
 import { yamlFrontmatter } from "@codemirror/lang-yaml";
-import { HighlightStyle, Language, LanguageSupport, syntaxHighlighting } from "@codemirror/language";
+import { HighlightStyle, indentNodeProp, Language, languageDataProp, LanguageSupport, syntaxHighlighting } from "@codemirror/language";
 import { search, searchKeymap } from "@codemirror/search";
 import { Annotation, Compartment, EditorSelection, EditorState } from "@codemirror/state";
 import { drawSelection, EditorView, keymap, placeholder } from "@codemirror/view";
@@ -66,11 +66,18 @@ const KEEP_STATES = 40;
 // Markdown for notes: CommonMark, GitHub's extensions (tables, task lists,
 // strikethrough), [[wikilinks]] and ==highlight==.
 // Built directly rather than with markdown(), which bundles HTML, CSS and
-// JavaScript parsers for embedded code. Sharing markdownLanguage's data facet
-// keeps the Markdown keymap (list continuation) working.
+// JavaScript parsers for embedded code. The Markdown keymap (Enter continuing a
+// list, Backspace taking its marker away) only acts where the document node
+// carries markdownLanguage's data, as lang-markdown's own parser has it; the
+// bare @lezer/markdown parser doesn't, so it's added here.
 const markdownSupport = new LanguageSupport(new Language(
   markdownLanguage.data,
-  commonmark.configure([GFM, WikiLinkSyntax, HighlightSyntax]),
+  commonmark.configure([GFM, WikiLinkSyntax, HighlightSyntax, {
+    props: [
+      languageDataProp.add({ Document: markdownLanguage.data }),
+      indentNodeProp.add({ Document: () => null }),
+    ],
+  }]),
   [],
   "markdown",
 ));

@@ -36,6 +36,7 @@ export function writeSpec(view, el, spec) {
     changes: { from, to: Math.max(from, to), insert: dump(spec, { lineWidth: -1, noRefs: true }) },
     annotations: byOry.of(true),
   });
+  view.focus(); // the note keeps the focus, so Cmd+Z undoes the change at once
 }
 
 /** Take the block (fences and all) out of the note. */
@@ -44,6 +45,7 @@ export function deleteBlock(view, el) {
   if (!lines) return;
   const doc = view.state.doc;
   view.dispatch({ changes: { from: lines.open.from, to: Math.min(lines.close.to + 1, doc.length) }, annotations: byOry.of(true) });
+  view.focus();
 }
 
 /** Put the cursor in the block, which shows its YAML. */
@@ -181,8 +183,13 @@ export function openFilterEditor({ host, anchor, expr = null, fields, valuesOf, 
   };
   const away = (e) => { if (!pop.contains(e.target) && !anchor.contains(e.target)) close(); };
   const done = (text) => {
+    if (!text) {
+      // Nothing to add yet: the value (or the expression) is what's missing.
+      pop.querySelector(".ptable-value:not([hidden]), .ptable-expr")?.focus();
+      return;
+    }
     close();
-    if (text) save(text);
+    save(text);
   };
 
   let read; // () => the expression, or "" when incomplete
@@ -211,7 +218,7 @@ export function openFilterEditor({ host, anchor, expr = null, fields, valuesOf, 
     field.addEventListener("change", () => fill(cond.value));
     cond.addEventListener("change", () => { value.hidden = !needsValue(cond.value); });
     body.append(h("div", { class: "ptable-pop-row" }, field, cond, value, list),
-      h("p", { class: "ptable-pop-hint" }, "Properties come from the notes in this folder. Yes and No are true and false."));
+      h("p", { class: "ptable-pop-hint" }, "Properties come from your notes. Yes and No are true and false."));
     read = () => {
       if (needsValue(cond.value) && !value.value.trim()) return "";
       const isOwn = field.value.startsWith("file.");
@@ -241,7 +248,7 @@ export function openFilterEditor({ host, anchor, expr = null, fields, valuesOf, 
       e.preventDefault();
       close();
       anchor.focus();
-    } else if (e.key === "Enter" && e.target.tagName !== "SELECT") {
+    } else if (e.key === "Enter" && e.target.tagName === "INPUT") { // buttons keep their own Enter
       e.preventDefault();
       done(read());
     }

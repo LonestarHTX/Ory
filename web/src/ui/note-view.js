@@ -9,7 +9,7 @@
 import { archivePath, archiveNote, closeNote, followLink, movePath, notify, onMove, openNote } from "../actions.js";
 import { api } from "../api.js";
 import { createEditor } from "../editor/index.js";
-import { editYaml, focusAddProperty, frontmatterRange, setPropertyInText, syncFocus } from "../editor/properties.js";
+import { editYaml, focusAddProperty, frontmatterRange, hasProperty, setPropertyInText, syncFocus } from "../editor/properties.js";
 import { folderOf, noteName, parseLink } from "../links.js";
 import { emit, linkTextFor, loadIndex, resolve, setCurrent, store } from "../store.js";
 import { coverUrl, infoboxRows, isBlank, isHome, pageParts, pageTitle, wiki as wikiInfo, wikiFolder, wikiOf } from "../wikis.js";
@@ -22,7 +22,8 @@ import { openMenu } from "./menu.js";
 
 const SAVE_DELAY = 500;
 
-export function createNoteView(el) {
+/** options.onGone(path): the open note went from disk; true if that's been dealt with (side by side). */
+export function createNoteView(el, { onGone = () => false } = {}) {
   const crumb = h("span", { class: "note-crumb" });
   const title = h("input", { class: "input input--bare note-title", "aria-label": "Note name", spellcheck: "false" });
   const titleError = h("p", { class: "field-error", role: "alert", hidden: true });
@@ -404,6 +405,7 @@ export function createNoteView(el) {
     } catch (err) {
       if (err.status === 404 && note?.path === path) {
         editor.forget(path);
+        if (onGone(path)) return; // side by side: only this side closes
         // A wiki page that went away: back to its wiki's Home, if there is one.
         const home = wiki ? wikiInfo(wiki).home : null;
         if (home && home.path !== path) openNote(home.path, { replace: true });
@@ -600,8 +602,7 @@ export function createNoteView(el) {
     const doc = editor.view.state.doc;
     const fm = frontmatterRange(doc);
     const yaml = fm ? doc.sliceString(fm.yamlFrom, fm.yamlTo) : "";
-    const has = yaml.split("\n").some((line) => line.startsWith(key + ":"));
-    const next = editYaml(yaml, key, has ? { value } : { add: key, value });
+    const next = editYaml(yaml, key, hasProperty(yaml, key) ? { value } : { add: key, value });
     editor.apply(fm ? { from: fm.yamlFrom, to: fm.yamlTo, insert: next } : { from: 0, insert: `---\n${next}---\n` });
   }
 }

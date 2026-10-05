@@ -2271,7 +2271,7 @@ input[type="radio"] {
 .cm-embed-page > .resize-size {
   position: absolute;
   bottom: 0;
-  left: calc(50% + 28px);
+  right: 16px;
   z-index: 2;
   transform: translateY(50%);
   opacity: 0;

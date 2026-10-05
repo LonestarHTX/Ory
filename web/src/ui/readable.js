@@ -7,8 +7,9 @@ import { parseLink } from "../links.js";
 import { h } from "./dom.js";
 
 const PREFIX = /^\s*(?:>\s*)*(?:(?:[-*+]|\d+[.)])\s+(?:\[[ xX]\]\s+)?|#{1,6}\s+)?/;
-// A single * is emphasis when it touches a word ("*italic*"), not in "2 * 3".
-const TOKENS = /"?!?\[\[([^\[\]]+)\]\]"?|\*\*|__|==|~~|`|<\/?(?:span|mark)[^>]*>|\*(?=\S)|(?<=\S)\*/g;
+// A single * is emphasis when it touches a word ("*italic*"), not in "2 * 3"
+// (decided below: a lookbehind here would break Safari before 16.4).
+const TOKENS = /"?!?\[\[([^\[\]]+)\]\]"?|\*\*|__|==|~~|`|<\/?(?:span|mark)[^>]*>|\*/g;
 
 /** Nodes for `text`, with [from, to) `ranges` of the original text marked. */
 export function readable(text, ranges = []) {
@@ -18,6 +19,7 @@ export function readable(text, ranges = []) {
   TOKENS.lastIndex = 0;
   for (const m of text.matchAll(TOKENS)) {
     if (m.index < start) continue;
+    if (m[0] === "*" && /\s/.test(text[m.index - 1] ?? " ") && /\s/.test(text[m.index + 1] ?? " ")) continue; // a lone * is text
     if (m.index > pos) pieces.push({ text: text.slice(pos, m.index), from: pos, to: m.index, exact: true });
     if (m[1] != null) {
       const { target, alias, heading } = parseLink(m[1]);

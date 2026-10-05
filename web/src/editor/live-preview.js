@@ -139,11 +139,13 @@ export function fileUrl(path) {
  * into the link (|320). Nothing reloads as it changes.
  */
 class ImageWidget extends WidgetType {
-  constructor(src, width, alt) {
+  /** resizable: an ![[embed]], whose link can hold a width (Markdown's ![](…) can't). */
+  constructor(src, width, alt, resizable = true) {
     super();
     this.src = src;
     this.width = width;
     this.alt = alt;
+    this.resizable = resizable;
   }
   eq(other) {
     return other.src === this.src && other.width === this.width;
@@ -169,11 +171,11 @@ class ImageWidget extends WidgetType {
         if (v == null) return;
         const px = Math.round(Math.min(column(), Math.max(24, v)));
         glide(px);
-        setEmbedAlias(view, box, String(px));
+        setEmbedAlias(view, box, (old) => withWidth(old, px));
       },
       fit: () => {
         glide(Math.min(img.naturalWidth || column(), column()), true);
-        setEmbedAlias(view, box, null);
+        setEmbedAlias(view, box, (old) => withWidth(old, null));
       },
     });
     const label = () => {
@@ -219,7 +221,7 @@ class ImageWidget extends WidgetType {
           dragging = false;
           box.classList.remove("is-resizing");
           if (!spot.matches(":hover")) handle.take(false);
-          if (Math.abs(dx) >= 2) setEmbedAlias(view, box, String(Math.round(img.offsetWidth)));
+          if (Math.abs(dx) >= 2) setEmbedAlias(view, box, (old) => withWidth(old, Math.round(img.offsetWidth)));
         },
       });
       box.append(spot);
@@ -240,7 +242,7 @@ class ImageWidget extends WidgetType {
       }
     };
     img.addEventListener("pointerdown", (e) => {
-      if (e.button !== 0) return;
+      if (e.button !== 0 || !this.resizable) return;
       e.preventDefault();
       select(true);
     });
@@ -313,8 +315,16 @@ export function formatSize(bytes) {
 
 /** An embed's "|300" or "|300x200" sets the image width. */
 function embedWidth(alias) {
-  const match = /^\s*(\d{1,4})(?:x\d{1,4})?\s*$/.exec(alias ?? "");
+  const last = (alias ?? "").split("|").pop();
+  const match = /^\s*(\d{1,4})(?:x\d{1,4})?\s*$/.exec(last);
   return match ? Number(match[1]) : null;
+}
+
+/** A picture's alias with its width changed (null: none), keeping a caption: "A robin|320". */
+function withWidth(alias, width) {
+  const parts = (alias ?? "").split("|").filter((p) => p.trim() && !/^\s*\d{1,4}(?:x\d{1,4})?\s*$/.test(p));
+  if (width) parts.push(String(width));
+  return parts.join("|") || null;
 }
 
 /**
@@ -337,7 +347,7 @@ const clampHeight = (px) => Math.round(Math.min(PAGE_MAX, Math.max(PAGE_MIN, px)
 
 /**
  * Rewrite the alias of the embed whose widget is `dom` (![[file|alias]]); null
- * takes it away. Ory makes the change for you, so it also works while reading.
+ * takes it away; a function gets the old alias and gives the new. Ory makes the change for you, so it also works while reading.
  */
 function setEmbedAlias(view, dom, alias) {
   let pos;
@@ -353,6 +363,7 @@ function setEmbedAlias(view, dom, alias) {
   const inner = before.slice(start + 3, -2);
   const pipe = inner.indexOf("|");
   const ref = pipe === -1 ? inner : inner.slice(0, pipe);
+  if (typeof alias === "function") alias = alias(pipe === -1 ? null : inner.slice(pipe + 1));
   const from = line.from + start + 3, to = pos - 2;
   const insert = alias ? `${ref}|${alias}` : ref;
   if (view.state.sliceDoc(from, to) === insert) return;
@@ -471,7 +482,7 @@ class PageEmbedWidget extends WidgetType {
     const place = (x) => {
       placed = true;
       handle.el.style.left = `${x}px`;
-      if (!size.editing) size.el.style.left = `${x + 28}px`;
+      // The height stays put at the edge's right end: following the pointer, it ran from it.
     };
     // The height shows only near the bottom edge: on it, or just below it in the
     // note. (Inside the page the pointer is the page's, so Ory can't see it there.)
@@ -751,7 +762,12 @@ function build(view, { resolve, fileSize, openPage }) {
             const marks = node.getChildren("LinkMark");
             const url = node.getChild("URL");
             if (marks.length < 2 || !url) return false;
-            const active = near(node.from, node.to);
+            // Typing the address: with the cursor inside the (…), the link shows as
+            // Markdown even while marks stay hidden, so the next letter lands in it
+            // (bracket pairing completes "[web](h)" after one letter).
+            const sel = state.selection.main;
+            const inAddress = sel.from > marks[1].from && sel.to < node.to;
+            const active = near(node.from, node.to) || inAddress;
             add(marks[0].to, marks[1].from, Decoration.mark({
               class: `cm-md-link${live && !active ? " cm-link-live" : ""}`,
               attributes: { "data-href": doc.sliceString(url.from, url.to), "data-tip": doc.sliceString(url.from, url.to) },
@@ -820,7 +836,7 @@ function build(view, { resolve, fileSize, openPage }) {
             if (!src) return false;
             const marks = node.getChildren("LinkMark");
             const alt = marks.length >= 2 ? doc.sliceString(marks[0].to, marks[1].from) : "";
-            const widget = new ImageWidget(src, null, alt);
+            const widget = new ImageWidget(src, null, alt, false);
             if (near(node.from, node.to)) add(node.to, node.to, Decoration.widget({ widget, side: 1 }));
             else {
               add(node.from, node.to, Decoration.replace({ widget }));

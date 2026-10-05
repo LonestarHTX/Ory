@@ -101,13 +101,15 @@ export function editYaml(yaml, key, change) {
   return text.trim() ? text + "\n" : "";
 }
 
+/** Whether the YAML text has this property (its key quoted or not). */
+export const hasProperty = (yaml, key) => yamlBlocks(yaml.split("\n")).some((b) => b.key === key);
+
 /** Set one property in a note's whole text, making its frontmatter if need be. */
 export function setPropertyInText(text, key, value) {
   const doc = Text.of(text.split("\n"));
   const fm = frontmatterRange(doc);
   const yaml = fm ? doc.sliceString(fm.yamlFrom, fm.yamlTo) : "";
-  const has = yamlBlocks(yaml.split("\n")).some((b) => b.key === key);
-  const next = editYaml(yaml, key, has ? { value } : { add: key, value });
+  const next = editYaml(yaml, key, hasProperty(yaml, key) ? { value } : { add: key, value });
   return fm ? text.slice(0, fm.yamlFrom) + next + text.slice(fm.yamlTo) : `---\n${next}---\n${text}`;
 }
 

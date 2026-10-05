@@ -264,8 +264,9 @@ const themeControl = {
 systemDark.addEventListener("change", () => mode === "system" && fadeTheme());
 applyTheme();
 
-const noteView = createNoteView(noteEl);
-const sideView = createNoteView(sideEl);
+// A note archived or deleted while open: beside another, only its side closes.
+const noteView = createNoteView(noteEl, { onGone: () => (splitShown() ? (closeMainSide(), true) : false) });
+const sideView = createNoteView(sideEl, { onGone: () => (closeSide(), true) });
 const pageView = createPageView(pageEl);
 const searchView = createSearchView(searchEl);
 const backlinks = createBacklinks(backlinksEl);

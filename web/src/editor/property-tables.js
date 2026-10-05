@@ -273,9 +273,24 @@ function filterFn(spec, env) {
 
 // Query ----------------------------------------------------------------------------
 
+/** The block's YAML as an object: empty is an empty table; a list or a word is a mistake. */
+function readSpec(yaml) {
+  if (!yaml.trim()) return {};
+  const spec = parseYaml(yaml);
+  if (spec == null) return {};
+  if (typeof spec !== "object" || Array.isArray(spec)) {
+    throw new ExprError("A property table's YAML is a set of keys (filters, views…), not a list or a single value.");
+  }
+  return spec;
+}
+
+// A multi-view table keeps the view you were on across its own changes (each
+// change makes a new widget).
+let carryView = null;
+
 /** Run a property table's query: {views, rows, columns, error}. */
 export function runQuery(yaml, env, viewIndex = 0) {
-  const spec = parseYaml(yaml) ?? {};
+  const spec = readSpec(yaml);
   const views = (spec.views ?? [{ type: "table", name: "Table" }]).filter((v) => !v.type || v.type === "table");
   if (!views.length) throw new ExprError("A property table needs a view of type table.");
   const view = views[Math.min(viewIndex, views.length - 1)];
@@ -367,12 +382,19 @@ function cellText(value) {
   return String(value);
 }
 
-/** What was typed in a cell, as a value of the property's kind. */
-function cellValue(text, key, old) {
+/**
+ * What was typed in a cell, as a value of the property's kind: the cell's own
+ * value says what kind, or, for an empty cell, the others in its column (so
+ * "Yes" in an empty cell of a yes/no column is true, not the word).
+ */
+function cellValue(text, key, old, column = []) {
   const t = text.trim();
-  if (Array.isArray(old) || LIST_KEYS.has(key.toLowerCase())) return t ? t.split(",").map((x) => x.trim()).filter(Boolean) : [];
+  const others = column.filter((v) => v != null && v !== "");
+  const listy = Array.isArray(old) || (old == null && others.length > 0 && others.every(Array.isArray));
+  if (listy || LIST_KEYS.has(key.toLowerCase())) return t ? t.split(",").map((x) => x.trim()).filter(Boolean) : [];
   if (!t) return null;
-  if (typeof old === "boolean") {
+  const yesNo = typeof old === "boolean" || (old == null && others.length > 0 && others.every((v) => typeof v === "boolean"));
+  if (yesNo) {
     if (/^(yes|true)$/i.test(t)) return true;
     if (/^(no|false)$/i.test(t)) return false;
   }
@@ -420,9 +442,13 @@ class QueryWidget extends WidgetType {
 
     let spec = {};
     try {
-      spec = parseYaml(this.yaml) ?? {};
+      spec = readSpec(this.yaml);
     } catch {
       /* shown as the table's problem below */
+    }
+    if (carryView && carryView.path === env.currentPath()) {
+      viewIndex = carryView.index;
+      carryView = null;
     }
     /** Change the YAML: fn(spec, view) on a copy, then write it into the block. */
     const change = (fn, columns) => {
@@ -431,14 +457,17 @@ class QueryWidget extends WidgetType {
       const [v] = tableViews(next)[Math.min(viewIndex, tableViews(next).length - 1)];
       v.order = (v.order ?? columns ?? ["file.name"]).map(String);
       fn(next, v);
+      carryView = { path: env.currentPath(), index: viewIndex };
       writeSpec(view, el, next);
     };
 
+    const shownTab = () => el.querySelector(".ptable-tab.is-selected");
     const moreButton = () => {
       const more = h("button", {
         class: "iconbtn ptable-more", type: "button", "aria-label": "Property table actions", "aria-haspopup": "menu",
         dataset: { tip: "Property table actions" },
         onClick: () => openMenu(more, [
+          ...(shownTab() ? [{ label: "Rename view…", run: () => renameInPlace(shownTab(), shownTab().textContent, (name) => change((_, v) => { v.name = name || "Table"; })) }] : []),
           { label: "Edit as text", run: () => editAsText(view, el) },
           { label: "Delete table", confirm: "Delete this property table? The notes it lists stay as they are.", run: () => deleteBlock(view, el) },
         ]),
@@ -619,6 +648,7 @@ class QueryWidget extends WidgetType {
           if (e.key === "Enter") {
             e.preventDefault();
             div.blur();
+            view.focus(); // back to the note, so Cmd+Z undoes at once
           } else if (e.key === "Escape") {
             e.preventDefault();
             div.textContent = before;
@@ -631,7 +661,7 @@ class QueryWidget extends WidgetType {
             div.replaceChildren(...[renderCell(value, col, row, env)].flat());
             return;
           }
-          const next = cellValue(text, key, value);
+          const next = cellValue(text, key, value, rows.map((r) => cell(r, col)));
           value = next; // what the cell holds now, until the notes come back with it
           div.replaceChildren(...[renderCell(next, col, row, env)].flat());
           env.setProperty(row.note.path, key, next);

@@ -327,6 +327,15 @@ class Vault:
                     target = self.resolve(link.target, note.path)
                     if target in self._files:
                         embeds.setdefault(target, set()).add(note.path)
+                # Markdown's own ![alt](path), relative to the note (or "/…" from the top).
+                for m in _MD_IMAGE.finditer(note.text):
+                    raw = urllib.parse.unquote(m.group(1) or m.group(2))
+                    if re.match(r"^[a-z][a-z0-9+.-]*:", raw, re.I):
+                        continue  # a web address
+                    base = "" if raw.startswith("/") else posixpath.dirname(note.path)
+                    target = posixpath.normpath(posixpath.join(base, raw.lstrip("/")))
+                    if target in self._files:
+                        embeds.setdefault(target, set()).add(note.path)
             via: Dict[str, Set[str]] = {}
             for page in [p for p in embeds if p.lower().endswith((".html", ".htm"))]:
                 for used in self._page_refs(page):
@@ -747,6 +756,12 @@ class Vault:
                 path: [(link, self.resolve(link.target, path)) for link in note.links]
                 for path, note in self._notes.items()
             }
+            # Property tables name notes and folders in their filters too.
+            queries = {
+                path: [(start, end, kind, value, self.resolve(value, path) if kind == "hasLink" else None)
+                       for start, end, kind, value in _query_refs(note.text)]
+                for path, note in self._notes.items()
+            }
 
             os.makedirs(os.path.dirname(dest_full), exist_ok=True)
             os.rename(src_full, dest_full)
@@ -762,6 +777,14 @@ class Vault:
                     new_target = mapping.get(old_target, old_target) if old_target else None
                     if new_target and self.resolve(link.target, source) != new_target:
                         edits.append((link.start, link.end, self.link_text_for(new_target, source)))
+                for start, end, kind, value, old_target in queries.get(old_source, []):
+                    if kind == "hasLink" and old_target in mapping:
+                        new = self.link_text_for(mapping[old_target], source)
+                    elif kind == "inFolder" and not (is_note or is_file) and (value.strip("/") + "/").startswith(src + "/"):
+                        new = dest + value.strip("/")[len(src):]
+                    else:
+                        continue
+                    edits.append((start, end, f"file.{kind}({json.dumps(new)})"))
                 if edits and source in self._notes:
                     original = text = self._notes[source].text
                     for start, end, replacement in sorted(edits, reverse=True):
@@ -810,6 +833,22 @@ class Vault:
                 {"path": note.path, "name": note.name, "matches": _snippets(note.text, terms)}
                 for _, note in results[:limit]
             ]
+
+
+_NOTES_BLOCK = re.compile(r"^(```|~~~)notes[ \t]*\n(.*?)^\1[ \t]*$", re.M | re.S)
+_QUERY_REF = re.compile(r"file\.(hasLink|inFolder)\(\s*(\"(?:[^\"\\\\]|\\\\.)*\"|'(?:[^'\\\\]|\\\\.)*')\s*\)")
+
+
+def _query_refs(text: str):
+    """The notes and folders a property table's filters name: (start, end, kind, value)."""
+    for block in _NOTES_BLOCK.finditer(text):
+        for m in _QUERY_REF.finditer(text, block.start(2), block.end(2)):
+            raw = m.group(2)
+            value = json.loads(raw) if raw.startswith('"') else raw[1:-1]
+            yield m.start(), m.end(), m.group(1), value
+
+
+_MD_IMAGE = re.compile(r"!\[[^\]\n]*\]\(\s*(?:<([^>\n]+)>|([^)\s]+))(?:\s+\"[^\"]*\")?\s*\)")
 
 
 def resolve_link(target: str, source: Optional[str], paths: Iterable[str],

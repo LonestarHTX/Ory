@@ -183,6 +183,25 @@ class VaultTests(unittest.TestCase):
         self.assertEqual(files["Attachments/Stray.png"]["in"], [])
         self.assertEqual(files["Attachments/Stray.png"]["via"], [])
 
+    def test_moves_update_property_table_filters(self):
+        write(self.root, "Old/Alpha.md", "# Alpha\n")
+        table = 'Table:\n\n```notes\nfilters:\n  and:\n    - file.hasLink("Alpha")\n    - file.inFolder("Old")\n```\n'
+        write(self.root, "Queries.md", table)
+        self.vault.move("Old/Alpha.md", "Old/Beta.md")
+        self.assertIn('file.hasLink("Beta")', self.vault.get("Queries.md").text)
+        self.vault.move("Old", "New")
+        text = self.vault.get("Queries.md").text
+        self.assertIn('file.inFolder("New")', text)
+        self.assertIn('file.hasLink("Beta")', text)
+
+    def test_markdown_image_syntax_counts_as_using_a_file(self):
+        write(self.root, "Planets/solo.png", "png")
+        write(self.root, "Pics/a b.png", "png")
+        write(self.root, "Planets/Mars.md", "![solo](solo.png) and ![](<../Pics/a b.png>) and ![web](https://x.com/a.png)\n")
+        files = {f["path"]: f for f in self.vault.listing()["files"]}
+        self.assertEqual(files["Planets/solo.png"]["in"], ["Planets/Mars.md"])
+        self.assertEqual(files["Pics/a b.png"]["in"], ["Planets/Mars.md"])
+
     def test_daily_note_from_a_template(self):
         write(self.root, "Templates/Daily.md", "# {{title}}\n\n{{date}}\n\n- [ ] \n")
         self.vault.refresh()
