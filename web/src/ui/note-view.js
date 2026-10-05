@@ -508,7 +508,7 @@ export function createNoteView(el) {
   });
   // Double-click while reading: edit there.
   host.addEventListener("dblclick", (e) => {
-    if (!wiki || !reading || e.target.closest("a, button, input, .cm-wikilink, .cm-md-link, iframe")) return;
+    if (!wiki || !reading || e.target.closest("a, button, input, .cm-wikilink, .cm-md-link, iframe, .cm-embed-page, .cm-embed-image-box")) return;
     const pos = editor.view.posAtCoords({ x: e.clientX, y: e.clientY });
     setReading(false);
     if (pos != null) editor.view.dispatch({ selection: { anchor: pos } });

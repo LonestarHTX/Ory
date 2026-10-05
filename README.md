@@ -70,6 +70,10 @@ tools can show:
 - Folders that start with a dot (such as `.git` or `.archive`) are ignored.
 - Screenshots and files pasted or dropped into a note are saved to the attachments
   folder and embedded as `![[Pasted image 20260927194019.png]]`.
+- Click a picture in a note to resize it: drag a handle on its right side, or just
+  type a width (`320`, a sum like `640/2`, or `50%` of the column) and press Enter.
+  Ory writes the width into the link (`![[photo.png|320]]`); Fit goes back to the
+  picture's own size.
 
 ## The window
 
@@ -313,10 +317,11 @@ formulas yet.
 **Pages:** an `.html` file in the notes folder (an interactive model, a calculator, a
 generated report) opens inside Ory across the main area when you click it in the tree
 or follow a `[[Page.html]]` link. Embed one in a note with `![[Page.html]]`: it is as
-tall as the page says it needs (below), or 480px. Drag its bottom edge to choose a
-height yourself (Ory writes it into the link, as `![[Page.html|640]]`; double-click the
-edge to hand it back), and press Wide (`|wide`) to let it run the width of the card
-while the text keeps its column. Open (the arrow) takes it full size. Pages run sandboxed:
+tall as the page says it needs (below), or 480px. To choose a height yourself, click
+the height on its bottom edge (or Set height... in its "...") and type one, or drag the
+edge; Ory writes it into the link, as `![[Page.html|640]]`, and Fit hands it back to the
+page. Press Wide (`|wide`) to let it run the width of the card while the text keeps
+its column. Open (the arrow) takes it full size. Pages run sandboxed:
 their own scripts work, but they cannot reach Ory, your other notes or the network, so
 a page from anywhere is safe to open. Pages open in Ory's theme. When the theme changes,
 a page is reloaded in the new one, unless it listens for

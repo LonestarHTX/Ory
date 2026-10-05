@@ -1992,10 +1992,65 @@ html[data-theme-fade]::view-transition-new(root) {
 
 /* Embedded attachments: images at their size up to the text width, other
    files as a chip that opens them. */
+/* A picture: click it to select it; a handle on each right corner and the
+   right side, and its size on the bottom edge (see ui/resize.js). */
+.cm-embed-image-box {
+  position: relative;
+  display: block;
+  width: fit-content;
+  max-width: 100%;
+  margin: 8px 0;
+  outline: none;
+}
+
+.cm-embed-image-box.is-selected .cm-embed-image {
+  outline: 1px solid var(--text);
+  outline-offset: -1px;
+}
+
+.cm-embed-image-handle {
+  position: absolute;
+  left: 100%;
+  z-index: 1;
+  display: none;
+  width: 16px;
+  height: 16px;
+  margin: -8px 0 0 -8px;
+  cursor: none;
+}
+
+.cm-embed-image-handle--ne { top: 0; }
+.cm-embed-image-handle--e { top: 50%; }
+.cm-embed-image-handle--se { top: 100%; }
+
+.cm-embed-image-box.is-selected .cm-embed-image-handle {
+  display: block;
+}
+
+.cm-embed-image-handle .resize-handle {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+}
+
+.cm-embed-image-box > .resize-size {
+  position: absolute;
+  right: 16px;
+  bottom: 0;
+  z-index: 1;
+  display: none;
+  transform: translateY(50%);
+}
+
+.cm-embed-image-box.is-selected > .resize-size {
+  display: inline-flex;
+}
+
 .cm-embed-image {
   display: block;
   max-width: 100%;
-  margin: 8px 0;
+  margin: 0;
   border: 1px solid var(--line);
   border-radius: var(--r-card);
 }
@@ -2050,7 +2105,10 @@ html[data-theme-fade]::view-transition-new(root) {
   border: 1px solid var(--line);
   border-top-color: var(--line-strong);
   border-radius: var(--r-card);
-  overflow: hidden;
+}
+
+.cm-embed-page > .page-frame {
+  border-radius: 0 0 calc(var(--r-card) - 1px) calc(var(--r-card) - 1px);
 }
 
 .cm-embed-page.is-wide {
@@ -2115,36 +2173,50 @@ html[data-theme-fade]::view-transition-new(root) {
   color: var(--text);
 }
 
-/* The bottom edge: a handle shows on hover; dragging sets the height. */
-.cm-embed-page-grip {
+/* The bottom edge: a strip you can drag anywhere along. Over it the pointer
+   hides and the handle (a bar turning into the arrow) is the cursor; the height
+   waits beside it whenever the pointer is over the page. */
+.cm-embed-page-edge {
   position: absolute;
   left: 0;
   right: 0;
-  bottom: 0;
-  display: grid;
-  place-items: center;
-  height: 8px;
-  cursor: row-resize;
+  bottom: -5px;
+  z-index: 1;
+  height: 10px;
+  cursor: none;
 }
 
-.cm-embed-page-grip::after {
-  content: "";
-  width: 40px;
-  height: 4px;
-  border-radius: 4px;
-  background: var(--text-3);
+.cm-embed-page > .resize-handle {
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  z-index: 2;
+  transform: translate(-50%, 50%);
   opacity: 0;
   transition: opacity 0.12s ease;
 }
 
-.cm-embed-page:hover .cm-embed-page-grip::after,
-.cm-embed-page.is-resizing .cm-embed-page-grip::after {
-  opacity: 0.6;
+.cm-embed-page.on-edge > .resize-handle,
+.cm-embed-page.is-resizing > .resize-handle {
+  opacity: 1;
 }
 
-.cm-embed-page-grip:hover::after,
-.cm-embed-page.is-resizing .cm-embed-page-grip::after {
+.cm-embed-page > .resize-size {
+  position: absolute;
+  bottom: 0;
+  left: calc(50% + 28px);
+  z-index: 2;
+  transform: translateY(50%);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.12s ease;
+}
+
+.cm-embed-page:hover > .resize-size,
+.cm-embed-page.is-resizing > .resize-size,
+.cm-embed-page > .resize-size.is-editing {
   opacity: 1;
+  pointer-events: auto;
 }
 
 /* While dragging, the page underneath mustn't take the pointer. */
@@ -4986,3 +5058,97 @@ h3.setting-label {
   color: var(--text);
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.16);
 }
+
+/* Resizing (ui/resize.js): handles in the text colour, nothing blue. A bar or
+   square at rest; the arrow you drag with, outlined in the card so it reads
+   over a picture. */
+.resize-handle {
+  display: block;
+  width: 44px;
+  height: 24px;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.resize-handle polygon {
+  fill: var(--text-3);
+}
+
+.resize-handle--square polygon {
+  fill: var(--card);
+  stroke: var(--text);
+  stroke-width: 1;
+}
+
+.resize-handle.is-arrow polygon {
+  fill: var(--text);
+  stroke: var(--card);
+  stroke-width: 1.5;
+  stroke-linejoin: round;
+  paint-order: stroke;
+}
+
+/* The size: a quiet pill (the card, a hairline) that fills in while you drag;
+   click it for a field to type one, with Fit beside it. */
+.resize-size {
+  display: inline-flex;
+  align-items: center;
+  white-space: nowrap;
+}
+
+.resize-pill,
+.resize-input,
+.resize-fit {
+  height: 20px;
+  padding: 0 8px;
+  border: 1px solid var(--line-strong);
+  border-radius: 10px;
+  background: var(--card);
+  color: var(--text-2);
+  font: 600 12px/18px var(--font-sans);
+  font-variant-numeric: tabular-nums;
+}
+
+.resize-pill {
+  cursor: text;
+}
+
+.resize-pill:hover {
+  border-color: var(--text-3);
+  color: var(--text);
+}
+
+.is-resizing .resize-pill {
+  border-color: var(--text);
+  background: var(--text);
+  color: var(--card);
+}
+
+.resize-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.resize-field[hidden] {
+  display: none;
+}
+
+.resize-input {
+  min-width: 40px;
+  border-color: var(--text);
+  color: var(--text);
+  text-align: center;
+  outline: none;
+}
+
+.resize-fit {
+  color: var(--text);
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.resize-fit:hover {
+  background: var(--hover);
+}
+

@@ -16,6 +16,7 @@ import { h, icon } from "../ui/dom.js";
 import { openFile } from "../actions.js";
 import { openMenu } from "../ui/menu.js";
 import { pageFrame, reloadFrame } from "../ui/page-view.js";
+import { animate, createHandle, createSizePill, onDrag, readSize, sizeSpring } from "../ui/resize.js";
 
 /** Marks a change Ory makes for you (adding a source, sizing a page), allowed even while reading. */
 export const byOry = Annotation.define();
@@ -129,6 +130,14 @@ export function fileUrl(path) {
   return "/files/" + path.split("/").map(encodeURIComponent).join("/");
 }
 
+/**
+ * A picture embedded in a note. Click it to select it: a handle on each right
+ * corner and on the right side (pictures sit at the left of the column, so the
+ * left edge never moves), and its size on the bottom edge. Drag a handle, or
+ * type a width (click the size, or just start typing; "50%" is half the
+ * column) and press Enter; Fit goes back to its own size. The width is written
+ * into the link (|320). Nothing reloads as it changes.
+ */
 class ImageWidget extends WidgetType {
   constructor(src, width, alt) {
     super();
@@ -139,16 +148,128 @@ class ImageWidget extends WidgetType {
   eq(other) {
     return other.src === this.src && other.width === this.width;
   }
-  toDOM() {
-    const img = document.createElement("img");
-    img.className = "cm-embed-image";
-    img.src = this.src;
-    img.alt = this.alt;
-    img.loading = "lazy";
-    img.draggable = false;
-    if (this.width) img.style.width = `${this.width}px`;
+  updateDOM(dom) {
+    if (!dom.oryImage || dom.oryImage.src !== this.src) return false;
+    dom.oryImage.set(this.width);
+    return true;
+  }
+  toDOM(view) {
+    const img = h("img", { class: "cm-embed-image", src: this.src, alt: this.alt, loading: "lazy", draggable: "false" });
+    const box = h("span", { class: "cm-embed-image-box", tabindex: "-1" }, img);
     img.addEventListener("error", () => img.classList.add("is-broken"));
-    return img;
+    const column = () => box.parentElement?.clientWidth || view.contentDOM.clientWidth;
+    const W = sizeSpring(0);
+    let stop = null;
+
+    const size = createSizePill({
+      label: "Width",
+      fitFirst: true,
+      commit: (text) => {
+        const v = readSize(text, column());
+        if (v == null) return;
+        const px = Math.round(Math.min(column(), Math.max(24, v)));
+        glide(px);
+        setEmbedAlias(view, box, String(px));
+      },
+      fit: () => {
+        glide(Math.min(img.naturalWidth || column(), column()), true);
+        setEmbedAlias(view, box, null);
+      },
+    });
+    const label = () => {
+      const w = Math.round(img.offsetWidth), ht = Math.round(img.offsetHeight);
+      size.show(`${w} × ${ht}`, String(w));
+    };
+    const setWidth = (px) => {
+      img.style.width = px == null ? "" : `${Math.round(px)}px`;
+      label();
+      view.requestMeasure();
+    };
+    // A typed width settles on the spring; `free` lets go of the width at the end (its own size).
+    const glide = (to, free = false) => {
+      stop?.();
+      W.snap(img.offsetWidth);
+      W.target = to;
+      stop = animate((dt) => {
+        W.step(dt);
+        setWidth(W.x);
+        if (!W.settled) return true;
+        setWidth(free ? null : W.target);
+        stop = null;
+        return false;
+      });
+    };
+
+    // The handles: each square turns into the arrow you drag it with.
+    for (const [where, deg] of [["ne", 45], ["e", 90], ["se", -45]]) {
+      const handle = createHandle("square", deg);
+      const spot = h("span", { class: `cm-embed-image-handle cm-embed-image-handle--${where}` }, handle.el);
+      let startW = 0, dragging = false;
+      spot.addEventListener("pointerenter", () => handle.take(true));
+      spot.addEventListener("pointerleave", () => { if (!dragging) handle.take(false); });
+      onDrag(spot, {
+        start: () => {
+          stop?.();
+          dragging = true;
+          startW = img.offsetWidth;
+          box.classList.add("is-resizing");
+        },
+        move: (dx) => setWidth(Math.min(column(), Math.max(24, startW + dx))),
+        end: (dx) => {
+          dragging = false;
+          box.classList.remove("is-resizing");
+          if (!spot.matches(":hover")) handle.take(false);
+          if (Math.abs(dx) >= 2) setEmbedAlias(view, box, String(Math.round(img.offsetWidth)));
+        },
+      });
+      box.append(spot);
+    }
+    box.append(size.el);
+
+    // Selecting: a click on the picture; a click anywhere else lets it go.
+    const away = (e) => { if (!box.contains(e.target)) select(false); };
+    const select = (on) => {
+      box.classList.toggle("is-selected", on);
+      if (on) {
+        label();
+        box.focus({ preventScroll: true });
+        document.addEventListener("pointerdown", away, true);
+      } else {
+        size.close();
+        document.removeEventListener("pointerdown", away, true);
+      }
+    };
+    img.addEventListener("pointerdown", (e) => {
+      if (e.button !== 0) return;
+      e.preventDefault();
+      select(true);
+    });
+    // Selected, it takes a width as you type it; Esc lets go of it.
+    box.addEventListener("keydown", (e) => {
+      if (e.target !== box) return;
+      if (/^[0-9]$/.test(e.key) && !e.metaKey && !e.ctrlKey && !e.altKey) {
+        e.preventDefault();
+        size.open(e.key, false);
+      } else if (e.key === "Escape") {
+        e.preventDefault();
+        select(false);
+        view.focus();
+      }
+    });
+    img.addEventListener("load", label);
+
+    box.oryImage = {
+      src: this.src,
+      set(width) {
+        if (stop) return; // settling on the spring already
+        setWidth(width);
+      },
+    };
+    box.oryImage.set(this.width);
+    return box;
+  }
+  ignoreEvent() {
+    return true;
   }
 }
 
@@ -215,10 +336,10 @@ const PAGE_MIN = 120, PAGE_MAX = 2000;
 const clampHeight = (px) => Math.round(Math.min(PAGE_MAX, Math.max(PAGE_MIN, px)));
 
 /**
- * Rewrite the alias of the embed whose widget is `dom`: ![[Page.html|wide 640]].
- * Ory makes the change for you, so it also works while reading.
+ * Rewrite the alias of the embed whose widget is `dom` (![[file|alias]]); null
+ * takes it away. Ory makes the change for you, so it also works while reading.
  */
-function setPageAlias(view, dom, { height, wide }) {
+function setEmbedAlias(view, dom, alias) {
   let pos;
   try {
     pos = view.posAtDOM(dom);
@@ -232,19 +353,25 @@ function setPageAlias(view, dom, { height, wide }) {
   const inner = before.slice(start + 3, -2);
   const pipe = inner.indexOf("|");
   const ref = pipe === -1 ? inner : inner.slice(0, pipe);
-  const alias = [wide ? "wide" : "", height ? String(height) : ""].filter(Boolean).join(" ");
   const from = line.from + start + 3, to = pos - 2;
   const insert = alias ? `${ref}|${alias}` : ref;
   if (view.state.sliceDoc(from, to) === insert) return;
   view.dispatch({ changes: { from, to, insert }, annotations: byOry.of(true) });
 }
 
+/** A page embed's alias: ![[Page.html|wide 640]]. */
+const setPageAlias = (view, dom, { height, wide }) =>
+  setEmbedAlias(view, dom, [wide ? "wide" : "", height ? String(height) : ""].filter(Boolean).join(" ") || null);
+
 /**
  * An HTML page embedded in a note: a titled frame, sandboxed (see
  * ui/page-view.js). Its height is the note's (|640) if it gives one, else what
- * the page says it needs ({type: "ory:size", height}), else 480px. Drag the
- * bottom edge to set your own; double-click it to give the height back to the
- * page. Wide (|wide) lets it run the card's width while the text keeps its column.
+ * the page says it needs ({type: "ory:size", height}), else 480px. Over the
+ * page its height waits on the bottom edge: click it (or Set height... in the
+ * menu) to type one, or drag the edge, where a bar comes to the pointer and
+ * turns into the arrow you drag with. Fit, or a double-click on the edge, gives
+ * the height back to the page. Wide (|wide) lets it run the card's width while
+ * the text keeps its column.
  * Changing the height or width keeps the page as it is; nothing reloads.
  */
 class PageEmbedWidget extends WidgetType {
@@ -269,11 +396,46 @@ class PageEmbedWidget extends WidgetType {
     const state = { own: this.height, wide: this.wide, told: null };
     const wrap = h("div", { class: "cm-embed-page" });
     const frameOf = () => wrap.querySelector("iframe");
-    const fit = () => {
-      frameOf().style.height = `${clampHeight(state.own ?? state.told ?? PAGE_HEIGHT)}px`;
+    const write = (change) => setPageAlias(view, wrap, { height: state.own, wide: state.wide, ...change });
+    const H = sizeSpring(0);
+    let stop = null;
+    const setHeight = (px) => {
+      frameOf().style.height = `${Math.round(px)}px`;
+      size.show(String(Math.round(px)));
       view.requestMeasure();
     };
-    const write = (change) => setPageAlias(view, wrap, { height: state.own, wide: state.wide, ...change });
+    // A typed height settles on the spring; anything else is set at once.
+    const glide = (to) => {
+      stop?.();
+      H.snap(frameOf().offsetHeight || to);
+      H.target = to;
+      stop = animate((dt) => {
+        H.step(dt);
+        setHeight(H.x);
+        if (!H.settled) return true;
+        setHeight(H.target);
+        stop = null;
+        return false;
+      });
+    };
+    const fit = () => {
+      const to = clampHeight(state.own ?? state.told ?? PAGE_HEIGHT);
+      if (stop) H.target = to;
+      else setHeight(to);
+    };
+    const own = (height) => {
+      state.own = height;
+      glide(clampHeight(height ?? state.told ?? PAGE_HEIGHT));
+      write({ height });
+    };
+    const size = createSizePill({
+      label: "Height",
+      commit: (text) => {
+        const v = readSize(text);
+        if (v != null) own(clampHeight(v));
+      },
+      fit: () => own(null),
+    });
 
     const wideBtn = h("button", {
       class: "cm-embed-page-wide", type: "button", "aria-pressed": "false",
@@ -286,7 +448,8 @@ class PageEmbedWidget extends WidgetType {
       onClick: () => openMenu(more, [
         { label: "Reload", run: () => reloadFrame(frameOf()) },
         { label: "Open in new tab", run: () => openFile(this.path) },
-        ...(state.own ? [{ label: "Use the page's own height", run: () => write({ height: null }) }] : []),
+        { label: "Set height…", run: () => size.open(String(Math.round(frameOf().offsetHeight))) },
+        ...(state.own ? [{ label: "Use the page's own height", run: () => own(null) }] : []),
       ]),
     }, icon("more", 16));
     const head = h("div", { class: "cm-embed-page-head" },
@@ -300,41 +463,53 @@ class PageEmbedWidget extends WidgetType {
         }, icon("arrowRight", 16)),
         more));
 
-    // The bottom edge: drag for a height of your own; double-click to give it back.
-    const grip = h("div", { class: "cm-embed-page-grip", dataset: { tip: "Drag to resize · Double-click for the page's own height" } });
-    grip.addEventListener("pointerdown", (e) => {
-      if (e.button !== 0) return;
-      e.preventDefault();
-      const frame = frameOf();
-      const startY = e.clientY, startH = frame.offsetHeight;
-      let height = startH;
-      wrap.classList.add("is-resizing");
-      try { grip.setPointerCapture(e.pointerId); } catch { /* a synthetic pointer */ }
-      const move = (ev) => {
-        height = clampHeight(startH + ev.clientY - startY);
-        frame.style.height = `${height}px`;
-        view.requestMeasure();
-      };
-      const up = () => {
-        grip.removeEventListener("pointermove", move);
-        grip.removeEventListener("pointerup", up);
-        grip.removeEventListener("pointercancel", up);
+    // The bottom edge: a bar comes to the pointer and turns into the arrow you
+    // drag with; the height sits beside it. A double-click gives the height back.
+    const handle = createHandle("bar");
+    const edge = h("div", { class: "cm-embed-page-edge" });
+    let placed = false, dragging = false;
+    const place = (x) => {
+      placed = true;
+      handle.el.style.left = `${x}px`;
+      if (!size.editing) size.el.style.left = `${x + 28}px`;
+    };
+    wrap.addEventListener("pointerenter", () => { if (!placed) place(wrap.clientWidth / 2); });
+    edge.addEventListener("pointerenter", () => {
+      wrap.classList.add("on-edge");
+      handle.take(true);
+    });
+    edge.addEventListener("pointermove", (e) => {
+      if (!dragging) place(Math.max(24, Math.min(wrap.clientWidth - 72, e.clientX - wrap.getBoundingClientRect().left)));
+    });
+    edge.addEventListener("pointerleave", () => {
+      if (dragging) return;
+      wrap.classList.remove("on-edge");
+      handle.take(false);
+    });
+    let startH = 0;
+    onDrag(edge, {
+      start: () => {
+        stop?.();
+        stop = null;
+        dragging = true;
+        startH = frameOf().offsetHeight;
+        wrap.classList.add("is-resizing");
+      },
+      move: (dx, dy) => setHeight(clampHeight(startH + dy)),
+      end: (dx, dy) => {
+        dragging = false;
         wrap.classList.remove("is-resizing");
-        if (Math.abs(height - startH) >= 2) {
-          state.own = height;
-          write({ height });
+        if (!edge.matches(":hover")) {
+          wrap.classList.remove("on-edge");
+          handle.take(false);
         }
-      };
-      grip.addEventListener("pointermove", move);
-      grip.addEventListener("pointerup", up);
-      grip.addEventListener("pointercancel", up);
+        if (Math.abs(dy) >= 2) {
+          state.own = frameOf().offsetHeight;
+          write({ height: state.own });
+        }
+      },
     });
-    grip.addEventListener("dblclick", () => {
-      if (state.own == null) return;
-      state.own = null;
-      fit();
-      write({ height: null });
-    });
+    edge.addEventListener("dblclick", () => { if (state.own != null) own(null); });
 
     // The page says how tall it is at the width it's given (see ui/page-view.js).
     wrap.addEventListener("ory:page-size", (e) => {
@@ -342,7 +517,7 @@ class PageEmbedWidget extends WidgetType {
       if (state.own == null) fit();
     });
 
-    wrap.append(head, pageFrame(this.path, name, this.fragment), grip);
+    wrap.append(head, pageFrame(this.path, name, this.fragment), edge, handle.el, size.el);
     wrap.oryPage = {
       path: this.path,
       fragment: this.fragment,

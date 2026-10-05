@@ -254,16 +254,28 @@ The rules Ory's interface follows. A value outside the scales below is a mistake
 - **Attachments**: images embed at their own size up to the text width with a
   hairline border and the card corner; other files are a chip (icon, name, size in
   mono) that opens them. While the cursor is on an embed its Markdown shows above
-  the image, so nothing jumps.
+  the image, so nothing jumps. A click selects a picture: a 1px outline in the text
+  colour, square handles on its right corners and side (pictures sit at the left of
+  the column, so the left edge never moves), and its size on the bottom edge.
+- **Resizing** (pictures and pages, `ui/resize.js`, after Azlen's bounding-box study):
+  a handle at rest (a picture's 8px square, a page edge's 40 × 4 bar) turns into a
+  double arrow as you take it, on a spring, and the system pointer hides so the arrow
+  is the cursor. The size is a 20px pill on the edge: quiet (the card, a hairline,
+  `--text-2`) while you can click it, filled in the text colour while you drag.
+  Clicking it (or, for a selected picture, just typing) opens a field with Fit beside
+  it; it takes sums and, for pictures, a percentage of the column. A typed size
+  settles on the study's measured spring (response 0.32 s, damping 0.89). Nothing is
+  blue: handles and pills are the text colour.
 - **Pages** (HTML files) open across the whole main area under the usual note header
   (folder / name, "Open in new tab", "..."). Embedded in a note they are a bordered
   card: a 32px head with the page icon and name, then Wide (a text toggle on the
   selected fill), Open across the main area (arrow) and "..." (Reload, Open in new
-  tab, and "Use the page's own height" once you've set one); under it the frame. Its
-  height is the note's (`|640`), else what the page says it needs, else 480px, so a
-  page that sizes itself is never cut off or letterboxed. The bottom edge is an 8px
-  handle that shows a 40 × 4 bar on hover: drag it for a height of your own (written
-  into the link), double-click it to hand the height back. Wide (`|wide`) runs the
+  tab, Set height..., and "Use the page's own height" once you've set one); under it
+  the frame. Its height is the note's (`|640`), else what the page says it needs, else
+  480px, so a page that sizes itself is never cut off or letterboxed. Over the page,
+  the height waits on the bottom edge; the edge is a 10px strip where the bar comes to
+  the pointer (see Resizing). A height of your own is written into the link; Fit, or a
+  double-click on the edge, hands it back. Wide (`|wide`) runs the
   card's width less the gutter each side, at most 1280px, centred on the text column.
   Resizing never reloads the page. A page keeps its own design; to look like part of
   Ory it should use the shared tokens.
