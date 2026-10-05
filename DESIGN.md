@@ -155,9 +155,9 @@ The rules Ory's interface follows. A value outside the scales below is a mistake
   control (remembered) and the palette button over a band of hex tiles, like a heat
   shield: none, nine colours and +, with plain rows above and below that fade out; the
   plain tiles touching the one you point at take a faint tint of it. *More* (+) opens a
-  honeycomb under the band, laid out like Office's (hue round, colour outward, the text
+  honeycomb under the band (its cells arriving ring by ring from the centre), laid out like Office's (hue round, colour outward, the text
   colour at the centre), and a row of greys. *Custom* (Custom ›) slides out to the side: hue
-  and colourfulness in a field, lightness in a bar (for text, what can't be read in this
+  and colourfulness (as a share of the most that hue can have) in a field drawn at one vivid lightness, lightness in a bar (for text, what can't be read in this
   theme is hatched), Hex and R G B, New over Current, a line saying how each theme will
   show it, and Add to my colours, Cancel and Apply. The *palette* menu, beside the picker so
   the band stays in view, swaps the band's nine: Ory (the inks), Soft, Vivid, Earth, Sea, and
@@ -168,7 +168,9 @@ The rules Ory's interface follows. A value outside the scales below is a mistake
   (`editor/colour-preview.js`): letters switch in reading order over 0.117 · ∛n seconds, each
   with a short bold pulse (and a glow in dark mode only, since a glow on white reads as a
   smudge); a drag in Custom shows the colour at once. Leaving a colour for anything else
-  puts the text back after 90ms, so sweeping across seams doesn't flicker; with Custom open
+  puts the text back after 90ms, so sweeping across seams doesn't flicker. While
+  the selection shows a highlight colour (being previewed, or the words' own), it draws as
+  a 1px ring instead of the grey fill, so the colour reads true; with Custom open
   the text shows the colour being made. A pick or Apply applies and closes; Escape steps
   back one level (menu, Custom, More, picker); Tab stays inside. Hex tiles are laid out by
   their apothem with exact seams (2px on the band, 1.5px in the honeycomb), each polygon

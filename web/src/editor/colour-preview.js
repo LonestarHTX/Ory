@@ -7,29 +7,51 @@
 // The timing was measured from a screen recording of the interaction this
 // comes from: the whole selection takes 0.117 · ∛(letters) seconds (27
 // letters in 0.35 s, 110 in 0.55 s), and each letter's pulse lasts 0.6 s.
+//
+// While the selection shows a highlight colour (one being previewed, or the
+// selected words' own), it draws as a ring instead of a fill: the selection's
+// grey over the wash would muddy the colour (styles.css, .cm-selection-ring).
 
 import { StateEffect, StateField } from "@codemirror/state";
 import { Decoration, EditorView } from "@codemirror/view";
 
 import { washOf } from "../ui/color-picker.js";
 import { normaliseHex, readableInks } from "../ui/color.js";
-import { PLAIN_HIGHLIGHT } from "./format.js";
+import { formatState, PLAIN_HIGHLIGHT } from "./format.js";
 
 const WAVE_K = 0.117;
 const PULSE = 600; // ms each letter animates for
 const MOST = 4000; // past this many letters, colour at once (one mark per range)
 
+// { deco, kind }: the preview's letters, and what it colours ("text", "mark", or null when
+// it is running back to the note's own colours).
 const setWave = StateEffect.define();
 
-export const colourPreview = StateField.define({
+const waves = StateField.define({
   create: () => Decoration.none,
   update(deco, tr) {
     deco = deco.map(tr.changes);
-    for (const e of tr.effects) if (e.is(setWave)) deco = e.value;
+    for (const e of tr.effects) if (e.is(setWave)) deco = e.value.deco;
     return deco;
   },
   provide: (field) => EditorView.decorations.from(field),
 });
+
+const previewing = StateField.define({
+  create: () => null,
+  update(kind, tr) {
+    for (const e of tr.effects) if (e.is(setWave)) kind = e.value.kind;
+    return kind;
+  },
+});
+
+const selectionRing = EditorView.editorAttributes.compute([previewing, "selection", "doc"], (state) => {
+  const { main } = state.selection;
+  const marked = state.field(previewing) === "mark" || (!main.empty && formatState(state).mark != null);
+  return marked ? { class: "cm-selection-ring" } : {};
+});
+
+export const colourPreview = [waves, previewing, selectionRing];
 
 /** What a format command would colour: the selection, or the word at a cursor. */
 function targets(state) {
@@ -94,7 +116,7 @@ export function previewColour(view, kind, value, { still = false } = {}) {
   const marks = n > MOST
     ? targets(view.state).map((r) => Decoration.mark({ class: cls, attributes: { style: style(0) } }).range(r.from, r.to))
     : letters.map(([a, b], k) => Decoration.mark({ class: cls, attributes: { style: style(k) } }).range(a, b));
-  view.dispatch({ effects: setWave.of(Decoration.set(marks, true)) });
+  view.dispatch({ effects: setWave.of({ deco: Decoration.set(marks, true), kind: ending ? null : kind }) });
 
   if (ending) {
     shown.delete(view);
@@ -108,5 +130,7 @@ export function previewColour(view, kind, value, { still = false } = {}) {
 export function endColourPreview(view) {
   clearTimeout(clearers.get(view));
   shown.delete(view);
-  if (view.state.field(colourPreview, false)?.size) view.dispatch({ effects: setWave.of(Decoration.none) });
+  if (view.state.field(waves, false)?.size || view.state.field(previewing, false)) {
+    view.dispatch({ effects: setWave.of({ deco: Decoration.none, kind: null }) });
+  }
 }

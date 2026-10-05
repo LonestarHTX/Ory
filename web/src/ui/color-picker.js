@@ -22,7 +22,7 @@
 //                              ==highlight==.
 
 import { pref, setPref } from "../prefs.js";
-import { hexToOklch, hexToRgb, normaliseHex, oklchRgb, readableAt, readableInks, readsIn, rgbToHex } from "./color.js";
+import { hexToOklch, hexToRgb, maxChroma, normaliseHex, oklchRgb, readableAt, readableInks, readsIn, rgbToHex } from "./color.js";
 import { leave } from "./dom.js";
 
 /** Ory's own colours: theme inks, which follow light and dark mode. */
@@ -187,7 +187,10 @@ export function openColorPicker({ anchor, text = null, mark = null, onPreview = 
   let restTimer = null;
   let dragging = false;
   let lastHex = null; // the last honeycomb colour pointed at, for Custom to start from
-  let hsl = null; // Custom's colour as OKLCH { L, C, h }
+  // Custom's colour: OKLCH lightness L and hue h, and f, how colourful it is as a share of
+  // the most that lightness and hue can have (so the field's top edge is always the most
+  // vivid colour there is, as in Office's).
+  let hsl = null;
   let picked = null; // ...and as the hex it saves
   const current = () => (mode === "text" ? text : mark);
 
@@ -287,16 +290,16 @@ export function openColorPicker({ anchor, text = null, mark = null, onPreview = 
   const combW = (2 * RINGS + 1) * COMB.SX;
   const combH = 2 * RINGS * COMB.SY + 2 * COMB.R;
   const comb = svgNode("svg", { class: "cp__hive", width: combW.toFixed(2), height: combH.toFixed(2), viewBox: `0 0 ${combW.toFixed(2)} ${combH.toFixed(2)}`, role: "listbox", "aria-label": "More colours" });
-  const cells = set.cells.map(({ q, r, value }) => addCell(comb, combW / 2 + COMB.SX * (q + r / 2), combH / 2 + COMB.SY * r, value));
+  const cells = set.cells.map(({ q, r, value }) => addCell(comb, combW / 2 + COMB.SX * (q + r / 2), combH / 2 + COMB.SY * r, value, Math.max(Math.abs(q), Math.abs(r), Math.abs(q + r))));
   const greysW = 9 * COMB.SX;
   const greys = svgNode("svg", { class: "cp__hive", width: greysW.toFixed(2), height: (2 * COMB.R).toFixed(2), viewBox: `0 0 ${greysW.toFixed(2)} ${(2 * COMB.R).toFixed(2)}`, role: "listbox", "aria-label": "Greys" });
-  const greyCells = set.greys.map((value, i) => addCell(greys, COMB.SX / 2 + i * COMB.SX, COMB.R, value));
+  const greyCells = set.greys.map((value, i) => addCell(greys, COMB.SX / 2 + i * COMB.SX, COMB.R, value, RINGS + 1));
   for (const s of [comb, greys]) {
     s.hover = svgNode("polygon", { class: "cp__cell-hover" });
     s.append(s.hover);
     s.addEventListener("pointerleave", () => {
       s.hover.classList.remove("is-on");
-      footSwatch.style.background = "";
+      footSwatch.hidden = true;
       footLabel.textContent = "Point at a colour";
       footHex.textContent = "";
     });
@@ -307,6 +310,7 @@ export function openColorPicker({ anchor, text = null, mark = null, onPreview = 
   greys.addEventListener("keydown", cellKeys);
   const foot = make("div", "cp__foot");
   const footSwatch = make("span", "cp__swatch");
+  footSwatch.hidden = true;
   const footLabel = make("span", "cp__foot-label", "Point at a colour");
   const footHex = make("span", "cp__hex");
   const customButton = make("button", "btn btn--small btn--plain cp__custom-button");
@@ -319,9 +323,11 @@ export function openColorPicker({ anchor, text = null, mark = null, onPreview = 
   moreInner.append(moreBody);
   more.append(moreInner);
 
-  function addCell(parent, x, y, value) {
+  // ring: how far out the cell sits, so More can open from the centre outward.
+  function addCell(parent, x, y, value, ring) {
     const t = svgNode("polygon", { class: "cp__tile cp__tile--cell", points: hexPoints(x, y, COMB.poly), role: "option", tabindex: -1, "aria-label": value.toUpperCase() });
     t.dataset.value = value;
+    t.style.setProperty("--ring", ring);
     parent.insertBefore(t, parent.hover ?? null);
     const enter = () => {
       clearTimeout(restTimer);
@@ -330,6 +336,7 @@ export function openColorPicker({ anchor, text = null, mark = null, onPreview = 
       parent.hover.classList.add("is-on");
       lastHex = value;
       footSwatch.style.background = t.style.fill;
+      footSwatch.hidden = false;
       footLabel.textContent = "Reads in both themes";
       footHex.textContent = value.toUpperCase();
       show(value);
@@ -348,10 +355,9 @@ export function openColorPicker({ anchor, text = null, mark = null, onPreview = 
   const customBody = make("div", "cp__custom-body");
   const customTop = make("div", "cp__custom-top");
   const field = make("div", "cp__field");
-  // Drawn at half size and scaled up: the field is a smooth gradient, and this keeps a drag smooth.
   const fieldCanvas = make("canvas");
-  fieldCanvas.width = 100;
-  fieldCanvas.height = 84;
+  fieldCanvas.width = 200;
+  fieldCanvas.height = 168;
   const fieldThumb = make("span", "cp__field-thumb");
   field.append(fieldCanvas, fieldThumb);
   field.tabIndex = 0;
@@ -453,10 +459,19 @@ export function openColorPicker({ anchor, text = null, mark = null, onPreview = 
 
   const fillOf = (value, extra = 14) => (mode === "text" ? value : washOf(value, extra));
 
+  // The palette button: three of the palette's colours as small hexes, then its name.
+  function paletteLabel(key) {
+    const p = PALETTES.find((x) => x.key === key);
+    const colours = p.key === "mine" ? p.colours() : set.palettes[p.key];
+    const dots = [1, 4, 6].map((i) => colours[i] ?? colours[i - 1] ?? colours[0])
+      .map((c) => `<i style="background: ${c ? fillOf(c[1], 40) : "var(--tile)"}"></i>`).join("");
+    paletteButton.innerHTML = `<span class="cp__palette-strip" aria-hidden="true">${dots}</span>${p.name}${ICON.chevronDown}`;
+  }
+
   function dressBand() {
     const p = PALETTES.find((x) => x.key === palette);
     const colours = p.key === "mine" ? p.colours() : set.palettes[p.key];
-    paletteButton.innerHTML = `${p.name}${ICON.chevronDown}`;
+    paletteLabel(palette);
     slots.forEach((slot, i) => {
       if (i > 0) {
         const c = colours[i - 1];
@@ -519,7 +534,12 @@ export function openColorPicker({ anchor, text = null, mark = null, onPreview = 
     plus.setAttribute("aria-label", plus.dataset.tip);
   }
 
+  let fieldDrawn = false;
   function openCustom() {
+    if (!fieldDrawn) {
+      drawField();
+      fieldDrawn = true;
+    }
     pop.classList.add("is-custom");
     customButton.setAttribute("aria-expanded", "true");
     seed(lastHex ?? toHex(current()) ?? "#68bcc0", { quiet: true });
@@ -550,22 +570,28 @@ export function openColorPicker({ anchor, text = null, mark = null, onPreview = 
   // from: "hex" or "rgb" when typed there (that field is left as typed); quiet: no preview.
   function seed(hex, { from = null, quiet = false } = {}) {
     const o = hexToOklch(hex);
-    hsl = { L: o.L, C: o.C, h: o.C < 0.002 ? (hsl?.h ?? 200) : o.h };
+    const h = o.C < 0.002 ? (hsl?.h ?? 200) : o.h;
+    const most = maxChroma(o.L, h);
+    hsl = { L: o.L, f: most > 0.0005 ? Math.min(1, o.C / most) : 0, h };
     picked = hex;
-    drawField();
     updateCustom({ skipHex: from === "hex", skipRgb: from === "rgb", quiet });
   }
 
+  const colourAt = (L, f, h) => oklchRgb(L, f * maxChroma(L, h), h);
+
+  // The field: hue across, colourfulness up, always at one vivid lightness so it reads as a
+  // spectrum whatever the colour's own lightness (that is the bar's job). Drawn once.
+  const FIELD_L = 0.75;
   function drawField() {
     const ctx = fieldCanvas.getContext("2d");
     const { width: w, height: h } = fieldCanvas;
     const img = ctx.createImageData(w, h);
+    const most = [...Array(w)].map((_, x) => maxChroma(FIELD_L, (x / (w - 1)) * 360));
     for (let y = 0; y < h; y++) {
-      const C = (1 - y / (h - 1)) * 0.32;
+      const f = 1 - y / (h - 1);
       for (let x = 0; x < w; x++) {
-        const rgb = oklchRgb(hsl.L, C, (x / (w - 1)) * 360);
-        const o = (y * w + x) * 4;
-        img.data.set([rgb[0], rgb[1], rgb[2], 255], o);
+        const rgb = oklchRgb(FIELD_L, f * most[x], (x / (w - 1)) * 360);
+        img.data.set([rgb[0], rgb[1], rgb[2], 255], (y * w + x) * 4);
       }
     }
     ctx.putImageData(img, 0, 0);
@@ -578,7 +604,7 @@ export function openColorPicker({ anchor, text = null, mark = null, onPreview = 
     const img = ctx.createImageData(w, h);
     const bg = hexToRgb(toHex("var(--card)") ?? (th === "dark" ? "#252528" : "#ffffff"));
     for (let y = 0; y < h; y++) {
-      const rgb = oklchRgb(1 - y / (h - 1), hsl.C, hsl.h);
+      const rgb = colourAt(1 - y / (h - 1), hsl.f, hsl.h);
       const bad = mode === "text" && !readsIn(th, rgb);
       const dim = rgb.map((v, i) => v * 0.35 + bg[i] * 0.65);
       for (let x = 0; x < w; x++) {
@@ -591,13 +617,13 @@ export function openColorPicker({ anchor, text = null, mark = null, onPreview = 
 
   // fromDrag: the colour comes from the field or bar; otherwise `picked` was typed and stays exact.
   function updateCustom({ fromDrag = false, skipHex = false, skipRgb = false, quiet = false } = {}) {
-    if (fromDrag) picked = rgbToHex(oklchRgb(hsl.L, hsl.C, hsl.h));
+    if (fromDrag) picked = rgbToHex(colourAt(hsl.L, hsl.f, hsl.h));
     drawLight();
     fieldThumb.style.left = `${(hsl.h / 360) * 100}%`;
-    fieldThumb.style.top = `${(1 - Math.min(hsl.C, 0.32) / 0.32) * 100}%`;
+    fieldThumb.style.top = `${(1 - hsl.f) * 100}%`;
     fieldThumb.style.background = picked;
     lightThumb.style.top = `${(1 - hsl.L) * 100}%`;
-    field.setAttribute("aria-valuetext", `hue ${Math.round(hsl.h)}, colourfulness ${hsl.C.toFixed(2)}`);
+    field.setAttribute("aria-valuetext", `hue ${Math.round(hsl.h)}, colourfulness ${Math.round(hsl.f * 100)}%`);
     light.setAttribute("aria-valuetext", `${Math.round(hsl.L * 100)}%`);
     if (!skipHex) {
       hexInput.value = picked.toUpperCase();
@@ -625,14 +651,10 @@ export function openColorPicker({ anchor, text = null, mark = null, onPreview = 
 
   // A drag redraws at most once a frame.
   let frame = null;
-  let redrawField = false;
-  function schedule(field) {
-    redrawField ||= field;
+  function schedule() {
     if (frame) return;
     frame = requestAnimationFrame(() => {
       frame = null;
-      if (redrawField) drawField();
-      redrawField = false;
       updateCustom({ fromDrag: true });
     });
   }
@@ -655,28 +677,28 @@ export function openColorPicker({ anchor, text = null, mark = null, onPreview = 
   drag(field, (event) => {
     const r = fieldCanvas.getBoundingClientRect();
     hsl.h = Math.max(0, Math.min(1, (event.clientX - r.left) / r.width)) * 360;
-    hsl.C = (1 - Math.max(0, Math.min(1, (event.clientY - r.top) / r.height))) * 0.32;
-    schedule(false);
+    hsl.f = 1 - Math.max(0, Math.min(1, (event.clientY - r.top) / r.height));
+    schedule();
   });
   drag(light, (event) => {
     const r = lightCanvas.getBoundingClientRect();
     hsl.L = 1 - Math.max(0, Math.min(1, (event.clientY - r.top) / r.height));
-    schedule(true);
+    schedule();
   });
   field.addEventListener("keydown", (event) => {
-    const d = { ArrowLeft: [-4, 0], ArrowRight: [4, 0], ArrowUp: [0, 0.01], ArrowDown: [0, -0.01] }[event.key];
+    const d = { ArrowLeft: [-4, 0], ArrowRight: [4, 0], ArrowUp: [0, 0.02], ArrowDown: [0, -0.02] }[event.key];
     if (!d) return;
     event.preventDefault();
     hsl.h = (hsl.h + d[0] + 360) % 360;
-    hsl.C = Math.max(0, Math.min(0.32, hsl.C + d[1]));
-    schedule(false);
+    hsl.f = Math.max(0, Math.min(1, hsl.f + d[1]));
+    schedule();
   });
   light.addEventListener("keydown", (event) => {
     const d = { ArrowUp: 0.02, ArrowDown: -0.02 }[event.key];
     if (!d) return;
     event.preventDefault();
     hsl.L = Math.max(0, Math.min(1, hsl.L + d));
-    schedule(true);
+    schedule();
   });
   hexInput.addEventListener("input", () => {
     const hex = normaliseHex(hexInput.value);
@@ -738,7 +760,7 @@ export function openColorPicker({ anchor, text = null, mark = null, onPreview = 
     palette = key;
     dressBand();
     palette = keep;
-    paletteButton.innerHTML = `${PALETTES.find((x) => x.key === palette).name}${ICON.chevronDown}`;
+    paletteLabel(palette);
     shownPalette = key;
   }
 

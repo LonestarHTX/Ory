@@ -1522,6 +1522,22 @@ html[data-theme-fade]::view-transition-new(root) {
   color: inherit !important;
 }
 
+/* A highlight already there sits inside the preview and would paint over its wash. */
+.cm-wave--mark .cm-mark,
+.cm-wave--mark .cm-md-highlight {
+  background-color: transparent !important;
+}
+
+/* A selection over a highlight colour (one being previewed, or the selected words'
+   own) draws as a ring, not a fill: the selection's grey over the wash would muddy
+   the colour. Plain selections keep the fill. */
+.note-editor .cm-selection-ring .cm-selectionBackground,
+.note-editor .cm-selection-ring.cm-focused > .cm-scroller > .cm-selectionLayer .cm-selectionBackground {
+  border-radius: 2px;
+  background: transparent;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--text) 55%, transparent);
+}
+
 .cm-wave--text {
   color: var(--wave-to);
   animation-name: wave-text;
@@ -2273,6 +2289,18 @@ html[data-theme-fade]::view-transition-new(root) {
   color: var(--text-2);
 }
 
+.cp__palette-strip {
+  display: inline-flex;
+  gap: 1px;
+  margin-right: 2px;
+}
+
+.cp__palette-strip i {
+  width: 7px;
+  height: 8px;
+  clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%);
+}
+
 .cp__palette:hover,
 .cp__palette[aria-expanded="true"] {
   color: var(--text);
@@ -2389,12 +2417,27 @@ html[data-theme-fade]::view-transition-new(root) {
   min-height: 0;
   overflow: hidden;
   visibility: hidden;
-  transition: visibility 0s 0.24s;
+  opacity: 0;
+  transition: opacity 0.12s ease, visibility 0s 0.24s;
 }
 
 .cp.is-more .cp__more-inner {
   visibility: visible;
-  transition: none;
+  opacity: 1;
+  transition: opacity 0.24s ease;
+}
+
+/* More opens from the centre: the honeycomb's cells arrive ring by ring. */
+.cp__tile--cell {
+  opacity: 0;
+  transform: scale(0.6);
+  transition: fill 0.24s ease, stroke 0.24s ease, opacity 0.24s ease, transform 0.24s cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+.cp.is-more .cp__tile--cell {
+  opacity: 1;
+  transform: none;
+  transition-delay: 0s, 0s, calc(var(--ring) * 18ms), calc(var(--ring) * 18ms);
 }
 
 .cp__more-body {
@@ -2412,7 +2455,7 @@ html[data-theme-fade]::view-transition-new(root) {
   gap: 8px;
   width: 100%;
   height: 28px;
-  padding-left: 8px;
+  padding-left: 4px;
   font-size: 12px;
   color: var(--text-2);
 }
@@ -2457,11 +2500,18 @@ html[data-theme-fade]::view-transition-new(root) {
   visibility: hidden;
 }
 
+.cp.is-custom .cp__custom-body {
+  opacity: 1;
+  transition: opacity 0.24s ease 0.06s;
+}
+
 .cp__custom-body {
   display: grid;
   gap: 12px;
   width: 336px;
   margin-left: 4px;
+  opacity: 0;
+  transition: opacity 0.12s ease;
   padding: 8px 8px 4px 12px;
   border-left: 1px solid var(--line);
 }

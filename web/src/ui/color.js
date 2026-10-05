@@ -154,6 +154,18 @@ export function hexToOklch(hex) {
   return { L, C: Math.hypot(A, B), h: ((Math.atan2(B, A) * 180) / Math.PI + 360) % 360 };
 }
 
+/** The most chroma a colour of lightness L and hue h can have and still fit sRGB. */
+export function maxChroma(L, h) {
+  let lo = 0;
+  let hi = 0.4;
+  for (let i = 0; i < 16; i++) {
+    const mid = (lo + hi) / 2;
+    if (oklchLinear(L, mid, h).every((v) => v >= -1e-4 && v <= 1.0001)) lo = mid;
+    else hi = mid;
+  }
+  return lo;
+}
+
 /** Whether an [r, g, b] colour reads (4.5:1) on every surface text sits on in `theme`. */
 export const readsIn = (theme, rgb) => SURFACES[theme].every((bg) => contrast(rgb, bg) >= 4.5);
 
