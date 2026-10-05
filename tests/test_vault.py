@@ -171,6 +171,18 @@ class VaultTests(unittest.TestCase):
         self.assertEqual(self.vault.archive("Daily/2026-09-27.md"), ".archive/2026-09-27.md")
         self.assertNotIn("Daily/2026-09-27.md", [n["path"] for n in self.vault.listing()["notes"]])
 
+    def test_files_know_the_notes_they_belong_to(self):
+        write(self.root, "Attachments/Mars painting.html", '<script>const RECORD = {"image":"Mars%20painting.png"};</script>')
+        write(self.root, "Attachments/Mars painting.png", "png")
+        write(self.root, "Attachments/Stray.png", "png")
+        write(self.root, "Planets/Mars.md", "# Mars\n\n![[Mars painting.html]]\n\nA link is not an embed: [[Stray.png]]\n")
+        files = {f["path"]: f for f in self.vault.listing()["files"]}
+        self.assertEqual(files["Attachments/Mars painting.html"]["in"], ["Planets/Mars.md"])
+        # The picture the page shows goes with the page.
+        self.assertEqual(files["Attachments/Mars painting.png"]["via"], ["Attachments/Mars painting.html"])
+        self.assertEqual(files["Attachments/Stray.png"]["in"], [])
+        self.assertEqual(files["Attachments/Stray.png"]["via"], [])
+
     def test_daily_note_from_a_template(self):
         write(self.root, "Templates/Daily.md", "# {{title}}\n\n{{date}}\n\n- [ ] \n")
         self.vault.refresh()

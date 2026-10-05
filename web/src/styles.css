@@ -1325,6 +1325,33 @@ html[data-theme-fade]::view-transition-new(root) {
   white-space: nowrap;
 }
 
+/* A note with attachments: a quiet paperclip at the end of its row. */
+.tree-clip {
+  display: inline-flex;
+  flex: none;
+  margin-left: auto;
+  padding-left: 8px;
+  color: var(--text-3);
+}
+
+/* A picture or file no note uses: kept in view, quieter, and said so. */
+.tree-row.is-loose .tree-name {
+  color: var(--text-2);
+}
+
+.tree-loose {
+  flex: none;
+  margin-left: auto;
+  padding-left: 8px;
+  color: var(--text-3);
+  font-size: 11px;
+}
+
+.tree-row:hover .tree-loose,
+.tree-row:hover .tree-clip {
+  display: none;
+}
+
 .tree-chevron {
   display: inline-flex;
   color: var(--text-3);
@@ -5151,5 +5178,42 @@ h3.setting-label {
 
 .resize-fit:hover {
   background: var(--hover);
+}
+
+/* Info's attachments: one per line, each opens. */
+.info-files {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+
+.info-file {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  color: var(--text);
+  text-align: left;
+}
+
+.info-file .icon {
+  flex: none;
+  color: var(--text-3);
+}
+
+.info-file:hover .info-file-name {
+  text-decoration: underline;
+}
+
+.info-file-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* What a page uses sits under it, as in the tree (one indent: 12px). */
+.info-file.is-in-page {
+  padding-left: 12px;
 }
 

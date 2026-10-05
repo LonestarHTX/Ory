@@ -18,8 +18,9 @@ import shutil
 import tempfile
 import threading
 import time
+import urllib.parse
 from dataclasses import dataclass, field
-from typing import Any, Dict, Iterable, List, Optional, Tuple
+from typing import Any, Dict, FrozenSet, Iterable, List, Optional, Set, Tuple
 
 from . import markdown
 
@@ -124,6 +125,7 @@ class Vault:
         self.archive_days = archive_days
         self._notes: Dict[str, Note] = {}
         self._files: Dict[str, Attachment] = {}
+        self._page_refs_seen: Dict[str, Tuple[Any, FrozenSet[str]]] = {}  # page -> (what it was read at, files it names)
         self._folders: List[str] = []
         self._by_name: Dict[str, List[str]] = {}
         self._by_file: Dict[str, List[str]] = {}
@@ -289,6 +291,7 @@ class Vault:
     def listing(self) -> Dict[str, Any]:
         with self._lock:
             self.refresh()
+            uses = self.file_uses()
             return {
                 "version": self.version,
                 "name": os.path.basename(self.root),
@@ -304,10 +307,51 @@ class Vault:
                     for n in sorted(self._notes.values(), key=lambda n: n.path.lower())
                 ],
                 "files": [
-                    {"path": f.path, "name": f.name, "size": f.size, "mtime": f.mtime}
+                    {"path": f.path, "name": f.name, "size": f.size, "mtime": f.mtime,
+                     "in": sorted(embeds.get(f.path, ())), "via": sorted(via.get(f.path, ()))}
                     for f in sorted(self._files.values(), key=lambda f: f.path.lower())
+                    for embeds, via in [uses]
                 ],
             }
+
+    def file_uses(self) -> Tuple[Dict[str, Set[str]], Dict[str, Set[str]]]:
+        """Which notes each file belongs to. The first map: the notes that embed
+        it (![[file]]). The second: the embedded pages that use it, such as the
+        picture a painting's page shows at the end, so it goes with that page."""
+        with self._lock:
+            embeds: Dict[str, Set[str]] = {}
+            for note in self._notes.values():
+                for link in note.links:
+                    if not link.embed:
+                        continue
+                    target = self.resolve(link.target, note.path)
+                    if target in self._files:
+                        embeds.setdefault(target, set()).add(note.path)
+            via: Dict[str, Set[str]] = {}
+            for page in [p for p in embeds if p.lower().endswith((".html", ".htm"))]:
+                for used in self._page_refs(page):
+                    via.setdefault(used, set()).add(page)
+            return embeds, via
+
+    def _page_refs(self, page: str) -> FrozenSet[str]:
+        """The files beside a page (in its folder or below) that its text names:
+        the pictures and scripts it loads. Read once for each version of the page."""
+        folder = posixpath.dirname(page)
+        prefix = f"{folder}/" if folder else ""
+        nearby = tuple(sorted(p for p in self._files if p != page and p.startswith(prefix)))
+        attachment = self._files.get(page)
+        key = (attachment.rev if attachment else None, nearby)
+        seen = self._page_refs_seen.get(page)
+        if seen and seen[0] == key:
+            return seen[1]
+        try:
+            with open(self._abs(page), encoding="utf-8", errors="replace") as fh:
+                text = fh.read()
+        except OSError:
+            text = ""
+        found = frozenset(p for p in nearby if p[len(prefix):] in text or urllib.parse.quote(p[len(prefix):]) in text)
+        self._page_refs_seen[page] = (key, found)
+        return found
 
     # Link resolution --------------------------------------------------------
     # Mirrors web/src/links.js. Keep the two in step.

@@ -1,4 +1,7 @@
-// The folder tree in the left sidebar: folders, notes and attachments.
+// The folder tree in the left sidebar: folders and notes. Files a note embeds
+// (and the pictures those pages use) belong to the note, so they're left out
+// and reached from it; a note with some shows a paperclip. A file no note uses
+// stays, marked. Show attachments (the Folders "...") lists everything.
 // Keyboard: Up/Down move, Right/Left expand/collapse, Enter opens, F2 renames.
 // Drag anything onto a folder to move it there; drop files from the desktop
 // onto a folder to add them.
@@ -10,6 +13,7 @@ import { api } from "../api.js";
 import { fileName, folderOf, isImage, isPage } from "../links.js";
 import { loadIndex, on, store } from "../store.js";
 import { isPinned, togglePin } from "../pins.js";
+import { showsAttachments } from "../prefs.js";
 import { wikiOf } from "../wikis.js";
 import { h, icon } from "./dom.js";
 import { openMenu } from "./menu.js";
@@ -47,14 +51,14 @@ export function createTree(el) {
   };
 
   function build() {
-    const root = { path: "", folders: new Map(), notes: [] };
+    const root = { path: "", folders: new Map(), notes: [], hidden: 0 };
     const folderNode = (path) => {
       let node = root;
       if (!path) return node;
       let sofar = "";
       for (const part of path.split("/")) {
         sofar = sofar ? `${sofar}/${part}` : part;
-        if (!node.folders.has(part)) node.folders.set(part, { path: sofar, name: part, folders: new Map(), notes: [] });
+        if (!node.folders.has(part)) node.folders.set(part, { path: sofar, name: part, folders: new Map(), notes: [], hidden: 0 });
         node = node.folders.get(part);
       }
       return node;
@@ -63,27 +67,42 @@ export function createTree(el) {
     // A note loose in the wikis folder (in no wiki) is still a note, so it shows here.
     for (const folder of store.folders) if (folder !== store.wikisFolder && !wikiOf(folder + "/x")) folderNode(folder);
     for (const note of store.notes) if (!wikiOf(note.path)) folderNode(folderOf(note.path)).notes.push({ ...note, kind: "note" });
-    for (const file of store.files) if (!wikiOf(file.path)) folderNode(folderOf(file.path)).notes.push({ ...file, kind: "file" });
+    const all = showsAttachments();
+    for (const file of store.files) {
+      if (wikiOf(file.path)) continue;
+      const node = folderNode(folderOf(file.path));
+      const used = file.in?.length || file.via?.length;
+      if (used && !all) node.hidden++;
+      // A page is a document of its own; a picture or file no note uses may be forgotten.
+      else node.notes.push({ ...file, kind: "file", loose: !used && !isPage(file.path) });
+    }
     return root;
   }
 
-  function rows(node, depth, out) {
-    const folders = [...node.folders.values()].sort((a, b) => collator.compare(a.name, b.name));
+  /** Notes that embed something: they show a paperclip. */
+  const withAttachments = () => new Set(store.files.flatMap((f) => f.in ?? []));
+
+  /** A folder shows if it has something to show, or never had anything hidden (a new, empty folder). */
+  const shows = (folder) =>
+    folder.notes.length > 0 || [...folder.folders.values()].some(shows) || (folder.hidden === 0 && folder.folders.size === 0);
+
+  function rows(node, depth, out, clipped = withAttachments()) {
+    const folders = [...node.folders.values()].filter(shows).sort((a, b) => collator.compare(a.name, b.name));
     for (const folder of folders) {
       const isOpen = expanded.has(folder.path);
       out.push(row({ kind: "folder", path: folder.path, name: folder.name, depth, isOpen }));
-      if (isOpen) rows(folder, depth + 1, out);
+      if (isOpen) rows(folder, depth + 1, out, clipped);
     }
     for (const item of [...node.notes].sort((a, b) => collator.compare(a.name, b.name))) {
-      out.push(row({ kind: item.kind, path: item.path, name: item.name, depth }));
+      out.push(row({ kind: item.kind, path: item.path, name: item.name, depth, loose: item.loose, clip: clipped.has(item.path) }));
     }
     return out;
   }
 
-  function row({ kind, path, name, depth, isOpen }) {
+  function row({ kind, path, name, depth, isOpen, loose, clip }) {
     const selected = kind !== "folder" && path === store.currentPath;
     const wrap = h("div", {
-      class: `tree-row${selected ? " is-selected" : ""}`,
+      class: `tree-row${selected ? " is-selected" : ""}${loose ? " is-loose" : ""}`,
       style: `--depth: ${depth}`,
       role: "treeitem",
       "aria-level": depth + 1,
@@ -127,7 +146,9 @@ export function createTree(el) {
     kind === "file"
       ? h("span", { class: "tree-file-icon" }, icon(isPage(path) ? "page" : isImage(path) ? "image" : "file", 14))
       : null,
-    h("span", { class: "tree-name" }, name));
+    h("span", { class: "tree-name" }, name),
+    clip ? h("span", { class: "tree-clip", dataset: { tip: "Has attachments (listed in Info)" } }, icon("attach", 12)) : null,
+    loose ? h("span", { class: "tree-loose" }, "Not in a note") : null);
 
     const more = h("button", {
       class: "iconbtn tree-more",
@@ -331,6 +352,8 @@ export function createTree(el) {
   render();
 
   return {
+    /** Draw it again (Show attachments changed). */
+    refresh: () => render(),
     /** Make a folder at the top and name it in place, as the folder menu's New folder does. */
     async newFolder() {
       try {

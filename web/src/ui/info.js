@@ -1,9 +1,33 @@
 // Info: facts about the open note or page, a view of the right panel. Where it
-// is, when it changed, how long it is, and its links, tags and aliases.
+// is, when it changed, how long it is, its links, tags and aliases, and its
+// attachments (the files it embeds, which the tree leaves out).
 
-import { folderOf, isPage } from "../links.js";
+import { openFile, openNote } from "../actions.js";
+import { fileName, folderOf, isImage, isPage } from "../links.js";
 import { on, store } from "../store.js";
-import { h, timeAgo } from "./dom.js";
+import { h, icon, timeAgo } from "./dom.js";
+
+/** The files a note embeds, each followed by the ones it uses if it's a page (a painting's picture). */
+export function attachmentsOf(notePath) {
+  const direct = store.files.filter((f) => f.in?.includes(notePath));
+  const listed = new Set(direct.map((f) => f.path));
+  return direct.flatMap((file) => [
+    { file, inPage: false },
+    ...store.files.filter((f) => !listed.has(f.path) && f.via?.includes(file.path)).map((f) => ({ file: f, inPage: true })),
+  ]);
+}
+
+function attachmentList(items) {
+  return h("span", { class: "info-files" }, items.map(({ file, inPage }) =>
+    h("button", {
+      class: `info-file${inPage ? " is-in-page" : ""}`,
+      type: "button",
+      dataset: inPage ? { tip: "Used by the page above" } : null,
+      onClick: () => (isPage(file.path) ? openNote(file.path) : openFile(file.path)),
+    },
+    icon(isPage(file.path) ? "page" : isImage(file.path) ? "image" : "file", 12),
+    h("span", { class: "info-file-name" }, fileName(file.path)))));
+}
 
 export function createInfo(el) {
   let words = null; // counted from the editor as you write
@@ -20,6 +44,8 @@ export function createInfo(el) {
       rows.push(["Links to", count(note.links.length, "note")]);
       if (note.tags.length) rows.push(["Tags", note.tags.join(", ")]);
       if (note.aliases.length) rows.push(["Aliases", note.aliases.join(", ")]);
+      const files = attachmentsOf(note.path);
+      if (files.length) rows.push(["Attachments", attachmentList(files)]);
     } else if (file) {
       rows.push(["Edited", when(file.mtime * 1000)]);
       rows.push(["Size", size(file.size)]);

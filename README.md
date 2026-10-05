@@ -82,6 +82,11 @@ tools can show:
 - **The sidebar** for the place you're in. Its header names the notes folder (click it to
   switch back to one opened before) and holds Search and New. In Notes: New note,
   Today's note, Pinned notes (pin from a note's "..."), the folder tree and Recent.
+  The tree is about notes: a page, picture or file that a note embeds belongs to that
+  note (as does the picture a page shows), so it's left out of the tree and listed in
+  the note's Info instead; the note shows a paperclip. A picture or file no note uses
+  stays, marked "Not in a note". Show attachments, in the Folders "...", lists
+  everything. Search and the quick switcher find every file either way.
   Drag its edge to make it wider or narrower; the panel's edge works the same way.
 - **The title bar**: Back and Forward, where you are and the open note's state and
   actions, and the open notes as tabs.

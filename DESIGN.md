@@ -65,7 +65,14 @@ The rules Ory's interface follows. A value outside the scales below is a mistake
   the space's actions (Search, and New note or New wiki). Below it, the space's
   groups under 11px labels. Notes: New note and Today's note, Pinned (only when
   something is pinned), Folders (the tree, which scrolls), and Recent (the last five
-  notes you were in, not the one you're in) at the bottom. Settings → Layout can hide
+  notes you were in, not the one you're in) at the bottom. The tree is notes and
+  folders: files a note embeds (and the files those pages name) are left out and
+  listed under Attachments in Info, a page's own files indented under it; such a note
+  shows a 12px paperclip in `--text-3` at the end of its row (it gives way to "..." on
+  hover). A picture or file no note uses stays with its name in `--text-2` and "Not in
+  a note" in 11px `--text-3`; a page no note embeds is a document and shows plainly. A
+  folder left with nothing to show leaves the tree; a new, empty one stays. Show
+  attachments (the Folders "...") lists everything. Settings → Layout can hide
   Today's note, Pinned or Recent.
 - **Edges resize.** The sidebar's and the panel's inner edges can be dragged (200–400px
   and 240–440px); double-click one, or Settings → Layout, for its usual width. The

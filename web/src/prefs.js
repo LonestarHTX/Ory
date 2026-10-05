@@ -15,6 +15,7 @@ export const OPEN_IN_KEY = "ory.openIn"; // same | new
 export const SIDE_SHOWS = { today: "ory.sideToday", pinned: "ory.sidePinned", recent: "ory.sideRecent" };
 export const SIDE_WIDTH_KEY = "ory.sideWidth";
 export const PANEL_WIDTH_KEY = "ory.panelWidth";
+export const SHOW_FILES_KEY = "ory.showAttachments";
 
 export function pref(key, fallback) {
   try {
@@ -43,6 +44,9 @@ export const hidesMarks = () => pref(MARKS_KEY, "hidden") === "hidden";
 
 /** Whether typing ( [ " or ` adds its partner after the cursor (on by default). */
 export const pairsBrackets = () => pref(PAIR_KEY, "1") === "1";
+
+/** Whether the tree lists the files notes embed (off: they're reached from their notes). */
+export const showsAttachments = () => pref(SHOW_FILES_KEY, "0") === "1";
 
 /** Whether the sidebar shows a group: "today", "pinned" or "recent" (all on by default). */
 export const sideShows = (group) => pref(SIDE_SHOWS[group], "1") === "1";

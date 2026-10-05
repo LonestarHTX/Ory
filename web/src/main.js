@@ -11,7 +11,7 @@ import { emit, linkTextFor, loadIndex, on, recentPaths, resolve, setCurrent, sto
 import { createArchiveView } from "./ui/archive-view.js";
 import { noteName } from "./links.js";
 import { pinned } from "./pins.js";
-import { NOTE_FONT_KEY, NOTE_WIDTH_KEY, PANEL_WIDTH_KEY, pref, setPref, SIDE_WIDTH_KEY, sideShows, START_KEY } from "./prefs.js";
+import { NOTE_FONT_KEY, NOTE_WIDTH_KEY, PANEL_WIDTH_KEY, pref, setPref, SHOW_FILES_KEY, showsAttachments, SIDE_WIDTH_KEY, sideShows, START_KEY } from "./prefs.js";
 import { createBacklinks } from "./ui/backlinks.js";
 import { createFolderSwitcher } from "./ui/folder-switcher.js";
 import { createInfo } from "./ui/info.js";
@@ -25,6 +25,7 @@ import { createSearchView } from "./ui/search-view.js";
 import { createSwitcher } from "./ui/switcher.js";
 import { installTooltips } from "./ui/tooltip.js";
 import { createTree } from "./ui/tree.js";
+import { openMenu } from "./ui/menu.js";
 import { loadSuggestions, suggestions, waiting } from "./suggestions/state.js";
 import { silverBulb } from "./ui/silver-icon.js";
 import { createSettings } from "./ui/settings.js";
@@ -156,6 +157,19 @@ const pinnedGroup = h("div", { hidden: true }, sectionHead("Pinned"), pinnedList
 const recentList = h("div", { class: "nav-list" });
 const recentGroup = h("div", { hidden: true }, sectionHead("Recent"), recentList);
 const tree = h("div", { class: "tree" });
+// The Folders "...": New folder, and whether the tree lists the files notes embed.
+const foldersMore = iconButton("more", "Folder options", () => openMenu(foldersMore, [
+  { label: "New folder", run: () => treeView.newFolder() },
+  {
+    label: "Show attachments",
+    checked: showsAttachments(),
+    run: () => {
+      setPref(SHOW_FILES_KEY, showsAttachments() ? "0" : "1");
+      treeView.refresh();
+    },
+  },
+]));
+foldersMore.setAttribute("aria-haspopup", "menu");
 
 const todayRow = navItem("calendar", "Today's note", "Mod-Shift-D", openToday);
 const notesPanel = h("div", { class: "space-panel", dataset: { space: "notes" } },
@@ -163,7 +177,9 @@ const notesPanel = h("div", { class: "space-panel", dataset: { space: "notes" } 
     navItem("edit", "New note", null, () => newNote().catch(alertError)),
     todayRow),
   pinnedGroup,
-  sectionHead("Folders", iconButton("newFolder", "New folder", () => treeView.newFolder())),
+  sectionHead("Folders",
+    iconButton("newFolder", "New folder", () => treeView.newFolder()),
+    foldersMore),
   tree,
   recentGroup);
 const wikisPanel = h("div", { class: "space-panel", dataset: { space: "wikis" }, hidden: true });
