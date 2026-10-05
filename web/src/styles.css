@@ -2175,7 +2175,7 @@ html[data-theme-fade]::view-transition-new(root) {
 
 /* The bottom edge: a strip you can drag anywhere along. Over it the pointer
    hides and the handle (a bar turning into the arrow) is the cursor; the height
-   waits beside it whenever the pointer is over the page. */
+   shows beside it only near the edge (on it, or just below in the note). */
 .cm-embed-page-edge {
   position: absolute;
   left: 0;
@@ -2212,7 +2212,8 @@ html[data-theme-fade]::view-transition-new(root) {
   transition: opacity 0.12s ease;
 }
 
-.cm-embed-page:hover > .resize-size,
+.cm-embed-page.near-edge > .resize-size,
+.cm-embed-page.on-edge > .resize-size,
 .cm-embed-page.is-resizing > .resize-size,
 .cm-embed-page > .resize-size.is-editing {
   opacity: 1;

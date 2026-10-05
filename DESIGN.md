@@ -272,9 +272,10 @@ The rules Ory's interface follows. A value outside the scales below is a mistake
   selected fill), Open across the main area (arrow) and "..." (Reload, Open in new
   tab, Set height..., and "Use the page's own height" once you've set one); under it
   the frame. Its height is the note's (`|640`), else what the page says it needs, else
-  480px, so a page that sizes itself is never cut off or letterboxed. Over the page,
-  the height waits on the bottom edge; the edge is a 10px strip where the bar comes to
-  the pointer (see Resizing). A height of your own is written into the link; Fit, or a
+  480px, so a page that sizes itself is never cut off or letterboxed. The height
+  shows only near the bottom edge (on it, or within 28px below it in the note; inside
+  the page the pointer is the page's), so it never sits over the page; the edge is a
+  10px strip where the bar comes to the pointer (see Resizing). A height of your own is written into the link; Fit, or a
   double-click on the edge, hands it back. Wide (`|wide`) runs the
   card's width less the gutter each side, at most 1280px, centred on the text column.
   Resizing never reloads the page. A page keeps its own design; to look like part of

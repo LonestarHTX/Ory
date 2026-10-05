@@ -366,8 +366,8 @@ const setPageAlias = (view, dom, { height, wide }) =>
 /**
  * An HTML page embedded in a note: a titled frame, sandboxed (see
  * ui/page-view.js). Its height is the note's (|640) if it gives one, else what
- * the page says it needs ({type: "ory:size", height}), else 480px. Over the
- * page its height waits on the bottom edge: click it (or Set height... in the
+ * the page says it needs ({type: "ory:size", height}), else 480px. Near the
+ * bottom edge its height shows there: click it (or Set height... in the
  * menu) to type one, or drag the edge, where a bar comes to the pointer and
  * turns into the arrow you drag with. Fit, or a double-click on the edge, gives
  * the height back to the page. Wide (|wide) lets it run the card's width while
@@ -473,7 +473,18 @@ class PageEmbedWidget extends WidgetType {
       handle.el.style.left = `${x}px`;
       if (!size.editing) size.el.style.left = `${x + 28}px`;
     };
-    wrap.addEventListener("pointerenter", () => { if (!placed) place(wrap.clientWidth / 2); });
+    // The height shows only near the bottom edge: on it, or just below it in the
+    // note. (Inside the page the pointer is the page's, so Ory can't see it there.)
+    const NEAR_BELOW = 28;
+    const nearBottom = (e) => {
+      if (dragging || !wrap.isConnected) return;
+      const r = wrap.getBoundingClientRect();
+      const near = e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.bottom - 6 && e.clientY <= r.bottom + NEAR_BELOW;
+      if (near) place(Math.max(24, Math.min(r.width - 72, e.clientX - r.left)));
+      wrap.classList.toggle("near-edge", near);
+    };
+    view.dom.addEventListener("pointermove", nearBottom);
+    view.dom.addEventListener("pointerleave", nearBottom);
     edge.addEventListener("pointerenter", () => {
       wrap.classList.add("on-edge");
       handle.take(true);
@@ -519,6 +530,10 @@ class PageEmbedWidget extends WidgetType {
 
     wrap.append(head, pageFrame(this.path, name, this.fragment), edge, handle.el, size.el);
     wrap.oryPage = {
+      destroy: () => {
+        view.dom.removeEventListener("pointermove", nearBottom);
+        view.dom.removeEventListener("pointerleave", nearBottom);
+      },
       path: this.path,
       fragment: this.fragment,
       set(height, wide) {
@@ -538,6 +553,9 @@ class PageEmbedWidget extends WidgetType {
   }
   ignoreEvent() {
     return true;
+  }
+  destroy(dom) {
+    dom.oryPage?.destroy();
   }
   ignoreMutation() {
     return true; // the frame may be swapped for a fresh one when the theme changes
