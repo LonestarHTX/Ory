@@ -3,7 +3,7 @@
 import "./styles.css";
 
 import {
-  alertError, closeNote, currentRoute, newFolder, newNote, notify, openArchive, openNote, openSearch, openSettings, openSuggestions,
+  alertError, closeNote, currentRoute, newNote, notify, openArchive, openNote, openSearch, openSettings, openSuggestions,
   openToday, openWikis, takeOpenOptions,
 } from "./actions.js";
 import { api } from "./api.js";
@@ -162,7 +162,7 @@ const notesPanel = h("div", { class: "space-panel", dataset: { space: "notes" } 
     navItem("edit", "New note", null, () => newNote().catch(alertError)),
     navItem("calendar", "Today's note", "Mod-Shift-D", openToday)),
   pinnedGroup,
-  sectionHead("Folders", iconButton("newFolder", "New folder", () => newFolder().catch(alertError))),
+  sectionHead("Folders", iconButton("newFolder", "New folder", () => treeView.newFolder())),
   tree,
   recentGroup);
 const wikisPanel = h("div", { class: "space-panel", dataset: { space: "wikis" }, hidden: true });
@@ -259,7 +259,7 @@ const panel = createPanel([
   { id: "outline", label: "Outline", icon: "outline", el: outlineEl },
   { id: "info", label: "Info", icon: "info", el: infoEl },
 ]);
-createTree(tree);
+const treeView = createTree(tree);
 createWikiNav(wikisPanel);
 const wikisHome = createWikisHome(wikisEl);
 const suggestionsView = createSuggestionsView(suggestionsEl);

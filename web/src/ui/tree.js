@@ -329,4 +329,15 @@ export function createTree(el) {
     render();
   });
   render();
+
+  return {
+    /** Make a folder at the top and name it in place, as the folder menu's New folder does. */
+    async newFolder() {
+      try {
+        startRename(await newFolder());
+      } catch (err) {
+        alertError(err);
+      }
+    },
+  };
 }

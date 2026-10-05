@@ -399,17 +399,23 @@ html[data-theme-fade]::view-transition-new(root) {
   grid-column: 1 / -1;
   grid-row: 1;
   display: grid;
-  grid-template-columns: calc(var(--rail-w) + var(--side-w)) minmax(0, 1fr) auto;
+  /* Over the rail and sidebar, or as wide as its buttons when the sidebar is hidden. */
+  grid-template-columns: minmax(calc(var(--rail-w) + var(--side-w)), max-content) minmax(0, 1fr) auto;
   align-items: center;
   min-width: 0;
   border-bottom: 1px solid var(--line);
 }
 
-/* Its first button sits over the rail's icons. */
+/* Its buttons are the rail's size, the first one right over the rail's icons. */
 .title-nav {
   display: flex;
   gap: 4px;
-  padding-left: 9px;
+  padding-left: 8px;
+}
+
+.title-nav .iconbtn {
+  width: 32px;
+  height: 32px;
 }
 
 .title-what {
@@ -423,12 +429,13 @@ html[data-theme-fade]::view-transition-new(root) {
   border-bottom: 0;
 }
 
+/* Its right edge lines up with the panel's view switch and the sidebar's actions. */
 .title-end {
   display: flex;
   align-items: center;
   gap: 8px;
   min-width: 0;
-  padding-right: 9px;
+  padding-right: calc(var(--gutter) - 8px);
 }
 
 .iconbtn.is-on {
@@ -531,7 +538,7 @@ html[data-theme-fade]::view-transition-new(root) {
   flex-direction: column;
   align-items: center;
   gap: 4px;
-  padding: 8px 0;
+  padding: 12px 0 8px; /* the first icon centred on the sidebar header's row */
 }
 
 .rail-gap {
@@ -594,14 +601,18 @@ html[data-theme-fade]::view-transition-new(root) {
   display: none;
 }
 
-/* The sidebar's header: the notes folder (a switcher) and the space's actions. */
+/* The sidebar's header: the notes folder (a switcher) and the space's actions.
+   Like the panel's header and the card, it starts 8px under the title bar, so
+   the first rows of all of them share one line. The folder's name lines up
+   with the rows' icons and the section labels. */
 .side-head {
   flex: none;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  height: var(--head-h);
-  padding: 0 calc(var(--gutter) - 8px) 0 8px;
+  height: 40px;
+  margin-top: 8px;
+  padding: 0 calc(var(--gutter) - 8px);
 }
 
 .folder-switcher {
@@ -679,6 +690,11 @@ html[data-theme-fade]::view-transition-new(root) {
 .pane-gutter:hover,
 .pane-gutter:focus-visible {
   opacity: 1;
+}
+
+/* Side by side, each card's header is a 40px row, on the sidebar header's line. */
+.panes.is-split .view > .note-head {
+  height: 40px;
 }
 
 /* The side you're not in: its name steps back. The only sign of which is which. */
@@ -769,7 +785,8 @@ html[data-theme-fade]::view-transition-new(root) {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  height: var(--head-h);
+  height: 40px;
+  margin-top: 8px;
   padding: 0 calc(var(--gutter) - 8px) 0 var(--gutter);
 }
 
@@ -3396,7 +3413,7 @@ mark {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding: var(--gutter) 32px 48px;
+  padding: var(--gutter) var(--gutter) 48px;
 }
 
 .wikis-intro {
@@ -4325,15 +4342,16 @@ mark {
    A working list, so it uses the width: one row per archived item, hairlines
    between rows, Restore and its "..." at the right. */
 
-.archive-view .note-name {
-  gap: 8px;
+/* A count beside a page's name (Archive 3), in the title bar or a card. */
+.note-name > .count {
+  margin-left: 8px;
 }
 
 .archive-body {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding: 8px var(--gutter) var(--gutter);
+  padding: var(--gutter);
   scrollbar-width: thin;
   scrollbar-color: var(--border-strong) transparent;
 }
@@ -4478,7 +4496,7 @@ mark {
 }
 
 .settings-intro {
-  margin: 0 0 20px;
+  margin: 0 0 24px;
   color: var(--text-2);
   font-size: 13px;
 }
@@ -4495,7 +4513,7 @@ mark {
   flex-direction: column;
   align-items: flex-start;
   gap: 8px;
-  margin-bottom: 20px;
+  margin-bottom: 24px;
 }
 
 .setting > .input {
@@ -4564,7 +4582,7 @@ mark {
 }
 
 .setting--check input {
-  margin-top: 3px;
+  margin-top: 2px;
 }
 
 .setting--check > span {
@@ -4609,7 +4627,7 @@ h3.setting-label {
 
 .settings-key dt,
 .settings-key dd {
-  padding: 6px 0;
+  padding: 4px 0;
   border-bottom: 1px solid var(--line);
 }
 

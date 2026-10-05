@@ -45,8 +45,18 @@ The rules Ory's interface follows. A value outside the scales below is a mistake
   and its one action and "..."), which `main.js` moves out of the view into the
   title bar. At the right: the tabs and the panel toggle. Views have no header row
   of their own on the card.
-- **Every column starts on one line under the title bar**, each with a 48px header
-  row: the rail's first icon, the sidebar's header and the panel's header line up.
+- **Every column starts on one line under the title bar.** The card, and the first
+  row of the rail, sidebar and panel, all start 8px below it; the sidebar's and
+  panel's headers are 40px rows, so the rail's first icon, the folder's name, the
+  note's toolbar (or each card's header, side by side) and the panel's title share
+  one centre. Horizontally, the folder's name, the sidebar rows' icons and the
+  section labels share one left edge; the title bar's first button sits over the
+  rail's icons (both 32px, 8px in); the title bar's, sidebar's and panel's right-hand
+  buttons sit 16px in. With the sidebar hidden, the title bar's first column grows to
+  fit its buttons.
+- **Inside the card, every page starts `--gutter` (24px) in, top and left**: All
+  wikis, Suggestions, the Archive, Search and the empty page alike. Notes and wiki
+  pages keep their centred column.
 - **The rail** (48px) holds the places: Notes, Wikis, Suggestions and the Archive,
   with Settings at its foot. The place you're in has the selected fill. Suggestions
   is the silver bulb, with its count, while suggestions wait.
