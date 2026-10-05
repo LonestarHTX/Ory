@@ -431,6 +431,7 @@ export function createSettings({ theme }) {
         ["Move through results", "Up", "Down"],
         ["Open", "Enter"],
         ["Create a note with the name typed", "Shift-Enter"],
+        ["Search every note for what's typed", "Mod-Enter"],
         ["Close", "Esc"],
       ]));
   }
