@@ -9,7 +9,7 @@
 import { archivePath, archiveNote, closeNote, followLink, movePath, notify, onMove, openNote } from "../actions.js";
 import { api } from "../api.js";
 import { createEditor } from "../editor/index.js";
-import { editYaml, focusAddProperty, frontmatterRange, syncFocus } from "../editor/properties.js";
+import { editYaml, focusAddProperty, frontmatterRange, setPropertyInText, syncFocus } from "../editor/properties.js";
 import { folderOf, noteName, parseLink } from "../links.js";
 import { emit, linkTextFor, loadIndex, resolve, setCurrent, store } from "../store.js";
 import { coverUrl, infoboxRows, isBlank, isHome, pageParts, pageTitle, wiki as wikiInfo, wikiFolder, wikiOf } from "../wikis.js";
@@ -70,6 +70,21 @@ export function createNoteView(el) {
     notePath: () => note?.path ?? null,
     indexVersion: () => store.version,
     openPath: (path) => openNote(path),
+    // A property table's cell: that note's property. The open note changes in
+    // the editor (so it saves as an edit); any other is read, changed and saved.
+    setNoteProperty: async (path, key, value) => {
+      try {
+        if (path === note?.path) {
+          setOpenProperty(key, value);
+          return;
+        }
+        const data = await api.note(path);
+        await api.save(path, setPropertyInText(data.text, key, value), data.rev);
+        await loadIndex();
+      } catch (err) {
+        notify(`${key} in ${noteName(path)} wasn't changed: ${err.message}`, "error");
+      }
+    },
     afterUpload: () => loadIndex(),
     onError: (message) => notify(message, "error"),
     onSelection: (state) => {
@@ -577,16 +592,18 @@ export function createNoteView(el) {
       return note ? editor.view.state : null;
     },
     /** Set a property in the open note's frontmatter (making it if need be); saves as an edit. */
-    setProperty(key, value) {
-      if (!note) return;
-      const doc = editor.view.state.doc;
-      const fm = frontmatterRange(doc);
-      const yaml = fm ? doc.sliceString(fm.yamlFrom, fm.yamlTo) : "";
-      const has = yaml.split("\n").some((line) => line.startsWith(key + ":"));
-      const next = editYaml(yaml, key, has ? { value } : { add: key, value });
-      editor.apply(fm ? { from: fm.yamlFrom, to: fm.yamlTo, insert: next } : { from: 0, insert: `---\n${next}---\n` });
-    },
+    setProperty: (key, value) => setOpenProperty(key, value),
   };
+
+  function setOpenProperty(key, value) {
+    if (!note) return;
+    const doc = editor.view.state.doc;
+    const fm = frontmatterRange(doc);
+    const yaml = fm ? doc.sliceString(fm.yamlFrom, fm.yamlTo) : "";
+    const has = yaml.split("\n").some((line) => line.startsWith(key + ":"));
+    const next = editYaml(yaml, key, has ? { value } : { add: key, value });
+    editor.apply(fm ? { from: fm.yamlFrom, to: fm.yamlTo, insert: next } : { from: 0, insert: `---\n${next}---\n` });
+  }
 }
 
 function readSourcePref() {

@@ -5,7 +5,7 @@
 // only that property's lines. Moving the cursor into the block (arrow up from
 // the first line) or source mode shows the YAML itself.
 
-import { StateEffect, StateField } from "@codemirror/state";
+import { StateEffect, StateField, Text } from "@codemirror/state";
 import { Decoration, EditorView, WidgetType } from "@codemirror/view";
 import { load as parseYaml } from "js-yaml";
 
@@ -99,6 +99,16 @@ export function editYaml(yaml, key, change) {
   }
   const text = lines.join("\n");
   return text.trim() ? text + "\n" : "";
+}
+
+/** Set one property in a note's whole text, making its frontmatter if need be. */
+export function setPropertyInText(text, key, value) {
+  const doc = Text.of(text.split("\n"));
+  const fm = frontmatterRange(doc);
+  const yaml = fm ? doc.sliceString(fm.yamlFrom, fm.yamlTo) : "";
+  const has = yamlBlocks(yaml.split("\n")).some((b) => b.key === key);
+  const next = editYaml(yaml, key, has ? { value } : { add: key, value });
+  return fm ? text.slice(0, fm.yamlFrom) + next + text.slice(fm.yamlTo) : `---\n${next}---\n${text}`;
 }
 
 // Reading values --------------------------------------------------------------------

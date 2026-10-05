@@ -28,8 +28,10 @@ import { Decoration, EditorView, WidgetType } from "@codemirror/view";
 import { load as parseYaml } from "js-yaml";
 
 import { folderOf, parseLink } from "../links.js";
-import { formatDate, h } from "../ui/dom.js";
+import { formatDate, h, icon } from "../ui/dom.js";
+import { openMenu } from "../ui/menu.js";
 import { isReading, sourceMode } from "./live-preview.js";
+import { chip, deleteBlock, editAsText, filterLabel, filterList, openFilterEditor, writeSpec } from "./property-table-edit.js";
 import { focused } from "./properties.js";
 
 // Expressions --------------------------------------------------------------------
@@ -308,7 +310,9 @@ export function runQuery(yaml, env, viewIndex = 0) {
   };
   const sortBy = (list, specs) => list.sort((x, y) => {
     for (const s of specs) {
-      const d = compare(cell(x, s.property), cell(y, s.property));
+      const a = cell(x, s.property), b = cell(y, s.property);
+      if ((a == null) !== (b == null)) return a == null ? 1 : -1; // empty last, whichever way
+      const d = compare(a, b);
       if (d) return String(s.direction).toUpperCase() === "DESC" ? -d : d;
     }
     return compare(x.note.name, y.note.name);
@@ -353,40 +357,133 @@ function renderCell(value, col, row, env) {
 
 const NUMBER = /^[-+]?\d[\d,]*(\.\d+)?%?$/;
 
+const LIST_KEYS = new Set(["tags", "tag", "aliases", "alias", "cssclasses"]);
+
+/** What a cell's field starts with when you edit it. */
+function cellText(value) {
+  if (value == null) return "";
+  if (Array.isArray(value)) return value.join(", ");
+  if (typeof value === "boolean") return value ? "Yes" : "No";
+  return String(value);
+}
+
+/** What was typed in a cell, as a value of the property's kind. */
+function cellValue(text, key, old) {
+  const t = text.trim();
+  if (Array.isArray(old) || LIST_KEYS.has(key.toLowerCase())) return t ? t.split(",").map((x) => x.trim()).filter(Boolean) : [];
+  if (!t) return null;
+  if (typeof old === "boolean") {
+    if (/^(yes|true)$/i.test(t)) return true;
+    if (/^(no|false)$/i.test(t)) return false;
+  }
+  if (/^-?\d+(\.\d+)?$/.test(t)) return Number(t);
+  return t;
+}
+
+/** The table's views of type table, as [view, index in the YAML's views]. */
+const tableViews = (spec) => (spec.views ?? []).map((v, i) => [v, i]).filter(([v]) => !v.type || v.type === "table");
+
+/**
+ * A ```notes block drawn as its table, and edited where it stands (unless the
+ * note is being read): the name renames in place; a heading's menu sorts,
+ * renames, moves or hides its column; + adds one; chips above are the
+ * filters; a cell is a note's property, and typing changes that note.
+ */
 class QueryWidget extends WidgetType {
-  constructor(yaml, version, env) {
+  constructor(yaml, version, env, canEdit) {
     super();
     this.yaml = yaml;
     this.version = version;
     this.env = env;
+    this.canEdit = canEdit; // not "editable": WidgetType has that, read-only
   }
 
   eq(other) {
-    return other.yaml === this.yaml && other.version === this.version;
+    return other.yaml === this.yaml && other.version === this.version && other.canEdit === this.canEdit;
+  }
+
+  // The notes changed (any save does that), not the table: draw its rows again
+  // where it stands, so a filter being built or a cell being typed in stays.
+  updateDOM(dom) {
+    if (dom.ptable?.yaml !== this.yaml || dom.ptable.canEdit !== this.canEdit) return false;
+    dom.ptable.refresh();
+    return true;
   }
 
   toDOM(view) {
-    const el = h("div", { class: "ptable" });
+    const el = h("div", { class: `ptable${this.canEdit ? " is-editable" : ""}` });
+    const env = this.env;
+    const editable = this.canEdit;
     let viewIndex = 0;
-    let sortCol = null;
+    let sortCol = null; // while reading: a sort for now, not saved
     let sortDir = "ASC";
 
+    let spec = {};
+    try {
+      spec = parseYaml(this.yaml) ?? {};
+    } catch {
+      /* shown as the table's problem below */
+    }
+    /** Change the YAML: fn(spec, view) on a copy, then write it into the block. */
+    const change = (fn, columns) => {
+      const next = structuredClone(spec);
+      if (!tableViews(next).length) next.views = [...(next.views ?? []), { type: "table", name: "Table" }];
+      const [v] = tableViews(next)[Math.min(viewIndex, tableViews(next).length - 1)];
+      v.order = (v.order ?? columns ?? ["file.name"]).map(String);
+      fn(next, v);
+      writeSpec(view, el, next);
+    };
+
+    const moreButton = () => {
+      const more = h("button", {
+        class: "iconbtn ptable-more", type: "button", "aria-label": "Property table actions", "aria-haspopup": "menu",
+        dataset: { tip: "Property table actions" },
+        onClick: () => openMenu(more, [
+          { label: "Edit as text", run: () => editAsText(view, el) },
+          { label: "Delete table", confirm: "Delete this property table? The notes it lists stay as they are.", run: () => deleteBlock(view, el) },
+        ]),
+      }, icon("more", 16));
+      return more;
+    };
+
+    // Every property any note has (that an expression can name), and what each holds.
+    let allNotes = env.notes();
+    const propertyNames = () => [...new Set(allNotes.flatMap((n) => Object.keys(n.properties ?? {})))]
+      .filter((k) => /^[A-Za-z_]\w*$/.test(k)).sort((a, b) => a.localeCompare(b));
+    const valuesOf = (field) => {
+      if (field === "file.folder") return [...new Set(allNotes.map((n) => folderOf(n.path)).filter(Boolean))];
+      if (field === "file.tags") return [...new Set(allNotes.flatMap((n) => n.tags ?? []))];
+      if (field === "file.links") return allNotes.map((n) => n.name);
+      if (field === "file.mtime") return [];
+      return allNotes.flatMap((n) => {
+        const v = n.properties?.[field];
+        return v == null ? [] : Array.isArray(v) ? v : [v];
+      });
+    };
+
     const render = () => {
+      allNotes = env.notes();
       let result;
       try {
-        result = runQuery(this.yaml, this.env, viewIndex);
+        result = runQuery(this.yaml, env, viewIndex);
       } catch (err) {
         const where = err.mark ? ` (line ${err.mark.line + 1})` : "";
         el.replaceChildren(h("div", { class: "ptable-head" },
           h("p", { class: "ptable-error" }, h("span", { class: "status-dot error" }),
             `This property table has a problem${where}: ${err.message.split("\n")[0]}`),
-          editButton()));
+          editable ? h("button", { class: "btn btn--small btn--plain ptable-edit", type: "button", onClick: () => editAsText(view, el) }, "Edit as text") : null));
         return;
       }
-      const { views, columns, headings, rows, total, cell, sortBy } = result;
+      const { views, view: shownView, columns, headings, rows, total, cell, sortBy } = result;
       if (sortCol) sortBy(rows, [{ property: sortCol, direction: sortDir }]);
+      const saved = (shownView.sort ?? []).map((x) => (typeof x === "string" ? { property: x, direction: "ASC" } : x))[0];
+      const arrowFor = (col) => {
+        const s = sortCol ? { property: sortCol, direction: sortDir } : saved;
+        return s?.property === col ? (String(s.direction).toUpperCase() === "DESC" ? " ↓" : " ↑") : "";
+      };
 
-      const tabs = views.length > 1
+      // The name, or the views' tabs; the name renames in place.
+      const nameEl = views.length > 1
         ? h("div", { class: "ptable-tabs", role: "tablist" }, views.map((v, i) => h("button", {
           class: `ptable-tab${i === viewIndex ? " is-selected" : ""}`,
           type: "button",
@@ -397,46 +494,201 @@ class QueryWidget extends WidgetType {
             render();
           },
         }, v.name ?? `View ${i + 1}`)))
-        : h("span", { class: "ptable-name" }, views[0].name ?? "Property table");
+        : editable
+          ? h("button", {
+            class: "ptable-name ptable-rename", type: "button", dataset: { tip: "Rename" },
+            onClick: (e) => renameInPlace(e.currentTarget, shownView.name ?? "", (name) => change((_, v) => { v.name = name || "Table"; }, columns)),
+          }, shownView.name ?? "Property table")
+          : h("span", { class: "ptable-name" }, shownView.name ?? "Property table");
 
-      const table = h("table", { class: "md-table ptable-table" },
-        h("tr", null, columns.map((col, c) => h("th", {
-          "aria-sort": sortCol === col ? (sortDir === "ASC" ? "ascending" : "descending") : null,
-        }, h("button", {
+      // Filters, as chips.
+      const filters = filterList(spec.filters);
+      const setFilters = (list) => change((next) => {
+        if (!list.length) delete next.filters;
+        else next.filters = { and: list };
+      }, columns);
+      const chips = h("div", { class: "ptable-filters" });
+      const fields = propertyNames();
+      if (filters) {
+        filters.forEach((expr, i) => {
+          const c = chip(filterLabel(expr), {
+            editable,
+            onOpen: (e) => openFilterEditor({
+              host: el, anchor: e.currentTarget, expr, fields, valuesOf,
+              save: (text) => setFilters(filters.map((f, j) => (j === i ? text : f))),
+              remove: () => setFilters(filters.filter((_, j) => j !== i)),
+            }),
+            onRemove: () => setFilters(filters.filter((_, j) => j !== i)),
+          });
+          chips.append(c);
+        });
+        if (editable) {
+          const add = h("button", {
+            class: "ptable-chip ptable-chip-add", type: "button",
+            onClick: () => openFilterEditor({
+              host: el, anchor: add, fields, valuesOf,
+              save: (text) => setFilters([...filters, text]),
+            }),
+          }, icon("plus", 12), "Filter");
+          chips.append(add);
+        }
+      } else if (spec.filters != null) {
+        // and/or/not written by hand: shown as one chip that opens the YAML.
+        chips.append(chip("Filters written as text", { editable, onOpen: () => editAsText(view, el) }));
+      }
+      if (shownView.filters != null) chips.append(chip("This view's own filters", { editable, onOpen: () => editAsText(view, el) }));
+      if (chips.childElementCount) chips.prepend(h("span", { class: "ptable-filters-label" }, "Notes"));
+
+      // A heading: while reading, a click sorts for now; otherwise its menu.
+      const numeric = (col) => rows.some((r) => typeof cell(r, col) === "number");
+      const headingCell = (col, c) => {
+        const button = h("button", {
           class: "ptable-sort",
           type: "button",
-          dataset: { tip: `Sort by ${headings[c]}` },
+          "aria-haspopup": editable ? "menu" : null,
+          dataset: { tip: editable ? null : `Sort by ${headings[c]}` },
           onClick: () => {
-            sortDir = sortCol === col && sortDir === "ASC" ? "DESC" : "ASC";
-            sortCol = col;
-            render();
+            if (!editable) {
+              sortDir = sortCol === col && sortDir === "ASC" ? "DESC" : "ASC";
+              sortCol = col;
+              render();
+              return;
+            }
+            const [up, down] = numeric(col) ? ["Sort 1 → 9", "Sort 9 → 1"] : ["Sort A → Z", "Sort Z → A"];
+            const is = (dir) => saved?.property === col && String(saved.direction).toUpperCase() === dir;
+            const sortTo = (dir) => change((_, v) => {
+              if (is(dir)) delete v.sort;
+              else v.sort = [{ property: col, direction: dir }];
+            }, columns);
+            const move = (by) => change((_, v) => {
+              const at = v.order.indexOf(col);
+              if (at < 0 || at + by < 0 || at + by >= v.order.length) return;
+              [v.order[at], v.order[at + by]] = [v.order[at + by], v.order[at]];
+            }, columns);
+            openMenu(button, [
+              { label: up, checked: is("ASC"), run: () => sortTo("ASC") },
+              { label: down, checked: is("DESC"), run: () => sortTo("DESC") },
+              null,
+              {
+                label: "Rename heading…",
+                run: () => renameInPlace(button, headings[c], (text) => change((next) => {
+                  const key = col.replace(/^note\./, "");
+                  next.properties ??= {};
+                  next.properties[key] = { ...(next.properties[key] ?? {}) };
+                  if (text && text !== key) next.properties[key].displayName = text;
+                  else delete next.properties[key].displayName;
+                  if (!Object.keys(next.properties[key]).length) delete next.properties[key];
+                  if (!Object.keys(next.properties).length) delete next.properties;
+                }, columns)),
+              },
+              ...(c > 0 ? [{ label: "Move left", run: () => move(-1) }] : []),
+              ...(c < columns.length - 1 ? [{ label: "Move right", run: () => move(1) }] : []),
+              ...(columns.length > 1 ? [null, { label: "Hide column", run: () => change((_, v) => { v.order = v.order.filter((x) => x !== col); }, columns) }] : []),
+            ], { align: "start" });
           },
-        }, headings[c], sortCol === col ? (sortDir === "ASC" ? " ↑" : " ↓") : "")))),
-        rows.map((row) => h("tr", null, columns.map((col) => {
-          const value = cell(row, col);
-          return h("td", { class: NUMBER.test(String(value ?? "")) ? "is-number" : null, dataset: { align: "" } },
-            h("div", { class: "md-cell" }, renderCell(value, col, row, this.env)));
-        }))));
+        }, headings[c], arrowFor(col));
+        return h("th", null, button);
+      };
+
+      // A cell: a note's property, typed into in place; Ory's own fields aren't.
+      const bodyCell = (row, col) => {
+        let value = cell(row, col);
+        const key = col.replace(/^note\./, "");
+        const own = col.startsWith("file.") || col.startsWith("formula.");
+        const div = h("div", { class: "md-cell" }, renderCell(value, col, row, env));
+        const td = h("td", { class: NUMBER.test(String(value ?? "")) ? "is-number" : null, dataset: { align: "" } }, div);
+        if (!editable || own) return td;
+        div.contentEditable = "plaintext-only";
+        div.spellcheck = false;
+        // A link in the cell still opens; the rest of the cell edits.
+        div.addEventListener("mousedown", (e) => {
+          if (e.target.closest(".cm-wikilink") && document.activeElement !== div) e.preventDefault();
+        });
+        div.setAttribute("aria-label", `${headings[columns.indexOf(col)]} of ${row.note.name}`);
+        let before = null;
+        div.addEventListener("focus", () => {
+          before = cellText(value);
+          div.textContent = before;
+          const range = document.createRange();
+          range.selectNodeContents(div);
+          getSelection()?.removeAllRanges();
+          getSelection()?.addRange(range);
+        });
+        div.addEventListener("keydown", (e) => {
+          e.stopPropagation();
+          if (e.key === "Enter") {
+            e.preventDefault();
+            div.blur();
+          } else if (e.key === "Escape") {
+            e.preventDefault();
+            div.textContent = before;
+            div.blur();
+          }
+        });
+        div.addEventListener("blur", () => {
+          const text = div.textContent ?? "";
+          if (before == null || text === before) {
+            div.replaceChildren(...[renderCell(value, col, row, env)].flat());
+            return;
+          }
+          const next = cellValue(text, key, value);
+          value = next; // what the cell holds now, until the notes come back with it
+          div.replaceChildren(...[renderCell(next, col, row, env)].flat());
+          env.setProperty(row.note.path, key, next);
+        });
+        return td;
+      };
+
+      const table = h("table", { class: "md-table ptable-table" },
+        h("tr", null, columns.map(headingCell)),
+        rows.map((row) => h("tr", null, columns.map((col) => bodyCell(row, col)))));
+
+      // + after the headings: a column for a property these notes have, or one of Ory's.
+      const addColumn = editable ? h("button", {
+        class: "ptable-addcol", type: "button", "aria-label": "Add a column", "aria-haspopup": "menu", dataset: { tip: "Add a column" },
+        onClick: () => {
+          const have = new Set(columns.map((c) => c.replace(/^note\./, "")));
+          const props = [...new Set(rows.flatMap((r) => Object.keys(r.note.properties ?? {})))].filter((k) => !have.has(k)).sort();
+          const others = propertyNames().filter((k) => !have.has(k) && !props.includes(k));
+          const own = [["file.folder", "Folder"], ["file.mtime", "Edited"], ["file.tags", "Tags"]].filter(([k]) => !have.has(k));
+          const add = (col) => change((_, v) => { v.order = [...v.order, col]; }, columns);
+          openMenu(addColumn, [
+            ...props.map((k) => ({ label: k, run: () => add(k) })),
+            ...(others.length ? [null, ...others.map((k) => ({ label: k, run: () => add(k) }))] : []),
+            ...(own.length ? [null, ...own.map(([k, label]) => ({ label, run: () => add(k) }))] : []),
+          ]);
+        },
+      }, icon("plus", 14)) : null;
 
       el.replaceChildren(
         h("div", { class: "ptable-head" },
-          tabs,
+          nameEl,
           h("span", { class: "ptable-count" }, `${total} ${total === 1 ? "note" : "notes"}${rows.length < total ? `, showing ${rows.length}` : ""}`),
-          editButton()),
+          editable ? moreButton() : null),
+        chips.childElementCount ? chips : null,
         rows.length
-          ? h("div", { class: "md-table-scroll" }, table)
+          ? h("div", { class: "ptable-grid" }, h("div", { class: "md-table-scroll" }, table), addColumn)
           : h("p", { class: "ptable-empty" }, "No notes match these filters yet."));
     };
 
-    const editButton = () => h("button", {
-      class: "btn btn--small btn--plain ptable-edit",
-      type: "button",
-      onClick: () => {
-        const from = view.posAtDOM(el);
-        view.focus();
-        view.dispatch({ selection: { anchor: Math.min(from + 8, view.state.doc.length) } });
+    // Busy: building a filter, renaming, or typing in a cell. A refresh waits for it.
+    let stale = false;
+    const busy = () => !!el.querySelector(".ptable-pop, .ptable-rename-input")
+      || (el.contains(document.activeElement) && document.activeElement.isContentEditable);
+    el.ptable = {
+      yaml: this.yaml,
+      canEdit: this.canEdit,
+      refresh: () => {
+        if (busy()) stale = true;
+        else render();
       },
-    }, "Edit");
+    };
+    el.addEventListener("focusout", () => setTimeout(() => {
+      if (stale && !busy()) {
+        stale = false;
+        render();
+      }
+    }, 0));
 
     render();
     return el;
@@ -445,6 +697,28 @@ class QueryWidget extends WidgetType {
   ignoreEvent() {
     return true;
   }
+}
+
+/** Rename in place: `target`'s text becomes a field; Enter (or leaving it) saves, Esc keeps it. */
+function renameInPlace(target, text, save) {
+  const input = h("input", { class: "input input--bare ptable-rename-input", value: text, spellcheck: "false", "aria-label": "Name" });
+  let done = false;
+  const finish = (keep) => {
+    if (done) return;
+    done = true;
+    const value = input.value.trim();
+    input.replaceWith(target);
+    if (keep && value !== text) save(value);
+  };
+  input.addEventListener("keydown", (e) => {
+    e.stopPropagation();
+    if (e.key === "Enter") finish(true);
+    if (e.key === "Escape") finish(false);
+  });
+  input.addEventListener("blur", () => finish(true));
+  target.replaceWith(input);
+  input.focus();
+  input.select();
 }
 
 // The extension ----------------------------------------------------------------------
@@ -467,7 +741,7 @@ function queryBlocks(state) {
   return out;
 }
 
-/** env: { notes(), resolve(), currentPath(), version(), openPath(path), openLink(link) } */
+/** env: { notes(), resolve(), currentPath(), version(), openPath(path), openLink(link), setProperty(path, key, value) } */
 export function propertyTables(env) {
   const build = (state) => {
     if (state.field(sourceMode) && !isReading(state)) return Decoration.none;
@@ -477,7 +751,7 @@ export function propertyTables(env) {
       // The query shows as text while you edit it, like the properties' YAML.
       const inside = state.selection.ranges.some((r) => r.from <= block.to && r.to >= block.from);
       if (inside && state.field(focused, false)) continue;
-      decos.push(Decoration.replace({ widget: new QueryWidget(block.yaml, version, env), block: true }).range(block.from, block.to));
+      decos.push(Decoration.replace({ widget: new QueryWidget(block.yaml, version, env, !isReading(state)), block: true }).range(block.from, block.to));
     }
     return Decoration.set(decos);
   };

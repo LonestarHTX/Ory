@@ -26,8 +26,9 @@ export function openMenu(anchor, items, { align = "end" } = {}) {
 
   const el = h("div", { class: "menu", role: "menu" });
   const renderItems = () => {
-    el.replaceChildren(...items.map((item) =>
-      h("button", {
+    el.replaceChildren(...items.map((item) => item === null
+      ? h("div", { class: "menu-sep", role: "separator" }) // null: a hairline between groups
+      : h("button", {
         class: `menu-item${item.checked ? " is-selected" : ""}`,
         role: item.checked == null ? "menuitem" : "menuitemradio",
         "aria-checked": item.checked == null ? null : String(item.checked),

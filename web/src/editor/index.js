@@ -114,6 +114,7 @@ export function createEditor(parent, handlers) {
       version: handlers.indexVersion,
       openPath: handlers.openPath,
       openLink: handlers.openLink,
+      setProperty: handlers.setNoteProperty,
     }),
     wikilinkCompletion({ notes: handlers.notes, files: handlers.files, linkTextFor: handlers.linkTextFor }),
     placeholder("Start writing"),

@@ -2555,6 +2555,12 @@ input[type="radio"] {
   outline: 0;
 }
 
+.menu-sep {
+  height: 1px;
+  margin: 4px 0;
+  background: var(--line);
+}
+
 .menu-confirm {
   padding: 8px;
 }
@@ -3454,7 +3460,9 @@ mark {
 
 /* ---------- Property tables ----------
    A ```notes block: a heading row with the view's name (or its tabs), the
-   count and Edit, over a read-only table in the same style as note tables. */
+   count and "...", the filters as chips, then the table in the note tables'
+   style. Edited where it stands: the name, each heading's menu, + for a
+   column, the chips, and the cells (a note's property each). */
 
 .ptable {
   margin: 8px 0;
@@ -3479,8 +3487,213 @@ mark {
   color: var(--text-3);
 }
 
-.ptable-edit {
+.ptable-edit,
+.ptable-more {
   margin-left: auto;
+}
+
+.ptable-more {
+  width: 24px;
+  height: 24px;
+}
+
+.ptable-rename {
+  padding: 0 4px;
+  margin-left: -4px;
+  border-radius: var(--r-sm);
+  color: var(--text);
+}
+
+.ptable-rename:hover {
+  background: var(--hover);
+}
+
+.ptable-rename-input {
+  width: 240px;
+  height: 24px;
+  padding: 0 4px;
+  margin-left: -4px;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+/* The filters: chips under the name; + Filter shows when you're near. */
+.ptable-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  margin: -4px 0 8px;
+  font-size: 12px;
+  line-height: 16px;
+}
+
+.ptable-filters-label {
+  margin-right: 4px;
+  color: var(--text-3);
+}
+
+.ptable-chip {
+  display: inline-flex;
+  align-items: center;
+  height: 24px;
+  border: 1px solid var(--line-strong);
+  border-radius: 12px;
+  color: var(--text);
+  font-weight: 500;
+}
+
+.ptable-chip-label {
+  height: 100%;
+  padding: 0 8px;
+  border-radius: 12px;
+}
+
+.ptable-chip-label:not(:disabled):hover {
+  background: var(--hover);
+}
+
+.ptable-chip-label:disabled {
+  color: inherit;
+  cursor: default;
+}
+
+.ptable-chip-x {
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  margin: 0 4px 0 -4px;
+  border-radius: 8px;
+  color: var(--text-3);
+}
+
+.ptable-chip-x:hover {
+  background: var(--hover);
+  color: var(--text);
+}
+
+.ptable-chip-add {
+  gap: 4px;
+  padding: 0 8px 0 6px;
+  border-style: dashed;
+  color: var(--text-2);
+  opacity: 0;
+}
+
+.ptable-chip-add:hover {
+  border-style: solid;
+  color: var(--text);
+}
+
+.ptable:hover .ptable-chip-add,
+.ptable:focus-within .ptable-chip-add {
+  opacity: 1;
+}
+
+/* + after the headings: just outside the table's right edge, on hover. */
+.ptable-grid {
+  position: relative;
+}
+
+.ptable-addcol {
+  position: absolute;
+  top: 4px;
+  right: -28px;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: var(--r-ctl);
+  color: var(--text-3);
+  opacity: 0;
+}
+
+.ptable-addcol:hover,
+.ptable-addcol[aria-expanded="true"] {
+  background: var(--hover);
+  color: var(--text);
+}
+
+.ptable:hover .ptable-addcol,
+.ptable-addcol:focus-visible,
+.ptable-addcol[aria-expanded="true"] {
+  opacity: 1;
+}
+
+/* A cell you can type in: a note's property. */
+.ptable.is-editable .ptable-table td .md-cell[contenteditable] {
+  cursor: text;
+}
+
+/* The filter builder: a field, a condition and a value. */
+.ptable {
+  position: relative;
+}
+
+.ptable-pop {
+  position: absolute;
+  z-index: 5;
+  width: 320px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-top-color: var(--line-strong);
+  border-radius: var(--r-window);
+  background: var(--card);
+  box-shadow: var(--float);
+  font-size: 13px;
+  animation: window-in 0.12s cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+.ptable-pop-title {
+  margin: 0 0 8px;
+  font-weight: 600;
+}
+
+.ptable-pop-row {
+  display: flex;
+  gap: 8px;
+}
+
+.ptable-select,
+.ptable-value,
+.ptable-expr {
+  height: 32px;
+  min-width: 0;
+  padding: 0 8px;
+  font-size: 13px;
+}
+
+.ptable-select {
+  flex: 1;
+}
+
+.ptable-value {
+  flex: 1;
+}
+
+.ptable-expr {
+  width: 100%;
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+.ptable-pop-hint {
+  margin: 8px 0 0;
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--text-3);
+}
+
+.ptable-pop-foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.ptable-pop-remove {
+  margin-right: auto;
 }
 
 .ptable-tabs {

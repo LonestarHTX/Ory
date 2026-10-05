@@ -290,8 +290,14 @@ The rules Ory's interface follows. A value outside the scales below is a mistake
   card's width less the gutter each side, at most 1280px, centred on the text column.
   Resizing never reloads the page. A page keeps its own design; to look like part of
   Ory it should use the shared tokens.
-- **Property tables** use the note-table style, read-only, under a heading row: the
-  view's name (or tabs), the count, and Edit on the right.
+- **Property tables** use the note-table style under a heading row: the view's name
+  (or tabs), the count, and "..." (Edit as text, Delete table) on the right; then the
+  filters as 24px chips (`--line-strong` hairline, 12px radius, "Notes" before them, a
+  dashed + Filter on hover). Edited where they stand, as note tables are: the name
+  renames in place, a heading's menu sorts, renames, moves or hides its column, a + just
+  outside the header row's right edge (on hover) adds one, and a cell is that note's
+  property, typed into like a note table's cell. The filter builder is a floating
+  layer (10px corners) of three choices: field, condition, value.
 - **Outline** sits under Backlinks in the right sidebar; the heading the cursor is
   in is selected.
 - **Search** is a view in the main area: the field at the top, results filtering

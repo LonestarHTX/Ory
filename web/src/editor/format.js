@@ -200,8 +200,9 @@ export function toggleQuote(view) {
  * Insert a block (a table, say) below the current line, or on it if it is
  * empty, with a blank line on each side: without them Markdown reads the
  * block as part of the paragraph next to it. Returns where the block starts.
+ * The cursor goes to its start, or with {after: true} to the line after it.
  */
-export function insertBlock(view, block) {
+export function insertBlock(view, block, { after: cursorAfter = false } = {}) {
   const { doc } = view.state;
   const line = doc.lineAt(view.state.selection.main.head);
   const next = line.number < doc.lines ? doc.line(line.number + 1) : null;
@@ -222,9 +223,10 @@ export function insertBlock(view, block) {
     after = next ? (next.text.trim() ? "\n" : "") : "\n";
   }
   const start = from + before.length;
+  const end = Math.min(start + block.length + 1, view.state.doc.length - (to - from) + before.length + block.length + after.length);
   view.dispatch({
     changes: { from, to, insert: before + block + after },
-    selection: { anchor: start },
+    selection: { anchor: cursorAfter ? end : start },
     userEvent: "input",
     scrollIntoView: true,
   });
@@ -254,7 +256,7 @@ export function insertPropertyTable(view) {
     "      - status",
     "      - due",
     "```",
-  ].join("\n"));
+  ].join("\n"), { after: true }); // a table from the start, edited where it stands
   return true;
 }
 

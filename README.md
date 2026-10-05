@@ -315,9 +315,20 @@ views:
 
 Filters can use any property by name, `file.name`, `file.folder`, `file.tags`,
 `file.mtime`, `file.inFolder()`, `file.hasTag()`, `file.hasLink()`, comparisons,
-`&&`, `||`, `!`, `.contains()` and `today()`. Click a column heading to sort; click
-Edit (or move the cursor into it) to change the query. Views are tables; there are no
+`&&`, `||`, `!`, `.contains()` and `today()`. Views are tables; there are no
 formulas yet.
+
+A property table is edited where it stands, like any table, and Ory rewrites the YAML
+for you:
+- **The name:** click it to rename the table.
+- **Columns:** click a heading for its menu (sort, rename the heading, move, hide); the
+  + after the last heading adds a column.
+- **Filters** show as chips above the table: click one to change it, × to remove it, and
+  + Filter to add a condition (a property, a folder, a tag, a link or when it was edited).
+- **Cells** are the notes' own properties: type in one to change that property in that
+  note. The name column stays a link.
+- **The YAML:** "Edit as text" in the table's "..." shows it, for anything the chips
+  can't (an `or`, say). While a page is being read, a heading's click only sorts for now.
 
 **Pages:** an `.html` file in the notes folder (an interactive model, a calculator, a
 generated report) opens inside Ory across the main area when you click it in the tree
