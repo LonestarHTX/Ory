@@ -640,7 +640,7 @@ export function livePreview({ resolve, openLink, fileSize = () => null, openPage
       if (!modClick && !e.altKey && !el.classList.contains("cm-link-live")) return false;
       e.preventDefault();
       // Option-click opens a note beside this one.
-      if (el.dataset.wikilink != null) openLink({ wikilink: el.dataset.wikilink, beside: e.altKey });
+      if (el.dataset.wikilink != null) openLink({ wikilink: el.dataset.wikilink, event: e });
       else openLink({ href: el.dataset.href });
       return true;
     },

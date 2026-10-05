@@ -22,6 +22,7 @@ from .vault import Vault, VaultError
 
 PROMPT_SIZES = (30000, 60000, 150000)
 RECENT_FOLDERS = 5  # notes folders remembered for switching back
+ARCHIVE_CHOICES = (7, 30, 90, 0)  # days archived things are kept; 0 keeps them
 
 
 class State:
@@ -143,6 +144,9 @@ def current(state: State) -> Dict[str, Any]:
         "guides": cfg.guides,
         "promptBudget": cfg.prompt_budget,
         "promptSizes": list(PROMPT_SIZES),
+        "dailyTemplate": cfg.daily_template,
+        "archiveDays": cfg.archive_days,
+        "archiveChoices": list(ARCHIVE_CHOICES),
         "configPath": cfg.config_path,
         "notesFromFlag": cfg.notes_from_flag,
         # Folders switched away from, to switch back from the sidebar.
@@ -186,6 +190,16 @@ def update(state: State, body: Dict[str, Any]) -> Dict[str, Any]:
         cfg.wikis_folder = _folder(body["wikisFolder"], "The wikis folder") or "Wikis"
     if "guides" in body:
         cfg.guides = bool(body["guides"])
+    if "dailyTemplate" in body:
+        template = str(body["dailyTemplate"] or "").strip().strip("/")
+        if template and template not in vault.notes() and template + ".md" not in vault.notes():
+            raise VaultError(f"There is no note at {template}.", 404)
+        cfg.daily_template = template if not template or template in vault.notes() else template + ".md"
+    if "archiveDays" in body:
+        days = int(body["archiveDays"])
+        if days not in ARCHIVE_CHOICES:
+            raise VaultError("Archived things are kept for 7, 30 or 90 days, or until you delete them.")
+        cfg.archive_days = days
     if "promptBudget" in body:
         size = int(body["promptBudget"])
         if not 5000 <= size <= 1000000:
@@ -195,13 +209,16 @@ def update(state: State, body: Dict[str, Any]) -> Dict[str, Any]:
 
     if os.path.realpath(cfg.notes_dir) != vault.root:
         vault = Vault(cfg.notes_dir, daily_folder=cfg.daily_folder,
-                      attachments_folder=cfg.attachments_folder, wikis_folder=cfg.wikis_folder)
+                      attachments_folder=cfg.attachments_folder, wikis_folder=cfg.wikis_folder,
+                      daily_template=cfg.daily_template, archive_days=cfg.archive_days)
         vault.refresh()
         state.vault = vault
     else:
         vault.daily_folder = cfg.daily_folder.strip("/")
         vault.attachments_setting = cfg.attachments_folder
         vault.wikis_folder = cfg.wikis_folder.strip("/") or "Wikis"
+        vault.daily_template = cfg.daily_template or None
+        vault.archive_days = cfg.archive_days
         vault.version += 1  # the app reloads its index with the new names
     if cfg.guides:
         write_guides(vault)

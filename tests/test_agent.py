@@ -8,7 +8,7 @@ from unittest import mock
 
 from ory import cli, mcp
 from ory.agent import Agent
-from ory.guide import MARKER, write_guides
+from ory.guide import MARKER, agents_md, write_guides
 from ory.vault import Vault, VaultError
 
 
@@ -116,6 +116,13 @@ class GuideTests(unittest.TestCase):
             self.assertEqual(fh.read(), "My own rules.\n")
         paths = [n["path"] for n in self.vault.listing()["notes"]]
         self.assertEqual(paths, ["Note.md"])  # the guides are not notes
+
+    def test_guide_tells_agents_how_long_the_archive_keeps_things(self):
+        self.assertIn("deletes 30 days after", agents_md(self.vault))
+        self.vault.archive_days = 0
+        text = agents_md(self.vault)
+        self.assertIn("keeps until the person deletes them", text)
+        self.assertNotIn("30 days", text)
 
 
 class InterfaceTests(unittest.TestCase):

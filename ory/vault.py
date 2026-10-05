@@ -8,6 +8,7 @@ file watcher.
 
 from __future__ import annotations
 
+import datetime as dt
 import itertools
 import json
 import os
@@ -25,7 +26,8 @@ from . import markdown
 NOTE_EXT = ".md"
 # Guides for AI agents at the top of the notes folder (guide.py); not notes.
 AGENT_GUIDES = ("AGENTS.md", "CLAUDE.md")
-# Archived notes, files and folders, kept ARCHIVE_DAYS days and then deleted.
+# Archived notes, files and folders, kept ARCHIVE_DAYS days (by default; the
+# archive_days setting changes it, 0 keeping them) and then deleted.
 ARCHIVE_DIR = ".archive"
 ARCHIVE_DAYS = 30
 _ARCHIVE_LOG = ".archive.json"  # in ARCHIVE_DIR: where each item came from, and when
@@ -108,12 +110,18 @@ class Vault:
         daily_folder: str = "Daily",
         attachments_folder: Optional[str] = None,
         wikis_folder: str = "Wikis",
+        daily_template: Optional[str] = None,
+        archive_days: int = ARCHIVE_DAYS,
     ):
         self.root = os.path.realpath(os.path.expanduser(root))
         self.daily_folder = daily_folder.strip("/")
         # Each folder inside this one is a wiki; everything outside it is notes.
         self.wikis_folder = wikis_folder.strip("/") or "Wikis"
         self.attachments_setting = attachments_folder
+        # A note whose text starts each new daily note ({{date}}, {{title}} filled in).
+        self.daily_template = daily_template or None
+        # How long archived things are kept, in days; 0 keeps them until deleted.
+        self.archive_days = archive_days
         self._notes: Dict[str, Note] = {}
         self._files: Dict[str, Attachment] = {}
         self._folders: List[str] = []
@@ -441,7 +449,16 @@ class Vault:
             found = self._existing(rel)
             if found in self._notes:
                 return self._notes[found], False
-            return self.create(rel), True
+            return self.create(rel, self._from_template(date, note_name(rel))), True
+
+    def _from_template(self, date: str, title: str) -> str:
+        """The daily note template's text, with {{date}} as the day in words
+        ("Oct 5, 2026") and {{title}} as the note's name; empty without one."""
+        template = self._notes.get(self._existing(self.daily_template) or "") if self.daily_template else None
+        if not template:
+            return ""
+        day = dt.date.fromisoformat(date)
+        return template.text.replace("{{date}}", f"{day:%b} {day.day}, {day.year}").replace("{{title}}", title)
 
     # Attachments --------------------------------------------------------------
 
@@ -587,16 +604,16 @@ class Vault:
 
     def archived(self, now: Optional[float] = None) -> List[Dict[str, Any]]:
         """What is in the archive, newest first, after deleting anything archived
-        more than ARCHIVE_DAYS days ago."""
+        more than archive_days days ago (none, when that is 0)."""
         now = time.time() if now is None else now
-        keep = ARCHIVE_DAYS * 86400
+        keep = self.archive_days * 86400 if self.archive_days else None
         with self._lock:
             if not os.path.isdir(self._archive_root()) and not os.path.isdir(os.path.join(self.root, _OLD_TRASH_DIR)):
                 return []
             with self._archive_lock():
                 log = self._archive_log(now)
                 expired = [name for name, entry in log.items()
-                           if _number(entry.get("at")) is not None and _number(entry.get("at")) + keep <= now]
+                           if keep and _number(entry.get("at")) is not None and _number(entry.get("at")) + keep <= now]
                 for name in expired:
                     _remove(os.path.join(self._archive_root(), name))
                     del log[name]
@@ -619,7 +636,7 @@ class Vault:
                     "from": origin,
                     "notes": _count_notes(full) if folder else None,
                     "archivedAt": at,
-                    "deletesAt": None if at is None else at + keep,
+                    "deletesAt": None if at is None or not keep else at + keep,
                 })
             items.sort(key=lambda i: (i["archivedAt"] is not None, i["archivedAt"] or 0), reverse=True)
             return items

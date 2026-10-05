@@ -65,7 +65,11 @@ The rules Ory's interface follows. A value outside the scales below is a mistake
   the space's actions (Search, and New note or New wiki). Below it, the space's
   groups under 11px labels. Notes: New note and Today's note, Pinned (only when
   something is pinned), Folders (the tree, which scrolls), and Recent (the last five
-  notes you were in, not the one you're in) at the bottom.
+  notes you were in, not the one you're in) at the bottom. Settings → Layout can hide
+  Today's note, Pinned or Recent.
+- **Edges resize.** The sidebar's and the panel's inner edges can be dragged (200–400px
+  and 240–440px); double-click one, or Settings → Layout, for its usual width. The
+  handle is an 8px strip over the frame that shows a 2px line on hover.
 - **Tabs** are 28px chips in the title bar, at most 160px wide; the chosen one takes
   the card's colour (Dusk outlines it). A note opens in the current tab, or in its
   own tab if it's open already; Cmd-click (in the tree, Pinned or Recent) and the
@@ -151,13 +155,16 @@ The rules Ory's interface follows. A value outside the scales below is a mistake
   change is decided.
 - **Settings** is a floating window over whatever is open, like the quick switcher,
   opened by the gear at the foot of the rail or Cmd+,; Esc, a click outside or Cmd+, again closes it. It has its own sidebar of
-  sections (Folders, Appearance, Editing, AI, Shortcuts), moved through with the
+  sections (Notes, Appearance, Layout, Editing, Archive, AI, Shortcuts), moved through with the
   arrow keys, and remembers the last one. Tab stays inside it, and focus stays put
   when a choice redraws the section. Each section starts with a short line saying
   where its settings are kept. Choices of a few options use the segmented control of
   the space switch and apply at once; folders are fields saved together with one
   primary button, which is disabled until something changes, with Revert beside it
-  and "Unsaved" beside Folders in the window's sidebar. Connection status is a status
+  and "Unsaved" beside Notes in the window's sidebar. A note setting (the daily
+  template) is a field-like row with × to clear it and "Choose..." to pick through the
+  quick switcher. On/off lists (what the sidebar shows) are checkboxes, one per row,
+  with a 12px hint under any that needs one. Connection status is a status
   dot and a sentence, rechecked while the window is open. Shortcuts are rows split by
   hairlines, the keys right-aligned.
 - **Wiki cards** (All wikis, and a Home's pages) are bordered cards that darken their
@@ -262,12 +269,17 @@ The rules Ory's interface follows. A value outside the scales below is a mistake
   header's field.
 - **Destructive actions** live in "..." menus and confirm in place. Nothing is
   deleted at once: Archive moves a note, file, folder or wiki to `.archive/`, and the
-  confirmation says it can be restored for 30 days.
+  confirmation says how long it can be restored (30 days unless Settings → Archive
+  says otherwise).
 - **The Archive** is a full page (a place on the rail, selected while you're on it). One row per item, newest first:
   name with its kind's icon (and note count for folders and wikis), where it was,
   when it was archived, and when it will be deleted, with a warning dot in the last
   three days. Restore is the row's button; Delete now is in its "..." menu and
   confirms in place. Items the archive didn't record itself (put in `.archive/` some
-  other way) are never deleted on their own: they read "Not scheduled".
+  other way) are never deleted on their own: they read "Not scheduled". With the
+  period set to keep, recorded items read "Kept".
+- **Reading width and font** are the reader's: Settings → Appearance sets the notes'
+  column (Default 784px, Wide 944px, Full) and font (Sans, or a serif for the text and
+  page heads; properties stay sans). Text size is left to the browser's zoom.
 - **Tree indents** are derived values (depth × 12 plus the 18px chevron and gap), so
   note names line up with folder names. They are the only off-scale spacing.

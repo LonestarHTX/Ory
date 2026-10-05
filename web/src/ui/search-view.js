@@ -1,7 +1,7 @@
 // Full-text search in the main area. Results filter live as you type.
 // Down from the field moves into the results; Enter opens one.
 
-import { openNote } from "../actions.js";
+import { clickOptions, openNote } from "../actions.js";
 import { api } from "../api.js";
 import { folderOf } from "../links.js";
 import { store } from "../store.js";
@@ -64,11 +64,11 @@ export function createSearchView(el) {
     }
     list.replaceChildren(...results.map((r) =>
       h("section", { class: "result" },
-        h("button", { class: "result-note", type: "button", onClick: () => openNote(r.path) },
+        h("button", { class: "result-note", type: "button", onClick: (e) => openNote(r.path, clickOptions(e)) },
           h("span", { class: "result-name" }, r.name),
           place(r.path)),
         r.matches.map((m) =>
-          h("button", { class: "result-line", type: "button", onClick: () => openNote(r.path, { line: m.line }) },
+          h("button", { class: "result-line", type: "button", onClick: (e) => openNote(r.path, clickOptions(e, { line: m.line })) },
             highlight(m))))));
   }
 

@@ -1,19 +1,28 @@
-// Settings: a floating window, opened from the gear at the foot of the
-// sidebar (or Cmd+,), with its own sidebar of sections: Folders (saved to
-// ory.config.json on this computer), Appearance and Editing (this browser),
-// AI (connecting Claude, the guide for agents, the Suggestions prompt size),
-// and a list of the keyboard shortcuts.
+// Settings: a floating window, opened from the gear at the foot of the rail
+// (or Cmd+,), with its own sidebar of sections: Notes (the folders and the
+// daily note template, saved to ory.config.json on this computer; where new
+// notes go and where Ory starts, in this browser), Appearance, Layout and
+// Editing (this browser), Archive (ory.config.json), AI (connecting Claude,
+// the guide for agents, the Suggestions prompt size), and the shortcuts.
 
 import { api } from "../api.js";
-import { MARKS_KEY, pref, READ_WIKI_KEY, setPref, SOURCE_KEY, SPELLCHECK_KEY, spellchecks } from "../prefs.js";
+import { openArchive } from "../actions.js";
+import { noteName } from "../links.js";
+import {
+  MARKS_KEY, NEW_NOTES_KEY, NOTE_FONT_KEY, NOTE_WIDTH_KEY, OPEN_IN_KEY, PAIR_KEY, PANEL_WIDTH_KEY, pairsBrackets, pref, READ_WIKI_KEY,
+  setPref, SIDE_SHOWS, SIDE_WIDTH_KEY, sideShows, SOURCE_KEY, SPELLCHECK_KEY, spellchecks, START_KEY,
+} from "../prefs.js";
+import { store } from "../store.js";
 import { setBudget } from "../suggestions/prompts.js";
 import { closeMenu } from "./menu.js";
 import { clear, h, icon, keys, leave } from "./dom.js";
 
 const SECTIONS = [
-  { id: "folders", label: "Folders", icon: "folder" },
+  { id: "folders", label: "Notes", icon: "folder" },
   { id: "appearance", label: "Appearance", icon: "palette" },
+  { id: "layout", label: "Layout", icon: "layout" },
   { id: "editing", label: "Editing", icon: "edit" },
+  { id: "archive", label: "Archive", icon: "archive" },
   { id: "ai", label: "AI", icon: "suggestions" },
   { id: "shortcuts", label: "Shortcuts", icon: "keyboard" },
 ];
@@ -28,8 +37,14 @@ const DESKTOP_CHECK_MS = 2500;
 const FOCUSABLE = "button:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex='-1'])";
 const focusables = (root) => [...root.querySelectorAll(FOCUSABLE)].filter((el) => el.offsetParent);
 
-/** theme: {mode, palette}, each {get(), set(value)}, from main.js, which owns the theme. */
-export function createSettings({ theme }) {
+/** Tell the open app a browser setting changed: "look" (width, font, sidebar), "pairing". */
+const changed = (what) => window.dispatchEvent(new CustomEvent(`ory:${what}`));
+
+/**
+ * theme: {mode, palette}, each {get(), set(value)}, from main.js, which owns the theme.
+ * pickNote(done): lets you choose a note (the quick switcher) and calls done(path).
+ */
+export function createSettings({ theme, pickNote }) {
   let settings = null;
   let error = "";
   let busy = false;
@@ -162,7 +177,7 @@ export function createSettings({ theme }) {
     if (focusedNav) nav.querySelector(".is-selected")?.focus();
     const current = SECTIONS.find((s) => s.id === section);
     const scroll = content.querySelector(".settings-body")?.scrollTop ?? 0;
-    const body = { folders, appearance, editing, ai, shortcuts }[current.id];
+    const body = { folders, appearance, layout, editing, archive, ai, shortcuts }[current.id];
     clear(content,
       h("header", { class: "settings-head" },
         h("h2", null, current.label),
@@ -232,15 +247,38 @@ export function createSettings({ theme }) {
         onKeydown: (e) => e.key === "Enter" && saveFolders(),
       }),
       hint ? h("span", { class: "setting-hint" }, hint) : null);
+    const template = settings.dailyTemplate;
     const form = h("section", { class: "settings-section" },
-      h("p", { class: "settings-intro" }, "Saved on this computer in ", h("code", null, settings.configPath), ". Changing a folder's name here doesn't move anything; Ory looks in the folder you name."),
+      h("p", { class: "settings-intro" }, "The folders and the template are saved on this computer in ", h("code", null, settings.configPath), "; the rest is kept in this browser. Changing a folder's name here doesn't move anything; Ory looks in the folder you name."),
       field("notesDir", "Notes folder", settings.notesFromFlag
         ? "Ory was started with --notes; switching here also saves it for next time."
         : "The folder of Markdown files Ory opens. Switching reopens Ory on the new folder."),
       field("dailyFolder", "Daily notes", "Inside the notes folder. Leave empty for the top."),
       field("attachmentsFolder", "Attachments", "Where pasted pictures and files go. \"/\" is the top of the notes folder; \"./\" is next to the note."),
       field("wikisFolder", "Wikis", "Each folder inside it is one wiki."),
-      h("div", { class: "setting-actions" }, saveButton, revertButton, status));
+      h("div", { class: "setting-actions" }, saveButton, revertButton, status),
+      h("div", { class: "setting settings-gap" },
+        h("span", { class: "setting-label" }, "Daily note template"),
+        h("div", { class: "setting-row" },
+          h("span", { class: `setting-pick${template ? "" : " is-empty"}` },
+            icon("file", 14), template ? noteName(template) : "None",
+            template ? h("button", {
+              class: "iconbtn", type: "button", "aria-label": "No template", dataset: { tip: "No template" },
+              onClick: () => save({ dailyTemplate: "" }),
+            }, icon("close", 14)) : null),
+          h("button", {
+            class: "btn btn--small", type: "button",
+            onClick: () => pickNote((path) => save({ dailyTemplate: path })),
+          }, "Choose…")),
+        h("span", { class: "setting-hint" }, "A note whose text starts each new daily note. In it, {{date}} becomes the day in words and {{title}} the note's name.")),
+      choice("New notes go in", [["top", "Top of the notes folder"], ["here", "The open note's folder"]], pref(NEW_NOTES_KEY, "here"), (v) => {
+        setPref(NEW_NOTES_KEY, v);
+        render();
+      }, "For New note. A note opened in a wiki doesn't count: new notes stay out of the wikis."),
+      choice("When Ory opens", [["last", "Last note"], ["today", "Today's note"], ["wikis", "All wikis"]], pref(START_KEY, "last"), (v) => {
+        setPref(START_KEY, v);
+        render();
+      }));
     sync();
     return form;
   }
@@ -254,7 +292,73 @@ export function createSettings({ theme }) {
       choice("Light or dark", [["system", "System"], ["light", "Light"], ["dark", "Dark"]], theme.mode.get(), (v) => {
         theme.mode.set(v);
         render();
-      }, "System follows your computer's setting."));
+      }, "System follows your computer's setting."),
+      choice("Note width", [["default", "Default"], ["wide", "Wide"], ["full", "Full width"]], pref(NOTE_WIDTH_KEY, "default"), (v) => {
+        setPref(NOTE_WIDTH_KEY, v);
+        changed("look");
+        render();
+      }, "How wide a note's lines may run. Default is about 75 characters; Full width uses the whole card."),
+      choice("Note font", [["sans", "Sans"], ["serif", "Serif"]], pref(NOTE_FONT_KEY, "sans"), (v) => {
+        setPref(NOTE_FONT_KEY, v);
+        changed("look");
+        render();
+      }, "The text of notes and wiki pages. The rest of Ory keeps the system font."),
+      h("p", { class: "settings-aside" }, "Text too small or large? Browser zoom (", keys("Mod-+"), " and ", keys("Mod-−"), ") scales all of Ory evenly."));
+  }
+
+  // Layout ---------------------------------------------------------------------------------
+
+  function layout() {
+    const show = (group, label, hint) => h("label", { class: "setting-check-row" },
+      h("input", {
+        type: "checkbox", checked: sideShows(group) ? true : null,
+        onChange: (e) => {
+          setPref(SIDE_SHOWS[group], e.target.checked ? "1" : "0");
+          changed("look");
+        },
+      }),
+      h("span", null, h("span", null, label), hint ? h("span", { class: "setting-hint" }, hint) : null));
+    return h("section", { class: "settings-section" },
+      h("p", { class: "settings-intro" }, "Kept in this browser."),
+      h("div", { class: "setting" },
+        h("span", { class: "setting-label" }, "The sidebar shows"),
+        show("today", "Today's note"),
+        show("pinned", "Pinned", "Only when something is pinned."),
+        show("recent", "Recent", "The last five notes you were in.")),
+      choice("Clicking a note opens it in", [["same", "The tab you're in"], ["new", "A new tab"]], pref(OPEN_IN_KEY, "same"), (v) => {
+        setPref(OPEN_IN_KEY, v);
+        render();
+      }, h("span", null, keys("Mod"), "-click does the other; Option-click opens it beside.")),
+      h("div", { class: "setting" },
+        h("span", { class: "setting-label" }, "Sidebar and panel width"),
+        h("button", {
+          class: "btn btn--small", type: "button",
+          onClick: () => {
+            setPref(SIDE_WIDTH_KEY, "");
+            setPref(PANEL_WIDTH_KEY, "");
+            changed("look");
+          },
+        }, "Reset widths"),
+        h("span", { class: "setting-hint" }, "Drag the edge of the sidebar or the panel to resize it; double-click an edge for its usual width.")));
+  }
+
+  // Archive -------------------------------------------------------------------------------
+
+  function archive() {
+    const count = h("span", { class: "setting-status" });
+    api.archived().then(({ items }) => {
+      count.textContent = items.length ? `${items.length} ${items.length === 1 ? "item" : "items"}` : "Empty";
+    }).catch(() => {});
+    return h("section", { class: "settings-section" },
+      h("p", { class: "settings-intro" }, "Saved on this computer in ", h("code", null, settings.configPath), ", so AI agents archive by it too."),
+      choice("Keep archived things for", settings.archiveChoices.map((d) => [String(d), d ? `${d} days` : "Until I delete them"]), String(settings.archiveDays),
+        async (v) => {
+          if (await save({ archiveDays: Number(v) })) store.archiveDays = settings.archiveDays;
+        }, "After that Ory deletes them for good. It applies to what's archived already, counting from when each was archived."),
+      h("div", { class: "setting" },
+        h("span", { class: "setting-label" }, "In the archive now"),
+        h("div", { class: "setting-row" }, count,
+          h("button", { class: "btn btn--small", type: "button", onClick: () => (close(), openArchive()) }, "Open the Archive"))));
   }
 
   /** The themes as cards, each drawing a small Ory window in its own colours. */
@@ -294,6 +398,11 @@ export function createSettings({ theme }) {
         window.dispatchEvent(new CustomEvent("ory:marks")); // open notes redraw at once
         render();
       }, h("span", null, "Hidden: notes read like a document, and ", keys("Mod-E"), " shows the Markdown. At the cursor: marks like ** show where you're typing.")),
+      choice("Pair brackets", [["1", "On"], ["0", "Off"]], pairsBrackets() ? "1" : "0", (v) => {
+        setPref(PAIR_KEY, v);
+        changed("pairing");
+        render();
+      }, "Typing ( [ { or ` adds its partner after the cursor."),
       choice("Spell check", [["1", "On"], ["0", "Off"]], spellchecks() ? "1" : "0", (v) => {
         setPref(SPELLCHECK_KEY, v);
         // Open notes and tables pick it up at once; new ones read it as they open.

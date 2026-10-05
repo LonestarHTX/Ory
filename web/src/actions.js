@@ -4,7 +4,8 @@
 import { api } from "./api.js";
 import { folderOf, isPage, noteName, parseLink } from "./links.js";
 import { loadIndex, resolve, store } from "./store.js";
-import { todayISO } from "./ui/dom.js";
+import { NEW_NOTES_KEY, OPEN_IN_KEY, pref } from "./prefs.js";
+import { mod, todayISO } from "./ui/dom.js";
 
 // Routing ----------------------------------------------------------------------
 
@@ -48,6 +49,15 @@ export function takeOpenOptions() {
   const options = pendingOptions ?? {};
   pendingOptions = null;
   return options;
+}
+
+/**
+ * How a click opens a note: in the tab you're in, or a new one, as Settings
+ * says; Cmd-click does the other, and Option-click opens it beside.
+ */
+export function clickOptions(e, extra = {}) {
+  const newTab = (pref(OPEN_IN_KEY, "same") === "new") !== !!(e && mod(e));
+  return { ...extra, newTab, beside: !!e?.altKey };
 }
 
 export function openNote(path, options = {}) {
@@ -94,7 +104,10 @@ export async function createNote(path, text = "") {
 }
 
 /** Create "Untitled", "Untitled 1", ... in a folder and open it with the title ready to type. */
-export async function newNote(folder = "") {
+/** A new note: in `folder`, or (from New note) where Settings says new notes go. */
+export async function newNote(folder) {
+  folder ??= pref(NEW_NOTES_KEY, "here") === "here" && store.currentPath && !store.currentPath.startsWith(store.wikisFolder + "/")
+    ? folderOf(store.currentPath) : "";
   const prefix = folder ? folder + "/" : "";
   let name = "Untitled";
   for (let n = 1; store.paths.includes(`${prefix}${name}.md`); n++) name = `Untitled ${n}`;
@@ -122,10 +135,11 @@ export async function followLink(link) {
   // [[#Section]] jumps within the open note; [[Note#Section]] opens at it.
   if (!target) return heading && store.currentPath ? openNote(store.currentPath, { heading }) : undefined;
   const path = resolve(target);
-  const beside = !!link.beside; // Option-click: open it beside the note you're in
-  if (path && isPage(path)) return openNote(path);
+  // Option-click opens it beside; a new tab as Settings and Cmd say (clickOptions).
+  const { beside, newTab } = clickOptions(link.event, heading ? { heading } : {});
+  if (path && isPage(path)) return openNote(path, { newTab });
   if (path && !/\.md$/i.test(path)) return openFile(path);
-  if (path) return openNote(path, heading ? { heading, beside } : { beside });
+  if (path) return openNote(path, heading ? { heading, beside, newTab } : { beside, newTab });
   if (/\.[A-Za-z0-9]{1,8}$/.test(target) && !/\.(md|\d+)$/i.test(target)) {
     return notify(`"${target}" is not in the notes folder.`, "error");
   }
@@ -230,8 +244,10 @@ export async function archiveWiki(name) {
   if ((await archivePath(folder)) && inside) openWikis();
 }
 
-/** Words for how long the archive keeps things, for confirmations. */
-export const ARCHIVE_NOTE = "You can restore it from the Archive for 30 days.";
+/** Words for how long the archive keeps things, for confirmations (Settings → Archive). */
+export function archiveNote() {
+  return store.archiveDays ? `You can restore it from the Archive for ${store.archiveDays} days.` : "You can restore it from the Archive.";
+}
 
 export function displayName(path) {
   return store.paths.includes(path) ? noteName(path) : path.slice(path.lastIndexOf("/") + 1);

@@ -20,6 +20,10 @@
         }
         document.documentElement.dataset.theme = mode;
         document.documentElement.dataset.palette = palette === "dusk" ? "dusk" : "neutral";
+        try {
+          document.documentElement.dataset.noteWidth = localStorage.getItem("ory.noteWidth") || "default";
+          document.documentElement.dataset.noteFont = localStorage.getItem("ory.noteFont") || "sans";
+        } catch (e) {}
       })();
     </script>
   </head>

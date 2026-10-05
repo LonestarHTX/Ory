@@ -171,6 +171,26 @@ class VaultTests(unittest.TestCase):
         self.assertEqual(self.vault.archive("Daily/2026-09-27.md"), ".archive/2026-09-27.md")
         self.assertNotIn("Daily/2026-09-27.md", [n["path"] for n in self.vault.listing()["notes"]])
 
+    def test_daily_note_from_a_template(self):
+        write(self.root, "Templates/Daily.md", "# {{title}}\n\n{{date}}\n\n- [ ] \n")
+        self.vault.refresh()
+        self.vault.daily_template = "Templates/Daily.md"
+        note, created = self.vault.daily("2026-10-05")
+        self.assertTrue(created)
+        self.assertEqual(note.text, "# 2026-10-05\n\nOct 5, 2026\n\n- [ ] \n")
+        self.vault.daily_template = "Templates/Gone.md"  # a template that has gone: an empty note, no error
+        self.assertEqual(self.vault.daily("2026-10-06")[0].text, "")
+
+    def test_archive_period(self):
+        self.vault.archive_days = 7
+        self.vault.archive("Other/Mars.md", now=1000.0)
+        self.assertEqual(self.vault.archived(now=1000.0 + 7 * 86400 - 1)[0]["deletesAt"], 1000.0 + 7 * 86400)
+        self.assertEqual(self.vault.archived(now=1000.0 + 7 * 86400), [])
+        self.vault.archive_days = 0  # kept until deleted
+        self.vault.archive("Other/Notes.md", now=1000.0)
+        [item] = self.vault.archived(now=1000.0 + 3650 * 86400)
+        self.assertIsNone(item["deletesAt"])
+
     def test_archive_restores_to_where_it_was(self):
         self.vault.archive("Other/Mars.md", now=1000.0)
         [item] = self.vault.archived(now=2000.0)

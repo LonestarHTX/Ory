@@ -15,7 +15,7 @@ from urllib.parse import parse_qs, quote, unquote, urlparse
 from . import settings
 from .config import Config
 from .settings import State
-from .vault import ARCHIVE_DAYS, Note, Vault, VaultError
+from .vault import Note, Vault, VaultError
 
 STATIC_DIR = os.path.join(os.path.dirname(os.path.realpath(__file__)), "static")
 LOCAL_HOSTS = ("127.0.0.1", "localhost", "[::1]")
@@ -291,7 +291,7 @@ def _archive(v: Vault, q, b):
 
 
 def _archived(v: Vault, q, b):
-    return {"days": ARCHIVE_DAYS, "items": v.archived()}, 200
+    return {"days": v.archive_days, "items": v.archived()}, 200
 
 
 def _restore(v: Vault, q, b):

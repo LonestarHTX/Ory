@@ -68,7 +68,7 @@ TOOLS: Dict[str, tuple] = {
     "move_note": ("Rename or move a note or folder. Every link to it is rewritten.",
                   _obj({"from": {"type": "string"}, "to": {"type": "string"}}, ("from", "to")),
                   lambda a, x: a.move(x["from"], x["to"])),
-    "archive_note": ("Archive a note, file or folder: it moves to .archive/, where the person can restore it for 30 days.",
+    "archive_note": ("Archive a note, file or folder: it moves to .archive/, where the person can restore it.",
                      _obj({"path": {"type": "string"}}, ("path",)), lambda a, x: a.archive(x["path"])),
     "list_archive": ("What is in the archive: each item's id, where it came from, and when Ory deletes it.",
                      _obj({}), lambda a, x: a.archived()),

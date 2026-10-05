@@ -3,7 +3,7 @@
 // pages edited most recently. Inside a wiki: its contents under its name (Home,
 // its pages, a heading per subfolder, upkeep pages last), then the other wikis.
 
-import { alertError, createNote, currentRoute, newNote, openNote, openSuggestions, openWikis, archiveWiki, ARCHIVE_NOTE } from "../actions.js";
+import { alertError, createNote, currentRoute, newNote, openNote, openSuggestions, openWikis, archiveWiki, archiveNote, clickOptions } from "../actions.js";
 import { waiting } from "../suggestions/state.js";
 import { noteName } from "../links.js";
 import { on, store } from "../store.js";
@@ -70,7 +70,7 @@ export function createWikiNav(el) {
       recent.length ? [
         section("Recently edited"),
         h("div", { class: "nav-list" }, recent.map((n) => row({
-          iconName: "file", label: noteName(n.path), hint: wikiOf(n.path), run: () => openNote(n.path),
+          iconName: "file", label: noteName(n.path), hint: wikiOf(n.path), run: (e) => openNote(n.path, clickOptions(e)),
         }))),
       ] : null,
     ];
@@ -83,7 +83,7 @@ export function createWikiNav(el) {
       iconName: "file",
       label: noteName(note.path),
       selected: note.path === current,
-      run: () => openNote(note.path),
+      run: (e) => openNote(note.path, clickOptions(e)),
       cls: extra,
     });
     const others = wikis().filter((o) => o.name !== w.name);
@@ -93,7 +93,7 @@ export function createWikiNav(el) {
         iconButton("plus", `New page in ${w.name}`, () => newNote(w.folder).catch(alertError)),
         moreButton(w)),
       h("div", { class: "nav-list" },
-        w.home ? row({ iconName: "file", label: "Home", selected: w.home.path === current, run: () => openNote(w.home.path) }) : null,
+        w.home ? row({ iconName: "file", label: "Home", selected: w.home.path === current, run: (e) => openNote(w.home.path, clickOptions(e)) }) : null,
         w.pages.map((note) => page(note))),
       w.sections.map((s) => [
         h("div", { class: "side-section-head wiki-section" },
@@ -120,7 +120,7 @@ export function wikiActions(w) {
   const pages = `${w.count} ${w.count === 1 ? "page" : "pages"}`;
   return [{
     label: "Archive",
-    confirm: `Archive the ${w.name} wiki and its ${pages}? ${ARCHIVE_NOTE}`,
+    confirm: `Archive the ${w.name} wiki and its ${pages}? ${archiveNote()}`,
     run: () => archiveWiki(w.name),
   }];
 }

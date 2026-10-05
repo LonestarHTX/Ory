@@ -26,7 +26,7 @@ USAGE = """Commands (every one prints JSON):
   append PATH                  add the text on stdin to the end of a note
   daily [--date YYYY-MM-DD]    today's daily note, creating it
   move FROM TO                 rename or move, rewriting links
-  archive PATH                 move to .archive/ (restorable for 30 days)
+  archive PATH                 move to .archive/, where it can be restored
   archived                     what is in the archive
   restore ID                   put an archived item back where it came from
   unread                       notes changed since suggestions last read them

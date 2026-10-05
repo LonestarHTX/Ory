@@ -64,7 +64,8 @@ tools can show:
 - YAML frontmatter at the top of a note is shown as properties.
 - Nothing is deleted straight away: archiving a note, file, folder or wiki moves it to
   the Archive (`.archive/` in the notes folder). The Archive, on the rail at the left of the
-  window, lists it, with Restore, for 30 days; then Ory deletes it for good. Anything put
+  window, lists it, with Restore, for 30 days (or the period set in Settings); then Ory
+  deletes it for good. Anything put
   in `.archive/` some other way is listed but kept until you restore or delete it.
 - Folders that start with a dot (such as `.git` or `.archive`) are ignored.
 - Screenshots and files pasted or dropped into a note are saved to the attachments
@@ -77,6 +78,7 @@ tools can show:
 - **The sidebar** for the place you're in. Its header names the notes folder (click it to
   switch back to one opened before) and holds Search and New. In Notes: New note,
   Today's note, Pinned notes (pin from a note's "..."), the folder tree and Recent.
+  Drag its edge to make it wider or narrower; the panel's edge works the same way.
 - **The title bar**: Back and Forward, where you are and the open note's state and
   actions, and the open notes as tabs.
 - **Side by side**: two notes next to each other, such as a daily note and the wiki page
@@ -102,7 +104,7 @@ its contents: Home, its pages, a heading for each subfolder, and upkeep pages
 (`Instructions.md`, `Log.md`) at the bottom. An `order:` property sets a page's place;
 otherwise pages go by name. To remove a wiki, choose Archive from its "..." (on its
 card, beside it in the sidebar, or in its header once it's open): the whole folder goes
-to the Archive, where you can restore it for 30 days.
+to the Archive, where you can restore it.
 
 A wiki page opens for **reading**: a header with the title, the `summary:` property, the
 tags and a `cover:` image, then the text with no Markdown showing and nothing editable.
@@ -157,19 +159,33 @@ version to keep instead of overwriting either.
 ## Settings
 
 Settings opens in a window over your notes, from the gear at the foot of the rail or
-Cmd+,. It has five sections:
+Cmd+,. It has seven sections:
 
-- **Folders:** switch the notes folder without restarting, and name the daily notes,
-  attachments and wikis folders. These are saved in `ory.config.json` on this computer.
+- **Notes:** switch the notes folder without restarting; name the daily notes,
+  attachments and wikis folders; pick a note as the daily note template (`{{date}}` and
+  `{{title}}` are filled in when a day's note is made); where new notes go (the open
+  note's folder or the top); and what Ory opens to (the last note, today's note or the
+  wikis). The folders and the template are saved in `ory.config.json` on this computer.
 - **Appearance:** the theme, Neutral (Ory's own greys) or Dusk (violet warming to
-  wine), and light, dark or following the computer. Kept in the browser.
+  wine), and light, dark or following the computer; how wide notes run (Default, Wide or
+  Full) and their font (Sans or Serif). For bigger or smaller text, use the browser's
+  zoom.
+- **Layout:** what the sidebar shows (Today's note, Pinned, Recent), whether clicking a
+  note opens it in the tab you're in or a new tab (Cmd-click does the other), and a
+  reset for the sidebar and panel widths, which you set by dragging their edges.
 - **Editing:** whether notes open in live preview or source, whether wiki pages open
   for reading or editing, whether formatting marks (`**`, `#`...) stay hidden as you
-  type (the default) or show at the cursor, and spell check. Kept in the browser.
+  type (the default) or show at the cursor, whether brackets and quotes pair
+  themselves, and spell check.
+- **Archive:** how long archived things are kept before Ory deletes them (7, 30 or 90
+  days, or until you delete them), what's in it now, and a way in.
 - **AI:** whether Claude Desktop and Claude Code are connected to Ory's tools, a switch
   for the guide for agents, and the longest prompt Suggestions asks you to paste. While
   Claude Desktop is open it can't be connected; quit it and a Connect button appears.
 - **Shortcuts:** every keyboard shortcut in one list.
+
+Appearance, Layout and Editing are kept in this browser; the rest is saved in
+`ory.config.json`.
 
 ## Using Ory with AI
 
@@ -209,7 +225,7 @@ set of operations (`ory/agent.py`):
 
 Agents have full access, the same as you. Moves go through Ory, so links follow, and
 nothing is deleted outright: `archive` moves files to the Archive, where you can restore
-them for 30 days, and agents have no way to delete for good. For changes you'd rather
+them, and agents have no way to delete for good. For changes you'd rather
 weigh first, an agent files suggestions (`suggest`): findings and whole-page drafts that
 appear in Ory's Suggestions within a couple of seconds, lighting the silver bulb, for you
 to approve change by change. This is also the quickest way to run Suggestions: ask an

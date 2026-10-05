@@ -62,8 +62,11 @@ export function createSwitcher() {
   let dialog = null;
   let returnFocus = null;
 
-  /** {newTab}: what's chosen opens in a new tab; {beside}: beside the note you're in. */
-  function open({ newTab = false, beside = false } = {}) {
+  /**
+   * {newTab}: what's chosen opens in a new tab; {beside}: beside the note you're in.
+   * {pick(path)}: choose a note for something (a template) instead of opening it.
+   */
+  function open({ newTab = false, beside = false, pick = null } = {}) {
     if (dialog) return dialog.querySelector("input").focus();
     closeMenu({ restoreFocus: false }); // a "…" menu would sit above the switcher
     returnFocus = document.activeElement;
@@ -72,7 +75,7 @@ export function createSwitcher() {
 
     const input = h("input", {
       class: "input switcher-field",
-      placeholder: "Open a note or search",
+      placeholder: pick ? "Choose a note" : "Open a note or search",
       "aria-label": "Note name",
       "aria-controls": "switcher-list",
       "aria-autocomplete": "list",
@@ -86,16 +89,16 @@ export function createSwitcher() {
     const foot = h("div", { class: "switcher-foot" },
       h("span", null, keys("Up"), keys("Down"), " Move"),
       h("span", null, keys("Enter"), " Open"),
-      h("span", null, keys("Shift-Enter"), " Create"),
-      h("span", null, keys("Mod-Enter"), " Search"),
+      pick ? null : h("span", null, keys("Shift-Enter"), " Create"),
+      pick ? null : h("span", null, keys("Mod-Enter"), " Search"),
       h("span", null, h("kbd", { class: "kbd" }, "esc"), " Close"));
 
     const render = () => {
       const query = input.value.trim();
       items = results(input.value);
       const exact = store.notes.some((n) => n.name.toLowerCase() === query.toLowerCase() || n.path.toLowerCase() === (query + ".md").toLowerCase());
-      if (query && !exact) items.push({ create: query });
-      if (query) items.push({ search: query });
+      if (query && !exact && !pick) items.push({ create: query });
+      if (query && !pick) items.push({ search: query });
       selected = Math.min(selected, Math.max(0, items.length - 1));
       list.replaceChildren(...items.map((item, i) => {
         const option = item.create
@@ -147,6 +150,11 @@ export function createSwitcher() {
         return;
       }
       if (!item) return;
+      if (pick) {
+        close();
+        pick(item.note.path);
+        return;
+      }
       close(false);
       openNote(item.note.path, { newTab, beside });
     };
@@ -166,13 +174,13 @@ export function createSwitcher() {
       else if (e.key === "ArrowUp" || (e.ctrlKey && e.key === "p")) move(-1);
       else if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
         e.preventDefault();
-        if (input.value.trim()) {
+        if (input.value.trim() && !pick) {
           close(false);
           openSearch(input.value.trim());
         }
       } else if (e.key === "Enter") {
         e.preventDefault();
-        choose(selected, e.shiftKey);
+        choose(selected, e.shiftKey && !pick);
       } else if (e.key === "Escape") {
         e.preventDefault();
         close();

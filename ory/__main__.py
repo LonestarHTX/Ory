@@ -27,6 +27,8 @@ def main() -> int:
         daily_folder=cfg.daily_folder,
         attachments_folder=cfg.attachments_folder,
         wikis_folder=cfg.wikis_folder,
+        daily_template=cfg.daily_template,
+        archive_days=cfg.archive_days,
     )
     vault.refresh()
     if cfg.command:

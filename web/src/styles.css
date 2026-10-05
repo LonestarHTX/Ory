@@ -52,6 +52,7 @@
   --scheme: dark;
 
   --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
+  --font-serif: ui-serif, "New York", "Iowan Old Style", Georgia, serif; /* notes only, if chosen */
   --font-mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
 
   --r-card: 6px;
@@ -153,6 +154,25 @@
 :root[data-theme="light"][data-palette="dusk"] {
   --tab-on: #ffffff;
   --tab-ring: linear-gradient(90deg, #8a83a8, #c09086);
+}
+
+/* Settings → Appearance: how wide a note's lines run, and the notes' font. */
+:root[data-note-width="wide"] {
+  --prose-w: 880px;
+}
+
+:root[data-note-width="full"] {
+  --prose-w: 100vw; /* as wide as the card allows */
+}
+
+:root[data-note-font="serif"] .note-editor .cm-scroller,
+:root[data-note-font="serif"] .page-head {
+  font-family: var(--font-serif);
+}
+
+/* The properties table is chrome, not prose: it keeps the system font. */
+:root[data-note-font="serif"] .note-editor .cm-props {
+  font-family: var(--font-sans);
 }
 
 /* Names the first version of text colour wrote into notes. */
@@ -594,7 +614,42 @@ html[data-theme-fade]::view-transition-new(root) {
 }
 
 .sidebar-left {
+  position: relative;
   grid-column: 2;
+}
+
+/* The sidebar's right edge and the panel's left edge resize them. */
+.edge-resize {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  z-index: 3;
+  width: 8px;
+  cursor: col-resize;
+}
+
+.edge-side {
+  right: 0;
+}
+
+.edge-panel {
+  left: 0;
+}
+
+.edge-resize::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 3px;
+  width: 2px;
+  background: var(--line-strong);
+  opacity: 0;
+  transition: opacity 0.12s ease;
+}
+
+.edge-resize:hover::after {
+  opacity: 1;
 }
 
 .app.is-side-hidden .sidebar-left {
@@ -766,6 +821,7 @@ html[data-theme-fade]::view-transition-new(root) {
 
 /* The panel: about the open note, one view at a time (ui/panel.js). */
 .panel {
+  position: relative;
   grid-column: 4;
   grid-row: 2;
   display: flex;
@@ -4589,6 +4645,65 @@ mark {
   display: flex;
   flex-direction: column;
   gap: 4px;
+}
+
+/* A setting below the folders' Save: set apart from that form. */
+.settings-gap {
+  margin-top: 24px;
+}
+
+/* A chosen note (the daily template), with × to clear it. */
+.setting-pick {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 32px;
+  padding: 0 4px 0 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-ctl);
+  background: var(--field);
+}
+
+.setting-pick.is-empty {
+  padding-right: 12px;
+  color: var(--text-3);
+}
+
+.setting-pick > .icon {
+  color: var(--text-3);
+}
+
+.setting-pick .iconbtn {
+  width: 24px;
+  height: 24px;
+}
+
+/* One of several checkboxes under a setting's label (the sidebar's groups). */
+.setting-check-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.setting-check-row input {
+  margin-top: 2px;
+}
+
+.setting-check-row > span {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.settings-aside {
+  margin: 0;
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--text-3);
+}
+
+.settings-aside .kbd {
+  vertical-align: 1px;
 }
 
 .setting-actions {

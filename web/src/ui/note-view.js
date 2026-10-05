@@ -6,7 +6,7 @@
 // Edit switches to the editor, Esc or Done back. A blank page opens ready to
 // write. A wiki's Home adds its pages and recent changes below the text.
 
-import { archivePath, ARCHIVE_NOTE, closeNote, followLink, movePath, notify, onMove, openNote } from "../actions.js";
+import { archivePath, archiveNote, closeNote, followLink, movePath, notify, onMove, openNote } from "../actions.js";
 import { api } from "../api.js";
 import { createEditor } from "../editor/index.js";
 import { editYaml, focusAddProperty, frontmatterRange, syncFocus } from "../editor/properties.js";
@@ -532,7 +532,7 @@ export function createNoteView(el) {
     items.push({ label: "Open a note beside…", run: () => window.dispatchEvent(new CustomEvent("ory:pick-beside")) });
     items.push({
       label: "Archive",
-      confirm: `Archive "${noteName(note.path)}"? ${ARCHIVE_NOTE}`,
+      confirm: `Archive "${noteName(note.path)}"? ${archiveNote()}`,
       run: () => {
         editor.forget(note.path);
         archivePath(note.path);

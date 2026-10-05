@@ -5,6 +5,7 @@ import { fileName, noteName, resolveLink } from "./links.js";
 
 export const store = {
   vaultName: "",
+  archiveDays: 30, // how long the archive keeps things (Settings → Archive); 0 until deleted
   dailyFolder: "Daily",
   wikisFolder: "Wikis",
   version: -1,

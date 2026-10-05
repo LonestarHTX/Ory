@@ -3,10 +3,11 @@ behind the command line (cli.py) and the MCP server (mcp.py).
 
 Agents have full access: they read, write, append, move and archive like the
 person does. Moves go through the vault so links follow; archiving moves files
-to `.archive/`, where the person can restore them for 30 days, and never
-deletes. Changes the person should review first are filed
-as suggestions, in the same file and shape the app uses
-(`<wikis>/.ory/suggestions.json`), and show up in the app within seconds.
+to `.archive/`, where the person can restore them (for the period set in
+Settings, 30 days unless changed), and never deletes. Changes the person
+should review first are filed as suggestions, in the same file and shape the
+app uses (`<wikis>/.ory/suggestions.json`), and show up in the app within
+seconds.
 """
 
 from __future__ import annotations
@@ -16,7 +17,7 @@ import itertools
 import time
 from typing import Any, Dict, List, Optional
 
-from .vault import ARCHIVE_DAYS, NOTE_EXT, Vault, VaultError
+from .vault import NOTE_EXT, Vault, VaultError
 
 FINDING_KINDS = ("page", "add", "conflict", "link", "wiki", "fix")
 _KIND_WORDS = {
@@ -140,7 +141,7 @@ class Agent:
 
     def archived(self) -> Dict[str, Any]:
         """What is in the archive, and when Ory deletes each item."""
-        return {"days": ARCHIVE_DAYS, "items": self.vault.archived()}
+        return {"days": self.vault.archive_days, "items": self.vault.archived()}  # days 0: kept until deleted
 
     def restore(self, item: str) -> Dict[str, Any]:
         """Put an archived item (an id from archived) back where it came from."""

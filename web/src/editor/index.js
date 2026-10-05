@@ -12,7 +12,7 @@ import { drawSelection, EditorView, keymap, placeholder } from "@codemirror/view
 import { tags as t } from "@lezer/highlight";
 import { GFM, parser as commonmark } from "@lezer/markdown";
 
-import { spellchecks } from "../prefs.js";
+import { pairsBrackets, spellchecks } from "../prefs.js";
 import { attachments, insertFiles } from "./attachments.js";
 import { colourPreview } from "./colour-preview.js";
 import { wikilinkCompletion } from "./autocomplete.js";
@@ -49,6 +49,10 @@ const byOry = Annotation.define();
 
 /** Whether the text can be changed: not while a wiki page is being read. */
 const editability = new Compartment();
+
+/** Pairing ( [ { and ` as you type (Settings → Editing). */
+const pairing = new Compartment();
+const pairs = () => (pairsBrackets() ? closeBrackets() : []);
 const editable = (on) => (on ? [] : [EditorView.editable.of(false), EditorState.readOnly.of(true)]);
 
 // A backstop for reading: no command, keymap or widget can change the text
@@ -94,7 +98,7 @@ export function createEditor(parent, handlers) {
     yamlFrontmatter({ content: markdownSupport }),
     markdownLanguage.data.of({ closeBrackets: { brackets: ["(", "[", "{", "`"] } }),
     syntaxHighlighting(highlight),
-    closeBrackets(),
+    pairing.of(pairs()),
     search({ top: true }),
     livePreview({
       resolve: handlers.resolve,
@@ -148,6 +152,8 @@ export function createEditor(parent, handlers) {
   ];
 
   const view = new EditorView({ parent });
+  // Settings changed pairing: the open note follows at once; others as they open.
+  window.addEventListener("ory:pairing", () => view.dispatch({ effects: pairing.reconfigure(pairs()) }));
   const states = new Map(); // path -> EditorState, to keep undo history and cursor per note
   let crlf = false; // the open note's line endings on disk
 
@@ -166,7 +172,7 @@ export function createEditor(parent, handlers) {
       }
       view.setState(state);
       view.dispatch({
-        effects: [setSourceMode.of(source), setReading.of(reading), setQuiet.of(true), editability.reconfigure(editable(!reading))],
+        effects: [setSourceMode.of(source), setReading.of(reading), setQuiet.of(true), editability.reconfigure(editable(!reading)), pairing.reconfigure(pairs())],
       });
       handlers.afterOpen?.(view);
       handlers.onSelection?.(view.state);

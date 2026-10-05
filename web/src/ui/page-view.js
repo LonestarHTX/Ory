@@ -3,7 +3,7 @@
 // frame (see page_policy in ory/server.py), so it can script itself but
 // cannot reach Ory, the notes or the network.
 
-import { archivePath, ARCHIVE_NOTE, openFile } from "../actions.js";
+import { archivePath, archiveNote, openFile } from "../actions.js";
 import { fileName, folderOf } from "../links.js";
 import { linkTextFor, setCurrent } from "../store.js";
 import { h, icon } from "./dom.js";
@@ -87,7 +87,7 @@ export function createPageView(el) {
       { label: "Copy embed", run: () => navigator.clipboard?.writeText(`![[${linkTextFor(current, null)}]]`) },
       {
         label: "Archive",
-        confirm: `Archive "${fileName(current)}"? ${ARCHIVE_NOTE}`,
+        confirm: `Archive "${fileName(current)}"? ${archiveNote()}`,
         run: () => archivePath(current),
       },
     ]),

@@ -1,12 +1,13 @@
 // The Archive: everything archived from the notes folder (notes, files,
-// folders, whole wikis), newest first. Each item stays 30 days, then Ory
+// folders, whole wikis), newest first. Each item stays as long as Settings →
+// Archive says (30 days unless changed, or until you delete it), then Ory
 // deletes it (vault.archived). Restore puts it back where it was; Delete now,
 // in its "..." menu, deletes it at once.
 
 import { alertError, notify } from "../actions.js";
 import { api } from "../api.js";
 import { folderOf } from "../links.js";
-import { on } from "../store.js";
+import { on, store } from "../store.js";
 import { formatDate, h, icon, relativeDay } from "./dom.js";
 import { openMenu } from "./menu.js";
 
@@ -85,7 +86,9 @@ export function createArchiveView(el) {
     if (!items) return el.replaceChildren(head);
     if (!items.length) {
       return el.replaceChildren(head, h("div", { class: "empty-state" },
-        h("p", null, "Nothing archived. Archived notes, folders and wikis stay here for 30 days, then they're deleted for good.")));
+        h("p", null, store.archiveDays
+          ? `Nothing archived. Archived notes, folders and wikis stay here for ${store.archiveDays} days, then they're deleted for good.`
+          : "Nothing archived. Archived notes, folders and wikis stay here until you delete them.")));
     }
     el.replaceChildren(head, h("div", { class: "archive-body" },
       h("table", { class: "archive-table" },
@@ -116,8 +119,9 @@ export function createArchiveView(el) {
         size ? h("span", { class: "archive-size" }, size) : null)),
       h("td", { class: folder == null ? "is-quiet" : "" },
         folder == null ? "Not recorded" : folder || "Top of the notes folder"),
-      h("td", { class: kept ? "is-quiet" : "" }, kept ? "Not recorded" : archivedWords(item.archivedAt * 1000)),
-      h("td", { class: kept ? "is-quiet" : "" }, kept ? "Not scheduled" : h("span", { class: "archive-when" },
+      h("td", { class: item.archivedAt == null ? "is-quiet" : "" }, item.archivedAt == null ? "Not recorded" : archivedWords(item.archivedAt * 1000)),
+      // Kept: Settings keeps archived things until you delete them. Not scheduled: put there some other way.
+      h("td", { class: kept ? "is-quiet" : "" }, kept ? (item.archivedAt == null ? "Not scheduled" : "Kept") : h("span", { class: "archive-when" },
         soon ? h("span", { class: "status-dot warning" }) : null,
         capital(relativeDay(new Date(item.deletesAt * 1000))))),
       h("td", { class: "archive-actions" },

@@ -26,6 +26,8 @@ class Config:
     config_path: str = DEFAULT_CONFIG
     notes_from_flag: bool = False  # --notes was given, so the file's notes_dir is not in use
     recent_notes_dirs: List[str] = field(default_factory=list)  # folders switched away from, newest first
+    daily_template: str = ""  # a note whose text starts each daily note; "" for none
+    archive_days: int = 30  # how long archived things are kept; 0 keeps them
     command: List[str] = field(default_factory=list)  # e.g. ["read", "Welcome"]; empty runs the app
 
 
@@ -99,6 +101,8 @@ def load(argv: Optional[List[str]] = None) -> Config:
         config_path=os.path.abspath(args.config),
         notes_from_flag=bool(args.notes),
         recent_notes_dirs=[d for d in data.get("recent_notes_dirs", []) if isinstance(d, str)],
+        daily_template=str(data.get("daily_template") or ""),
+        archive_days=int(data.get("archive_days", 30)),
     )
 
 
@@ -120,6 +124,8 @@ def save(cfg: Config) -> None:
     data["guides"] = cfg.guides
     data["prompt_budget"] = cfg.prompt_budget
     data["recent_notes_dirs"] = cfg.recent_notes_dirs
+    data["daily_template"] = cfg.daily_template
+    data["archive_days"] = cfg.archive_days
     tmp = cfg.config_path + ".tmp"
     with open(tmp, "w", encoding="utf-8") as fh:
         json.dump(data, fh, indent=2)

@@ -1,6 +1,6 @@
 // Backlinks for the open note: a view of the right panel (ui/panel.js).
 
-import { openNote } from "../actions.js";
+import { clickOptions, openNote } from "../actions.js";
 import { api } from "../api.js";
 import { on, store } from "../store.js";
 import { h } from "./dom.js";
@@ -36,9 +36,9 @@ export function createBacklinks(el) {
     }
     body.replaceChildren(...backlinks.map((b) =>
       h("section", { class: "backlink" },
-        h("button", { class: "backlink-note", type: "button", onClick: () => openNote(b.path) }, b.name),
+        h("button", { class: "backlink-note", type: "button", onClick: (e) => openNote(b.path, clickOptions(e)) }, b.name),
         b.lines.map((l) =>
-          h("button", { class: "backlink-line", type: "button", onClick: () => openNote(b.path, { line: l.line }) },
+          h("button", { class: "backlink-line", type: "button", onClick: (e) => openNote(b.path, clickOptions(e, { line: l.line })) },
             readable(l.text))))));
   }
 

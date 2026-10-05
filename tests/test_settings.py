@@ -33,6 +33,20 @@ class SettingsTests(unittest.TestCase):
         with open(self.config_path) as fh:
             return json.load(fh)
 
+    def test_daily_template_and_archive_period(self):
+        with open(os.path.join(self.first, "Template.md"), "w") as fh:
+            fh.write("# {{title}}\n")
+        self.state.vault.refresh()
+        result = settings.update(self.state, {"dailyTemplate": "Template", "archiveDays": 90})
+        self.assertEqual((result["dailyTemplate"], result["archiveDays"]), ("Template.md", 90))
+        self.assertEqual((self.state.vault.daily_template, self.state.vault.archive_days), ("Template.md", 90))
+        self.assertEqual(self.saved()["archive_days"], 90)
+        with self.assertRaises(VaultError):
+            settings.update(self.state, {"dailyTemplate": "Nowhere"})
+        with self.assertRaises(VaultError):
+            settings.update(self.state, {"archiveDays": 12})
+        self.assertEqual(settings.update(self.state, {"dailyTemplate": ""})["dailyTemplate"], "")
+
     def test_switching_remembers_the_folders_left(self):
         result = settings.update(self.state, {"notesDir": self.second})
         self.assertEqual(result["recentNotesDirs"], [os.path.realpath(self.first)])

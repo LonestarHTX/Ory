@@ -4,14 +4,14 @@
 // onto a folder to add them.
 
 import {
-  alertError, archivePath, ARCHIVE_NOTE, displayName, movePath, newFolder, newNote, openFile, openNote, renamePath,
+  alertError, archivePath, archiveNote, clickOptions, displayName, movePath, newFolder, newNote, openFile, openNote, renamePath,
 } from "../actions.js";
 import { api } from "../api.js";
 import { fileName, folderOf, isImage, isPage } from "../links.js";
 import { loadIndex, on, store } from "../store.js";
 import { isPinned, togglePin } from "../pins.js";
 import { wikiOf } from "../wikis.js";
-import { h, icon, mod } from "./dom.js";
+import { h, icon } from "./dom.js";
 import { openMenu } from "./menu.js";
 
 const EXPANDED_KEY = "ory.expanded";
@@ -121,7 +121,7 @@ export function createTree(el) {
       tabindex: -1,
       // Cmd-click opens a note in a new tab; Option-click beside the one you're in.
       onClick: (e) => (kind === "folder" ? toggle(path) : kind === "file" && !isPage(path) ? openFile(path)
-        : openNote(path, { newTab: mod(e), beside: e.altKey && kind === "note" })),
+        : openNote(path, kind === "note" ? clickOptions(e) : { newTab: clickOptions(e).newTab })),
     },
     kind === "folder" ? h("span", { class: `tree-chevron${isOpen ? " is-open" : ""}` }, icon("chevron", 14)) : null,
     kind === "file"
@@ -174,7 +174,7 @@ export function createTree(el) {
     items.push({ label: "Rename", run: () => startRename(path) });
     items.push({
       label: "Archive",
-      confirm: kind === "folder" ? `Archive "${name}" and everything in it? ${ARCHIVE_NOTE}` : `Archive "${name}"? ${ARCHIVE_NOTE}`,
+      confirm: kind === "folder" ? `Archive "${name}" and everything in it? ${archiveNote()}` : `Archive "${name}"? ${archiveNote()}`,
       run: () => archivePath(path),
     });
     return items;

@@ -3,7 +3,7 @@
 import "./styles.css";
 
 import {
-  alertError, closeNote, currentRoute, newNote, notify, openArchive, openNote, openSearch, openSettings, openSuggestions,
+  alertError, clickOptions, closeNote, currentRoute, newNote, notify, openArchive, openNote, openSearch, openSettings, openSuggestions,
   openToday, openWikis, takeOpenOptions,
 } from "./actions.js";
 import { api } from "./api.js";
@@ -11,7 +11,7 @@ import { emit, linkTextFor, loadIndex, on, recentPaths, resolve, setCurrent, sto
 import { createArchiveView } from "./ui/archive-view.js";
 import { noteName } from "./links.js";
 import { pinned } from "./pins.js";
-import { pref, setPref } from "./prefs.js";
+import { NOTE_FONT_KEY, NOTE_WIDTH_KEY, PANEL_WIDTH_KEY, pref, setPref, SIDE_WIDTH_KEY, sideShows, START_KEY } from "./prefs.js";
 import { createBacklinks } from "./ui/backlinks.js";
 import { createFolderSwitcher } from "./ui/folder-switcher.js";
 import { createInfo } from "./ui/info.js";
@@ -157,10 +157,11 @@ const recentList = h("div", { class: "nav-list" });
 const recentGroup = h("div", { hidden: true }, sectionHead("Recent"), recentList);
 const tree = h("div", { class: "tree" });
 
+const todayRow = navItem("calendar", "Today's note", "Mod-Shift-D", openToday);
 const notesPanel = h("div", { class: "space-panel", dataset: { space: "notes" } },
   h("div", { class: "nav-list" },
     navItem("edit", "New note", null, () => newNote().catch(alertError)),
-    navItem("calendar", "Today's note", "Mod-Shift-D", openToday)),
+    todayRow),
   pinnedGroup,
   sectionHead("Folders", iconButton("newFolder", "New folder", () => treeView.newFolder())),
   tree,
@@ -174,21 +175,21 @@ const RECENT_ROWS = 5;
 /** A note's row in Pinned or Recent. */
 function noteRow(path) {
   const row = navItem(path.startsWith(store.dailyFolder + "/") ? "calendar" : "file", noteName(path), null,
-    (e) => openNote(path, { newTab: mod(e), beside: e.altKey }));
+    (e) => openNote(path, clickOptions(e)));
   row.classList.toggle("is-selected", path === store.currentPath);
   return row;
 }
 
 function renderPinned() {
   const paths = pinned().filter((p) => store.paths.includes(p));
-  pinnedGroup.hidden = !paths.length;
+  pinnedGroup.hidden = !paths.length || !sideShows("pinned");
   pinnedList.replaceChildren(...paths.map(noteRow));
 }
 
 // Recent: where you were, not the note you're in.
 function renderRecent() {
   const paths = recentPaths().filter((p) => p !== store.currentPath && store.paths.includes(p) && !wikiOf(p)).slice(0, RECENT_ROWS);
-  recentGroup.hidden = !paths.length;
+  recentGroup.hidden = !paths.length || !sideShows("recent");
   recentList.replaceChildren(...paths.map(noteRow));
 }
 
@@ -541,7 +542,7 @@ function addSource() {
 }
 
 applyPanes();
-const settings = createSettings({ theme: themeControl });
+const settings = createSettings({ theme: themeControl, pickNote: (done) => switcher.open({ pick: done }) });
 window.addEventListener("ory:settings", (e) => settings.open(e.detail?.section));
 
 // While suggestions wait, the rail's Suggestions bulb is cast in liquid silver
@@ -583,6 +584,53 @@ function setPlace() {
 setSpace("notes");
 
 on("pins", renderPinned);
+
+// Settings → Appearance and Layout: note width and font, which sidebar groups
+// show, and the sidebar's and panel's widths (dragged at their edges).
+function applyLook() {
+  const root = document.documentElement;
+  root.dataset.noteWidth = pref(NOTE_WIDTH_KEY, "default");
+  root.dataset.noteFont = pref(NOTE_FONT_KEY, "sans");
+  todayRow.hidden = !sideShows("today");
+  renderPinned();
+  renderRecent();
+  for (const [key, prop] of [[SIDE_WIDTH_KEY, "--side-w"], [PANEL_WIDTH_KEY, "--panel-w"]]) {
+    const width = Number(pref(key, ""));
+    if (width) root.style.setProperty(prop, `${width}px`);
+    else root.style.removeProperty(prop);
+  }
+}
+window.addEventListener("ory:look", applyLook);
+applyLook();
+
+// Dragging the sidebar's right edge or the panel's left edge resizes it;
+// double-clicking an edge puts it back to its usual width.
+const SIZES = { side: [SIDE_WIDTH_KEY, "--side-w", 200, 400], panel: [PANEL_WIDTH_KEY, "--panel-w", 240, 440] };
+for (const [which, el] of [["side", left], ["panel", panel.el]]) {
+  const [key, prop, min, max] = SIZES[which];
+  const edge = h("div", { class: `edge-resize edge-${which}`, "aria-hidden": "true", dataset: { tip: "Drag to resize; double-click for the usual width" } });
+  el.append(edge);
+  edge.addEventListener("pointerdown", (e) => {
+    e.preventDefault();
+    try {
+      edge.setPointerCapture(e.pointerId);
+    } catch {
+      /* no pointer to capture (a synthetic event): the drag still works over the edge */
+    }
+    const box = el.getBoundingClientRect();
+    const move = (ev) => {
+      const width = Math.round(Math.min(max, Math.max(min, which === "side" ? ev.clientX - box.left : box.right - ev.clientX)));
+      document.documentElement.style.setProperty(prop, `${width}px`);
+      setPref(key, String(width));
+    };
+    edge.addEventListener("pointermove", move);
+    edge.addEventListener("pointerup", () => edge.removeEventListener("pointermove", move), { once: true });
+  });
+  edge.addEventListener("dblclick", () => {
+    setPref(key, "");
+    applyLook();
+  });
+}
 on("current", () => {
   renderPinned();
   renderRecent();
@@ -862,10 +910,17 @@ async function reopenBeside() {
     renderEmpty(err.message);
     return;
   }
-  api.settings().then((s) => setBudget(s.promptBudget)).catch(() => {});
+  api.settings().then((s) => {
+    setBudget(s.promptBudget);
+    store.archiveDays = s.archiveDays;
+  }).catch(() => {});
   // A broken suggestions file mustn't keep the notes from opening.
   loadSuggestions().catch((err) => notify(`Suggestions could not be loaded: ${err.message}`, "error"));
+  // Where Ory starts (Settings → Notes): the last note, today's note, or All wikis.
   if (!location.hash) {
+    const start = pref(START_KEY, "last");
+    if (start === "today") return openToday();
+    if (start === "wikis") return openWikis();
     const last = recentPaths().find((p) => store.paths.includes(p));
     if (last) return openNote(last, { replace: true });
   }
