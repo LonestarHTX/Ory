@@ -1,7 +1,9 @@
-// Quick switcher (Mod-O): type to find a note by name, alias or path.
-// Enter opens; Shift+Enter creates a note with the typed name.
+// Quick switcher (Mod-O, or the header's field): type to find a note by name,
+// alias or path. Enter opens; Shift+Enter creates a note with the typed name;
+// the last row, or Mod+Enter, searches every note for it. It opens docked over
+// the header's field when there is one.
 
-import { createNote, openNote } from "../actions.js";
+import { createNote, openNote, openSearch } from "../actions.js";
 import { folderOf } from "../links.js";
 import { recentPaths, store } from "../store.js";
 import { closeMenu } from "./menu.js";
@@ -56,8 +58,10 @@ function results(query) {
   return scored.slice(0, LIMIT);
 }
 
-export function createSwitcher() {
+/** anchor: returns the field to open over, or null to open in the middle. */
+export function createSwitcher({ anchor = () => null } = {}) {
   let dialog = null;
+  let place = null;
   let returnFocus = null;
 
   function open() {
@@ -69,7 +73,7 @@ export function createSwitcher() {
 
     const input = h("input", {
       class: "input switcher-field",
-      placeholder: "Find a note or type a name to create it",
+      placeholder: "Open a note or search",
       "aria-label": "Note name",
       "aria-controls": "switcher-list",
       "aria-autocomplete": "list",
@@ -84,6 +88,7 @@ export function createSwitcher() {
       h("span", null, keys("Up"), keys("Down"), " Move"),
       h("span", null, keys("Enter"), " Open"),
       h("span", null, keys("Shift-Enter"), " Create"),
+      h("span", null, keys("Mod-Enter"), " Search"),
       h("span", null, h("kbd", { class: "kbd" }, "esc"), " Close"));
 
     const render = () => {
@@ -91,11 +96,14 @@ export function createSwitcher() {
       items = results(input.value);
       const exact = store.notes.some((n) => n.name.toLowerCase() === query.toLowerCase() || n.path.toLowerCase() === (query + ".md").toLowerCase());
       if (query && !exact) items.push({ create: query });
+      if (query) items.push({ search: query });
       selected = Math.min(selected, Math.max(0, items.length - 1));
       list.replaceChildren(...items.map((item, i) => {
         const option = item.create
           ? h("div", { class: "switcher-item" }, h("span", { class: "switcher-name" }, `Create "${item.create}"`), keys("Shift-Enter"))
-          : h("div", { class: "switcher-item" },
+          : item.search
+            ? h("div", { class: "switcher-item" }, h("span", { class: "switcher-name" }, `Search every note for "${item.search}"`), keys("Mod-Enter"))
+            : h("div", { class: "switcher-item" },
               h("span", { class: "switcher-name" }, item.note.name),
               item.alias ? h("span", { class: "switcher-hint" }, item.alias) : null,
               h("span", { class: "switcher-path" }, folderOf(item.note.path)));
@@ -115,6 +123,11 @@ export function createSwitcher() {
     const choose = async (i, forceCreate = false) => {
       const item = items[i];
       const query = input.value.trim();
+      if (item?.search) {
+        close(false);
+        openSearch(item.search);
+        return;
+      }
       if (forceCreate || item?.create) {
         const name = forceCreate ? query : item.create;
         if (!name) return;
@@ -152,7 +165,13 @@ export function createSwitcher() {
       };
       if (e.key === "ArrowDown" || (e.ctrlKey && e.key === "n")) move(1);
       else if (e.key === "ArrowUp" || (e.ctrlKey && e.key === "p")) move(-1);
-      else if (e.key === "Enter") {
+      else if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+        e.preventDefault();
+        if (input.value.trim()) {
+          close(false);
+          openSearch(input.value.trim());
+        }
+      } else if (e.key === "Enter") {
         e.preventDefault();
         choose(selected, e.shiftKey);
       } else if (e.key === "Escape") {
@@ -163,15 +182,29 @@ export function createSwitcher() {
       }
     });
 
-    dialog = h("div", { class: "scrim", onMousedown: (e) => e.target === dialog && close() },
-      h("div", { class: "window switcher", role: "dialog", "aria-modal": "true", "aria-label": "Open note" },
-        input, error, list, foot));
+    const field = anchor();
+    const docked = !!field?.offsetParent;
+    const win = h("div", { class: `window switcher${docked ? " is-docked" : ""}`, role: "dialog", "aria-modal": "true", "aria-label": "Open a note or search" },
+      input, error, list, foot);
+    dialog = h("div", { class: `scrim${docked ? " is-docked" : ""}`, onMousedown: (e) => e.target === dialog && close() }, win);
     document.body.append(dialog);
+    if (docked) {
+      // Its field lands on the header's: the window's border and the field's
+      // margin (1 + 4px) are taken off each side.
+      place = () => {
+        const box = field.getBoundingClientRect();
+        Object.assign(win.style, { top: `${box.top - 5}px`, left: `${box.left - 5}px`, width: `${box.width + 10}px` });
+      };
+      place();
+      window.addEventListener("resize", place);
+    }
     render();
     input.focus();
   }
 
   function close(restore = true) {
+    if (place) window.removeEventListener("resize", place);
+    place = null;
     if (dialog) {
       const leaving = dialog;
       leave(leaving.firstChild, () => {});

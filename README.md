@@ -69,7 +69,7 @@ tools can show:
 
 ## Notes and wikis
 
-Ory has two spaces over the same folder, switched at the top of the sidebar:
+Ory has two spaces over the same folder, switched at the top left of the window:
 
 - **Notes** are where you think: quick, dated, messy. They open straight into the
   editor. Everything outside the wikis folder is notes.
@@ -139,7 +139,8 @@ sidebar or Cmd+,. It has five sections:
 
 - **Folders:** switch the notes folder without restarting, and name the daily notes,
   attachments and wikis folders. These are saved in `ory.config.json` on this computer.
-- **Appearance:** light, dark, or following the computer. Kept in the browser.
+- **Appearance:** the theme, Neutral (Ory's own greys) or Dusk (violet warming to
+  wine), and light, dark or following the computer. Kept in the browser.
 - **Editing:** whether notes open in live preview or source, whether wiki pages open
   for reading or editing, and spell check. Kept in the browser.
 - **AI:** whether Claude Desktop and Claude Code are connected to Ory's tools, a switch
@@ -193,7 +194,7 @@ agent to "find suggestions for my wikis", with no copying and pasting.
 
 | Key | Does |
 | --- | --- |
-| Cmd+O | Open or create a note (Shift+Enter creates) |
+| Cmd+O | Open or create a note, from the field at the top (Shift+Enter creates, Cmd+Enter searches every note) |
 | Cmd+Shift+F | Search all notes |
 | Cmd+Shift+D | Open today's note (`Daily/YYYY-MM-DD.md`) |
 | `[[` | Link to a note, with autocomplete |

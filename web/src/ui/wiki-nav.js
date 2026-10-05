@@ -2,7 +2,7 @@
 // one it becomes that wiki's contents: Home, its pages, a heading for each
 // subfolder, then the wiki's upkeep pages (Instructions, Log) at the bottom.
 
-import { alertError, createNote, currentRoute, newNote, openNote, openSearch, openSuggestions, openWikis } from "../actions.js";
+import { alertError, createNote, currentRoute, newNote, openNote, openSuggestions, openWikis } from "../actions.js";
 import { waiting } from "../suggestions/state.js";
 import { silverBulb } from "./silver-icon.js";
 import { noteName } from "../links.js";
@@ -41,8 +41,7 @@ export function createWikiNav(el) {
     return [
       h("div", { class: "nav-list" },
         row({ iconName: "grid", label: "All wikis", selected: home, run: openWikis }),
-        suggestionsRow(),
-        row({ iconName: "search", label: "Search", shortcut: "Mod-Shift-F", run: () => openSearch() })),
+        suggestionsRow()),
       h("div", { class: "side-section-head" },
         h("h2", { class: "side-title" }, "Wikis"),
         h("div", { class: "side-actions" },

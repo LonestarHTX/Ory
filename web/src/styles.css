@@ -91,6 +91,62 @@
   --scheme: light;
 }
 
+/* ---------- Themes ----------
+   Light or dark is one choice; the theme is another. A theme only colours the
+   frame (the header and both side bars, one surface) and the card the open
+   view is set into. Neutral is Ory's own greys. Dusk is the one place hue and a
+   gradient are allowed: violet grey on the left warming to wine at the top
+   right, sampled from a browser theme. The [data-palette] forms also colour
+   the previews in Settings, whatever theme is in use. */
+:root,
+[data-palette="neutral"] {
+  --chrome: var(--sidebar);
+  --content: var(--card);
+  --head-well: var(--field);
+}
+
+:root {
+  --content-line: transparent;
+  --content-shadow: none;
+  --switch-track: var(--canvas); /* below the panel, so the chosen space stands out */
+  --switch-on: var(--card);
+  --switch-ring: linear-gradient(var(--switch-on), var(--switch-on));
+}
+
+/* In light mode the card is set apart by a hairline and a faint shadow. */
+:root[data-theme="light"] {
+  --content-line: rgba(0, 0, 0, 0.11);
+  --content-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+  --switch-track: var(--selected);
+}
+
+[data-palette="dusk"] {
+  --chrome: radial-gradient(ellipse 60% 120% at 100% 0, #492221, transparent),
+    linear-gradient(to right, #282237, #2a2233 45%, #3a1e1e);
+  --content: #131215;
+  --head-well: #211a2a;
+}
+
+:root[data-palette="dusk"] {
+  --switch-track: rgba(0, 0, 0, 0.24);
+  --switch-on: #131215;
+  --switch-ring: linear-gradient(90deg, #8e87a9, #c39c92); /* the chosen space, outlined lilac to peach */
+}
+
+:root[data-theme="light"][data-palette="dusk"],
+:root[data-theme="light"] [data-palette="dusk"] {
+  --chrome: radial-gradient(ellipse 60% 120% at 100% 0, #f3dcd9, transparent),
+    linear-gradient(to right, #e8e5f0, #ece7f0 45%, #f2e5e3);
+  --content: #ffffff;
+  --head-well: #ffffff;
+}
+
+:root[data-theme="light"][data-palette="dusk"] {
+  --switch-track: rgba(0, 0, 0, 0.06);
+  --switch-on: #ffffff;
+  --switch-ring: linear-gradient(90deg, #8a83a8, #c09086);
+}
+
 /* Names the first version of text colour wrote into notes. */
 :root {
   --color-blue: var(--ink-blue);
@@ -310,10 +366,59 @@ html[data-theme-fade]::view-transition-new(root) {
 
 /* ---------- Layout ---------- */
 
+/* The frame: a header row across the window (the space switch over the
+   left side bar, the field over the open view), both side bars below it, and
+   the open view set in between as a card. One surface, var(--chrome). */
 .app {
   display: grid;
   grid-template-columns: var(--side-w) minmax(0, 1fr);
+  grid-template-rows: var(--head-h) minmax(0, 1fr);
   height: 100vh;
+  background: var(--chrome);
+}
+
+.app-head-switch {
+  grid-row: 1;
+  grid-column: 1;
+  display: flex;
+  align-items: center;
+  padding: 0 calc(var(--gutter) - 8px);
+}
+
+.head-field {
+  grid-row: 1;
+  grid-column: 2;
+  align-self: center;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 32px;
+  padding: 0 8px 0 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-ctl);
+  background: var(--head-well);
+  color: var(--text-3);
+  font-size: 13px;
+  transition: border-color 0.12s ease, color 0.12s ease;
+}
+
+.head-field:hover {
+  border-color: var(--line-strong);
+  color: var(--text-2);
+}
+
+.head-field > span {
+  flex: 1;
+}
+
+.sidebar-left {
+  grid-row: 2;
+  grid-column: 1;
+}
+
+.sidebar-right {
+  grid-row: 2;
+  grid-column: 3;
 }
 
 .app.has-rail {
@@ -329,18 +434,36 @@ html[data-theme-fade]::view-transition-new(root) {
   flex-direction: column;
   min-height: 0;
   overflow: hidden;
-  background: var(--sidebar);
   font-size: 13px;
 }
 
-.sidebar-left {
-  border-right: 1px solid var(--line);
-}
-
 .sidebar-right {
-  border-left: 1px solid var(--line);
   overflow-y: auto;
   padding-bottom: var(--gutter);
+}
+
+/* The open view: a card set into the frame. Inside it, "raised" is the card's
+   own colour, so anything drawn in the card colour matches it in every theme. */
+.main {
+  --card: var(--content);
+  grid-row: 2;
+  grid-column: 2;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  margin-bottom: 8px;
+  overflow: hidden;
+  border: 1px solid var(--content-line);
+  border-radius: var(--r-card);
+  background: var(--content);
+  box-shadow: var(--content-shadow);
+}
+
+/* With no side bar on the right, the card and the field keep off the edge. */
+.app:not(.has-rail) .main,
+.app:not(.has-rail) .head-field {
+  margin-right: 8px;
 }
 
 @media (max-width: 1100px) {
@@ -352,14 +475,11 @@ html[data-theme-fade]::view-transition-new(root) {
   .sidebar-right {
     display: none;
   }
-}
 
-.main {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-  min-height: 0;
-  background: var(--card);
+  .app.has-rail .main,
+  .app.has-rail .head-field {
+    margin-right: 8px;
+  }
 }
 
 .view {
@@ -371,14 +491,6 @@ html[data-theme-fade]::view-transition-new(root) {
 
 /* ---------- Sidebars ---------- */
 
-.side-head {
-  flex: none;
-  display: flex;
-  align-items: center;
-  height: var(--head-h);
-  padding: 0 calc(var(--gutter) - 8px);
-}
-
 /* Notes | Wikis: the two spaces, as a segmented control. */
 .space-switch {
   display: grid;
@@ -387,12 +499,7 @@ html[data-theme-fade]::view-transition-new(root) {
   height: 32px;
   padding: 2px;
   border-radius: var(--r-ctl);
-  background: var(--selected);
-}
-
-/* In dark mode the track sits below the panel, so the raised card stands out. */
-:root[data-theme="dark"] .space-switch {
-  background: var(--canvas);
+  background: var(--switch-track);
 }
 
 .space-tab {
@@ -410,8 +517,10 @@ html[data-theme-fade]::view-transition-new(root) {
   color: var(--text);
 }
 
+/* The chosen space takes the card's colour; Dusk outlines it. */
 .space-tab.is-selected {
-  background: var(--card);
+  border: 1px solid transparent;
+  background: linear-gradient(var(--switch-on), var(--switch-on)) padding-box, var(--switch-ring) border-box;
   color: var(--text);
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.16);
 }
@@ -2114,6 +2223,28 @@ html[data-theme-fade]::view-transition-new(root) {
   margin-right: 4px;
 }
 
+/* Docked: the switcher opens over the header's field, its own field exactly
+   where that one was, and the list drops below. No veil: nothing moves. */
+.scrim.is-docked {
+  padding: 0;
+  background: transparent;
+  animation: none;
+}
+
+.switcher.is-docked {
+  position: fixed;
+  width: auto;
+  max-height: min(70vh, 560px);
+  animation: veil-in 0.12s ease;
+}
+
+.switcher.is-docked .switcher-field {
+  height: 32px;
+  margin: 4px;
+  padding: 0 11px;
+  font-size: 13px;
+}
+
 /* ---------- Pages ---------- */
 
 .page-body {
@@ -3606,6 +3737,111 @@ h3.setting-label {
 .settings-key:last-child dt,
 .settings-key:last-child dd {
   border-bottom: 0;
+}
+
+/* Themes: a card per theme, each with a small window drawn in its colours
+   (the [data-palette] tokens), so both can be seen whichever is in use. */
+.theme-cards {
+  display: flex;
+  gap: 12px;
+}
+
+.theme-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 200px;
+  padding: 8px;
+  border-radius: var(--r-ctl);
+  color: var(--text-2);
+}
+
+.theme-card:hover {
+  background: var(--hover);
+}
+
+.theme-card.is-selected {
+  background: var(--selected);
+  color: var(--text);
+}
+
+.theme-card-name {
+  margin-top: 4px;
+  font-weight: 500;
+}
+
+.theme-card-note {
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--text-3);
+}
+
+/* Hint text steps up to secondary on a selected fill, where it passes 4.5:1. */
+.theme-card.is-selected .theme-card-note {
+  color: var(--text-2);
+}
+
+.theme-preview {
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr);
+  grid-template-rows: 24px minmax(0, 1fr);
+  height: 104px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--chrome);
+}
+
+.theme-preview-head {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr);
+  align-items: center;
+}
+
+.theme-preview-switch {
+  width: 32px;
+  height: 12px;
+  margin-left: 8px;
+  border-radius: var(--r-sm);
+  background: var(--line-strong);
+}
+
+.theme-preview-field {
+  height: 12px;
+  margin-right: 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--head-well);
+}
+
+.theme-preview-side {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 4px 8px;
+}
+
+.theme-preview-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0 8px 8px 0;
+  padding: 12px;
+  border: 1px solid var(--content-line);
+  border-radius: var(--r-sm);
+  background: var(--content);
+}
+
+.theme-preview i {
+  display: block;
+  height: 4px;
+  background: var(--line-strong);
+}
+
+.theme-preview-side i:nth-child(2),
+.theme-preview-card i:nth-child(3) {
+  width: 60%;
 }
 
 /* A choice of a few options, like the Notes | Wikis switch. */

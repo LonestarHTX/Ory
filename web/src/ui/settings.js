@@ -18,13 +18,17 @@ const SECTIONS = [
   { id: "shortcuts", label: "Shortcuts", icon: "keyboard" },
 ];
 const SECTION_KEY = "ory.settingsSection";
+const THEMES = [
+  ["neutral", "Neutral", "Ory's own greys"],
+  ["dusk", "Dusk", "Violet warming to wine"],
+];
 const FOLDER_KEYS = ["notesDir", "dailyFolder", "attachmentsFolder", "wikisFolder"];
 const DESKTOP_CHECK_MS = 2500;
 
 const FOCUSABLE = "button:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex='-1'])";
 const focusables = (root) => [...root.querySelectorAll(FOCUSABLE)].filter((el) => el.offsetParent);
 
-/** theme: {get(), set(name)} from main.js, which owns the theme. */
+/** theme: {mode, palette}, each {get(), set(value)}, from main.js, which owns the theme. */
 export function createSettings({ theme }) {
   let settings = null;
   let error = "";
@@ -246,10 +250,32 @@ export function createSettings({ theme }) {
   function appearance() {
     return h("section", { class: "settings-section" },
       h("p", { class: "settings-intro" }, "Kept in this browser."),
-      choice("Theme", [["system", "System"], ["light", "Light"], ["dark", "Dark"]], theme.get(), (v) => {
-        theme.set(v);
+      themes(),
+      choice("Light or dark", [["system", "System"], ["light", "Light"], ["dark", "Dark"]], theme.mode.get(), (v) => {
+        theme.mode.set(v);
         render();
-      }, "System follows your computer's light or dark setting."));
+      }, "System follows your computer's setting."));
+  }
+
+  /** The themes as cards, each drawing a small Ory window in its own colours. */
+  function themes() {
+    const preview = (id) => h("span", { class: "theme-preview", dataset: { palette: id }, "aria-hidden": "true" },
+      h("span", { class: "theme-preview-head" }, h("span", { class: "theme-preview-switch" }), h("span", { class: "theme-preview-field" })),
+      h("span", { class: "theme-preview-side" }, h("i"), h("i"), h("i")),
+      h("span", { class: "theme-preview-card" }, h("i"), h("i"), h("i")));
+    const current = theme.palette.get();
+    return h("div", { class: "setting" },
+      h("span", { class: "setting-label" }, "Theme"),
+      h("div", { class: "theme-cards", role: "radiogroup", "aria-label": "Theme" },
+        THEMES.map(([id, name, note]) => h("button", {
+          class: `theme-card${id === current ? " is-selected" : ""}`, type: "button", role: "radio",
+          "aria-checked": String(id === current),
+          onClick: () => {
+            if (id === current) return;
+            theme.palette.set(id);
+            render();
+          },
+        }, preview(id), h("span", { class: "theme-card-name" }, name), h("span", { class: "theme-card-note" }, note)))));
   }
 
   function editing() {

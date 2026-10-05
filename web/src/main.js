@@ -28,27 +28,31 @@ import { wikiOf } from "./wikis.js";
 
 const POLL_MS = 2000;
 
-// Theme: follows the system until chosen, then remembered ---------------------
+// Theme: two choices, both remembered. Light or dark (following the system
+// until chosen), and the theme, Neutral or Dusk (see Themes in styles.css).
 
-const THEME_KEY = "ory.theme";
-const THEMES = ["system", "light", "dark"];
+const MODE_KEY = "ory.theme";
+const MODES = ["system", "light", "dark"];
+const PALETTE_KEY = "ory.palette";
+const PALETTES = ["neutral", "dusk"];
 
-function readTheme() {
+function readChoice(key, choices) {
   try {
-    const value = localStorage.getItem(THEME_KEY);
-    return THEMES.includes(value) ? value : "system";
+    const value = localStorage.getItem(key);
+    return choices.includes(value) ? value : choices[0];
   } catch {
-    return "system";
+    return choices[0];
   }
 }
 
 const systemDark = window.matchMedia("(prefers-color-scheme: dark)");
 
-function applyTheme(theme) {
+function applyTheme() {
   // Colour transitions are held off so no element fades between themes by itself.
   const root = document.documentElement;
   root.classList.add("theme-switching");
-  root.dataset.theme = theme === "system" ? (systemDark.matches ? "dark" : "light") : theme;
+  root.dataset.theme = mode === "system" ? (systemDark.matches ? "dark" : "light") : mode;
+  root.dataset.palette = palette;
   void root.offsetWidth; // apply the new colours before transitions return
   root.classList.remove("theme-switching");
   broadcastTheme(); // pages in frames that listen for it
@@ -56,12 +60,12 @@ function applyTheme(theme) {
 
 // The theme cross-fades over 0.24s like any other state change.
 // Without view transitions, or with reduced motion, it switches at once.
-function fadeTo(theme) {
+function fadeTheme() {
   const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  if (!document.startViewTransition || still) return applyTheme(theme);
+  if (!document.startViewTransition || still) return applyTheme();
   const root = document.documentElement;
   root.dataset.themeFade = "";
-  const transition = document.startViewTransition(() => applyTheme(theme));
+  const transition = document.startViewTransition(applyTheme);
   // A hidden tab skips the animation and rejects `ready`; the theme still switches.
   transition.ready.catch(() => {});
   transition.finished.finally(() => delete root.dataset.themeFade);
@@ -69,10 +73,14 @@ function fadeTo(theme) {
 
 // Layout ------------------------------------------------------------------------
 
-const switcher = createSwitcher();
+// The header's field: the quick switcher, docked. It finds and creates notes,
+// and its last row searches every note.
+const headField = h("button", {
+  class: "head-field", type: "button", "aria-haspopup": "dialog", onClick: () => switcher.open(),
+}, icon("search", 14), h("span", null, "Open a note or search"), keys("Mod-O"));
+const switcher = createSwitcher({ anchor: () => headField });
 installTooltips();
 
-const navSearch = navItem("search", "Search", "Mod-Shift-F", () => openSearch());
 const settingsButton = h("button", {
   class: "iconbtn", type: "button", "aria-label": "Settings", "aria-haspopup": "dialog",
   dataset: { tip: "Settings", tipKeys: "Mod-," }, onClick: () => openSettings(),
@@ -81,8 +89,8 @@ const settingsButton = h("button", {
 const vaultName = h("span", { class: "side-foot-name" });
 const tree = h("div", { class: "tree" });
 
-// Notes and wikis are two spaces in one notes folder: the switch at the top
-// of the sidebar moves between them, and the sidebar shows the one you're in.
+// Notes and wikis are two spaces in one notes folder: the switch in the header,
+// over the sidebar, moves between them, and the sidebar shows the one you're in.
 const spaceTab = (name, iconName, label, run) => h("button", {
   class: "space-tab", type: "button", role: "tab", dataset: { space: name }, onClick: run,
 }, icon(iconName, 14), label);
@@ -101,8 +109,6 @@ const spaceSwitch = h("div", { class: "space-switch", role: "tablist", "aria-lab
 
 const notesPanel = h("div", { class: "space-panel", dataset: { space: "notes" } },
   h("div", { class: "nav-list" },
-    navItem("newNote", "Open note", "Mod-O", () => switcher.open()),
-    navSearch,
     navItem("calendar", "Today's note", "Mod-Shift-D", openToday)),
   h("div", { class: "side-section-head" },
     h("h2", { class: "side-title" }, "Notes"),
@@ -119,7 +125,6 @@ const notesPanel = h("div", { class: "space-panel", dataset: { space: "notes" } 
 const wikisPanel = h("div", { class: "space-panel", dataset: { space: "wikis" }, hidden: true });
 
 const left = h("nav", { class: "sidebar sidebar-left", "aria-label": "Sidebar" },
-  h("div", { class: "side-head" }, spaceSwitch),
   notesPanel,
   wikisPanel,
   h("div", { class: "side-foot" }, vaultName, settingsButton));
@@ -134,7 +139,7 @@ const suggestionsEl = h("section", { class: "view suggestions-view", hidden: tru
 const main = h("main", { class: "main" }, errorBar, noteEl, pageEl, wikisEl, suggestionsEl, searchEl, emptyEl);
 const right = h("aside", { class: "sidebar sidebar-right", "aria-label": "Backlinks" });
 
-const app = h("div", { class: "app" }, left, main, right);
+const app = h("div", { class: "app" }, h("div", { class: "app-head-switch" }, spaceSwitch), headField, left, main, right);
 document.body.append(app);
 
 function navItem(iconName, label, shortcut, run) {
@@ -142,23 +147,28 @@ function navItem(iconName, label, shortcut, run) {
     icon(iconName, 16), h("span", { class: "nav-label" }, label), keys(shortcut));
 }
 
-// The theme is chosen in Settings; it follows the system until then.
-let theme = readTheme();
-const themeControl = {
-  get: () => theme,
+// Both are chosen in Settings → Appearance.
+let mode = readChoice(MODE_KEY, MODES);
+let palette = readChoice(PALETTE_KEY, PALETTES);
+const choice = (key, choices, get, set) => ({
+  get,
   set(next) {
-    if (!THEMES.includes(next) || next === theme) return;
-    theme = next;
+    if (!choices.includes(next) || next === get()) return;
+    set(next);
     try {
-      localStorage.setItem(THEME_KEY, theme);
+      localStorage.setItem(key, next);
     } catch {
       /* the choice lasts for this page only */
     }
-    fadeTo(theme);
+    fadeTheme();
   },
+});
+const themeControl = {
+  mode: choice(MODE_KEY, MODES, () => mode, (v) => (mode = v)),
+  palette: choice(PALETTE_KEY, PALETTES, () => palette, (v) => (palette = v)),
 };
-systemDark.addEventListener("change", () => theme === "system" && fadeTo("system"));
-applyTheme(theme);
+systemDark.addEventListener("change", () => mode === "system" && fadeTheme());
+applyTheme();
 
 const noteView = createNoteView(noteEl);
 const pageView = createPageView(pageEl);
@@ -236,7 +246,6 @@ function showOnly(view) {
   // Backlinks and the outline belong to a note; other views get the width.
   app.classList.toggle("has-rail", view === noteEl || view === pageEl);
   if (view !== pageEl) pageView.close(); // stop a page's animation when it is not shown
-  navSearch.classList.toggle("is-selected", view === searchEl);
 }
 
 /** Navigating fades the new page in; ordinary updates do not. */

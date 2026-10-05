@@ -23,23 +23,42 @@ The rules Ory's interface follows. A value outside the scales below is a mistake
   a 2px ring in the text colour with a gap. Links are underlined text.
 - **Contrast:** every text colour passes 4.5:1 wherever it sits. Hint text never sits
   on a selected fill; inside a selected row it steps up to `--text-2`.
-- **Colour** is for status only (a small dot beside a status word), with two
-  exceptions: colour a writer puts in a note is content, and the silver bulb below.
+- **Colour** is for status only (a small dot beside a status word), with three
+  exceptions: colour a writer puts in a note is content, the silver bulb below, and
+  the Dusk theme, which someone chooses.
+- **Themes.** Light or dark is one choice (System, Light, Dark) and the theme is
+  another (Neutral, Dusk), both under Settings → Appearance and remembered in the
+  browser. A theme only sets the frame and the card: `--chrome`, `--content`,
+  `--head-well` and the space switch's `--switch-*` tokens (Themes in `styles.css`).
+  Neutral is Ory's own greys and is the default. Dusk is the one place hue and a
+  gradient are allowed: violet grey `#282237` on the left warming to wine `#3a1e1e`,
+  warmest at the top right (`#492221`), with a darker card (`#131215`) and the chosen
+  space outlined lilac to peach. Every text colour passes 4.5:1 on all of its
+  surfaces in both modes (the closest is hint text on light Dusk's top right, 4.56).
+  Floating layers keep Ory's own surfaces in every theme.
 
 ## Layout
 
-- **Navigation** (open, search, today) lives at the top of the left sidebar.
-- **The note sits on `--card`, not the canvas.** A note is a document read for a long
+- **The frame.** A header row runs across the window: the Notes | Wikis switch over
+  the left sidebar, and a field over the open view. Below it are both sidebars. The
+  header and sidebars are one surface (`--chrome`), with no hairlines between them,
+  and the open view is set in as a card (`--content`, 6px corners, 8px clear of the
+  bottom, and of the right edge when there is no right sidebar). In light mode the
+  card also has a hairline and a faint shadow.
+- **The header's field is the quick switcher, docked.** Clicking it, or Cmd+O, opens
+  the switcher with its field exactly over the header's (the window's border and the
+  field's margin are taken off each side) and its list below, with no veil. The last
+  row, or Cmd+Enter, searches every note. So the left sidebar's navigation is only
+  Today's note.
+- **The note sits on the card, not the canvas.** A note is a document read for a long
   time; in light mode that makes it white rather than grey.
-- **Three-way theme.** The sidebar footer cycles system, light and dark, so the app
-  can go back to following the system after a choice.
 - **Keyboard hints in the sidebar** appear while a row is hovered or focused.
 - **Sidebars are 280px** and share the 24px `--gutter`.
 
 ## Ory-specific rules
 
-- **Two spaces, one tool.** Notes | Wikis is a segmented control at the top of the
-  left sidebar (the selected segment is a raised card on the selected fill). The
+- **Two spaces, one tool.** Notes | Wikis is a segmented control in the header, over
+  the left sidebar (the selected segment takes the card's colour). The
   sidebar below it belongs to the space: the notes tree, or the wikis. The tree never
   shows the wikis folder.
 - **Wikis sidebar** has no nested tree. Outside a wiki it lists the wikis, each with
@@ -149,7 +168,8 @@ The rules Ory's interface follows. A value outside the scales below is a mistake
 - **Outline** sits under Backlinks in the right sidebar; the heading the cursor is
   in is selected.
 - **Search** is a view in the main area: the field at the top, results filtering
-  as you type. The quick switcher is a short job, so it floats as a window.
+  as you type. The quick switcher is a short job, so it floats, docked over the
+  header's field.
 - **Destructive actions** live in "..." menus and confirm in place. Deleting moves
   the note to `.trash/`.
 - **Tree indents** are derived values (depth × 12 plus the 18px chevron and gap), so
