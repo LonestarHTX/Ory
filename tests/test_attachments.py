@@ -105,6 +105,16 @@ class UploadServerTests(unittest.TestCase):
         self.assertNotIn("allow-same-origin", policy)
         self.assertIn("connect-src 'none'", policy)
 
+    def test_unchanged_files_are_not_sent_again(self):
+        write(self.tmp.name, "Pages/Model.html", "<script>1</script>")
+        response, _ = self.request("GET", "/files/Pages/Model.html")
+        tag = response.getheader("ETag")
+        response, data = self.request("GET", "/files/Pages/Model.html", headers={"If-None-Match": tag})
+        self.assertEqual((response.status, data), (304, b""))
+        write(self.tmp.name, "Pages/Model.html", "<script>2; changed</script>")
+        response, data = self.request("GET", "/files/Pages/Model.html", headers={"If-None-Match": tag})
+        self.assertEqual((response.status, data), (200, b"<script>2; changed</script>"))
+
     def test_upload_needs_header_and_origin(self):
         response, _ = self.request("POST", "/api/files?name=a.png", b"x")
         self.assertEqual(response.status, 403)

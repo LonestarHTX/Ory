@@ -340,14 +340,47 @@ export function createTree(el) {
   // Opening a note reveals it by expanding its folders; after that the user
   // may collapse them again.
   const reveal = (path) => {
-    for (let folder = folderOf(path ?? ""); folder; folder = folderOf(folder)) expanded.add(folder);
-    saveExpanded();
+    let opened = false;
+    for (let folder = folderOf(path ?? ""); folder; folder = folderOf(folder)) {
+      if (!expanded.has(folder)) opened = expanded.add(folder);
+    }
+    if (opened) saveExpanded();
+    return opened;
   };
 
-  on("index", () => render());
-  on("current", (path) => {
-    reveal(path);
+  /** Move the selection to the open note without drawing the tree again. */
+  const select = (path) => {
+    for (const r of el.querySelectorAll(".tree-row.is-selected")) {
+      r.classList.remove("is-selected");
+      r.setAttribute("aria-selected", "false");
+    }
+    const r = path && el.querySelector(`.tree-row[data-path="${CSS.escape(path)}"]:not([data-kind="folder"])`);
+    if (!r) return;
+    r.classList.add("is-selected");
+    r.setAttribute("aria-selected", "true");
+    // The row Tab lands on follows, unless you're moving through the tree with the keys.
+    if (el.contains(document.activeElement)) return;
+    el.querySelector('.tree-item[tabindex="0"]')?.setAttribute("tabindex", "-1");
+    r.querySelector(".tree-item")?.setAttribute("tabindex", "0");
+  };
+
+  // The index changes on every save; most saves change nothing the tree shows
+  // (a note's text, its time), so it redraws only when what it lists changed.
+  let shownKey = null;
+  const treeKey = () => [
+    store.folders.join("\n"), store.notes.map((n) => n.path).join("\n"),
+    store.files.map((f) => `${f.path}|${f.in?.join(",")}|${f.via?.join(",")}`).join("\n"),
+    store.wikisFolder, showsAttachments(),
+  ].join("\u0000");
+  on("index", () => {
+    const key = treeKey();
+    if (key === shownKey) return;
+    shownKey = key;
     render();
+  });
+  on("current", (path) => {
+    if (reveal(path) || renaming) render();
+    else select(path);
   });
   render();
 

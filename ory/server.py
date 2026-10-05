@@ -175,9 +175,13 @@ class Handler(BaseHTTPRequestHandler):
             self._send_json({"error": str(exc)}, exc.status)
             return
         ctype = mimetypes.guess_type(full)[0] or "application/octet-stream"
-        size = os.path.getsize(full)
+        stat = os.stat(full)
+        size = stat.st_size
         is_page = ctype == "text/html"
+        if self._not_modified(stat):
+            return
         self.send_response(HTTPStatus.OK)
+        self.send_header("ETag", _etag(stat))
         self.send_header("Content-Type", ctype + ("; charset=utf-8" if is_page else ""))
         self.send_header("Content-Length", str(size))
         if is_page:
@@ -230,21 +234,41 @@ class Handler(BaseHTTPRequestHandler):
         if not os.path.isfile(full):
             self._send_json({"error": "The web bundle is missing. Run npm run build in web/."}, 500)
             return
+        stat = os.stat(full)
+        if self._not_modified(stat):
+            return
         with open(full, "rb") as fh:
             body = fh.read()
         ctype = mimetypes.guess_type(full)[0] or "application/octet-stream"
         if ctype.startswith("text/") or ctype.endswith("javascript"):
             ctype += "; charset=utf-8"
         self.send_response(HTTPStatus.OK)
+        self.send_header("ETag", _etag(stat))
         self.send_header("Content-Type", ctype)
         self.send_header("Content-Length", str(len(body)))
         self.send_header("Cache-Control", "no-cache")
         self.end_headers()
         self.wfile.write(body)
 
+    def _not_modified(self, stat: os.stat_result) -> bool:
+        """Answer 304 when the browser's copy is current: a reload doesn't fetch
+        the app again, nor a note's 16 MB page each time the note opens."""
+        if self.headers.get("If-None-Match") != _etag(stat):
+            return False
+        self.send_response(HTTPStatus.NOT_MODIFIED)
+        self.send_header("ETag", _etag(stat))
+        self.send_header("Cache-Control", "no-cache")
+        self.end_headers()
+        return True
+
     def log_message(self, format: str, *args: Any) -> None:  # noqa: A002 - stdlib signature
         # Quiet by default; errors still reach stderr through log_error.
         pass
+
+
+def _etag(stat: os.stat_result) -> str:
+    """A file's version, from when it changed and its size."""
+    return f'"{stat.st_mtime_ns:x}-{stat.st_size:x}"'
 
 
 # Routes ---------------------------------------------------------------------

@@ -943,5 +943,7 @@ async function reopenBeside() {
   route();
 })();
 
-setInterval(poll, POLL_MS);
+// While Ory's tab is hidden it doesn't ask; it catches up when it's shown again.
+setInterval(() => document.hidden || poll(), POLL_MS);
 window.addEventListener("focus", poll);
+document.addEventListener("visibilitychange", () => document.hidden || poll());

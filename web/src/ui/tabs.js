@@ -74,6 +74,7 @@ export function createTabs({ onAdd, onCloseBeside }) {
 
   /** Side by side: the note open on the other side (or null). */
   function setBeside(path) {
+    if (path === beside) return;
     beside = path;
     render();
   }
@@ -93,7 +94,12 @@ export function createTabs({ onAdd, onCloseBeside }) {
     render();
   }
 
+  // Drawn again only when what it shows changed: the index changes on every save.
+  let shownKey = null;
   function render() {
+    const key = [tabs.join("\n"), active, beside, store.dailyFolder, store.wikisFolder].join("\u0000");
+    if (key === shownKey) return;
+    shownKey = key;
     list.replaceChildren(...tabs.map((path, i) => {
       const name = isPage(path) ? fileName(path).replace(/\.html?$/i, "") : noteName(path);
       const kind = isPage(path) ? "page" : wikiOf(path) ? "book" : path.startsWith(store.dailyFolder + "/") ? "calendar" : "file";
