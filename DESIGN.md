@@ -173,7 +173,9 @@ The rules Ory's interface follows. A value outside the scales below is a mistake
   back one level (menu, Custom, More, picker); Tab stays inside. Hex tiles are laid out by
   their apothem with exact seams (2px on the band, 1.5px in the honeycomb), each polygon
   inset by half its stroke; they are the one off-scale geometry. The toolbar button is an
-  "A" over a bar in the text colour, sitting on the highlight's wash.
+  "A" over a bar in the text colour, sitting on the highlight's wash. It is the only
+  colour and highlight button: there is no separate Highlight button (Cmd+Shift+H still
+  toggles a plain highlight).
 - **Inks.** Theme inks are tokens (`--ink-blue`, `--ink-green`, `--ink-amber`,
   `--ink-red`, `--ink-grey`, and `--ink-orange`, `--ink-teal`, `--ink-violet`,
   `--ink-pink`). The chromatic ones sit on one ring of OKLCH lightness and chroma

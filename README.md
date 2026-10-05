@@ -237,10 +237,12 @@ applies at the cursor; hover over (or tab to) any button for its name and shortc
 It writes ordinary Markdown (`**bold**`, `==highlight==`, `- [ ] task`), so notes stay
 readable as plain text.
 
-**Text colour** (the "A" button) opens a colour picker: any colour from the petals,
-the lightness arc or a hex code, plus five theme inks (blue, green, amber, red, grey)
-that follow light and dark mode, and Default. It is stored as an HTML tag that any
-Markdown viewer shows: `<span style="color: #d9a05b">text</span>`. A picked colour is
+**Colour and highlight** (the "A" button) opens one picker for both, switched between
+Text and Highlight: a band of colours, more in a honeycomb, or any colour by hue,
+lightness or hex code. The theme inks follow light and dark mode. Text colour is stored
+as an HTML tag any Markdown viewer shows (`<span style="color: #d9a05b">text</span>`),
+a coloured highlight as `<mark style="background: ...">`, and the grey highlight as
+plain `==text==`, which Cmd+Shift+H also toggles. A picked colour is
 kept exactly as chosen; if it would be hard to read on screen (dark navy in dark mode,
 pale yellow in light mode) Ory shows a lighter or darker step of it that passes 4.5:1.
 Ory hides the tags while you edit; Cmd+E shows them.

@@ -25,8 +25,9 @@ const TOOLS = [
   { label: "Bold", shortcut: "Mod-B", text: "B", cls: "is-bold", state: "bold", run: toggleInline("bold") },
   { label: "Italic", shortcut: "Mod-I", text: "I", cls: "is-italic", state: "italic", run: toggleInline("italic") },
   { label: "Strikethrough", shortcut: "Mod-Shift-X", text: "S", cls: "is-strike", state: "strike", run: toggleInline("strike") },
-  { label: "Highlight", shortcut: "Mod-Shift-H", icon: "highlight", state: "highlight", run: toggleInline("highlight") },
-  { label: "Colour", ink: true },
+  // Text colour and highlights are one picker (Text | Highlight); Mod-Shift-H
+  // still toggles a plain highlight from the keyboard.
+  { label: "Colour and highlight", ink: true },
   null,
   { label: "Bulleted list", shortcut: "Mod-Shift-8", icon: "bullets", state: "list:bullet", run: toggleList("bullet") },
   { label: "Numbered list", shortcut: "Mod-Shift-7", icon: "numbers", state: "list:number", run: toggleList("number") },
