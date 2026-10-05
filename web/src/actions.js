@@ -122,9 +122,10 @@ export async function followLink(link) {
   // [[#Section]] jumps within the open note; [[Note#Section]] opens at it.
   if (!target) return heading && store.currentPath ? openNote(store.currentPath, { heading }) : undefined;
   const path = resolve(target);
+  const beside = !!link.beside; // Option-click: open it beside the note you're in
   if (path && isPage(path)) return openNote(path);
   if (path && !/\.md$/i.test(path)) return openFile(path);
-  if (path) return openNote(path, heading ? { heading } : {});
+  if (path) return openNote(path, heading ? { heading, beside } : { beside });
   if (/\.[A-Za-z0-9]{1,8}$/.test(target) && !/\.(md|\d+)$/i.test(target)) {
     return notify(`"${target}" is not in the notes folder.`, "error");
   }
@@ -132,7 +133,7 @@ export async function followLink(link) {
     // A missing page linked from a wiki page is made in that wiki, beside it.
     const current = store.currentPath ?? "";
     const inWiki = current.startsWith(store.wikisFolder + "/") && current.split("/").length > 2 && !target.includes("/");
-    openNote(await createNote(inWiki ? `${folderOf(current)}/${target}` : target));
+    openNote(await createNote(inWiki ? `${folderOf(current)}/${target}` : target), { beside });
   } catch (err) {
     alertError(err);
   }

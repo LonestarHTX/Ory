@@ -5,7 +5,7 @@ import {
   AppWindow, ArrowRight, BookOpen, CalendarDays, Check, ChevronDown, ChevronLeft, ChevronRight, Code, Copy, Ellipsis, File,
   FileImage, FilePlus, FolderPlus, Highlighter, LayoutGrid, Link, List, ListChecks, ListOrdered, ListTree, Monitor, Moon,
   Lightbulb, NotebookPen, Palette, Paperclip, Plus, Search, Settings, SquarePen, Sun, Table, TableProperties, TextQuote,
-  TriangleAlert, Folder, Keyboard, X, Archive, ArrowLeft, Info, PanelLeft, PanelRight,
+  TriangleAlert, Folder, Keyboard, X, Archive, ArrowLeft, Info, PanelLeft, PanelRight, Columns2, GripVertical,
 } from "lucide";
 
 export function h(tag, props, ...children) {
@@ -82,6 +82,8 @@ const ICONS = {
   info: Info,
   panelLeft: PanelLeft,
   panelRight: PanelRight,
+  beside: Columns2,
+  grip: GripVertical,
 };
 
 const SVG = "http://www.w3.org/2000/svg";

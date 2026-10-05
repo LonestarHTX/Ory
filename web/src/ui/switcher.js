@@ -62,8 +62,8 @@ export function createSwitcher() {
   let dialog = null;
   let returnFocus = null;
 
-  /** {newTab}: what's chosen opens in a new tab. */
-  function open({ newTab = false } = {}) {
+  /** {newTab}: what's chosen opens in a new tab; {beside}: beside the note you're in. */
+  function open({ newTab = false, beside = false } = {}) {
     if (dialog) return dialog.querySelector("input").focus();
     closeMenu({ restoreFocus: false }); // a "…" menu would sit above the switcher
     returnFocus = document.activeElement;
@@ -133,12 +133,12 @@ export function createSwitcher() {
         try {
           const path = await createNote(name);
           close(false);
-          openNote(path, { newTab });
+          openNote(path, { newTab, beside });
         } catch (err) {
           // An existing note with that name: open it instead of failing.
           if (err.status === 409) {
             close(false);
-            openNote(name.toLowerCase().endsWith(".md") ? name : name + ".md", { newTab });
+            openNote(name.toLowerCase().endsWith(".md") ? name : name + ".md", { newTab, beside });
           } else {
             error.hidden = false;
             error.replaceChildren(h("span", { class: "status-dot error" }), err.message);
@@ -148,7 +148,7 @@ export function createSwitcher() {
       }
       if (!item) return;
       close(false);
-      openNote(item.note.path, { newTab });
+      openNote(item.note.path, { newTab, beside });
     };
 
     input.addEventListener("input", () => {

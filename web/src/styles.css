@@ -631,17 +631,30 @@ html[data-theme-fade]::view-transition-new(root) {
   color: var(--text-3);
 }
 
-/* The open view: a card set into the frame. Inside it, "raised" is the card's
-   own colour, so anything drawn in the card colour matches it in every theme. */
-.main {
-  --card: var(--content);
+/* The open view: a card set into the frame (two side by side). Inside it,
+   "raised" is the card's own colour, so anything drawn in the card colour
+   matches it in every theme. */
+.panes {
+  position: relative;
   grid-row: 2;
   grid-column: 3;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  min-width: 0;
+  min-height: 0;
+  margin: 8px 8px 8px 0;
+}
+
+.panes.is-split {
+  grid-template-columns: minmax(240px, var(--left)) 8px minmax(240px, var(--right));
+}
+
+.main {
+  --card: var(--content);
   display: flex;
   flex-direction: column;
   min-width: 0;
   min-height: 0;
-  margin: 8px 8px 8px 0;
   overflow: hidden;
   border: 1px solid var(--content-line);
   border-radius: var(--r-card);
@@ -649,8 +662,90 @@ html[data-theme-fade]::view-transition-new(root) {
   box-shadow: var(--content-shadow);
 }
 
-.app.has-panel:not(.is-panel-hidden) .main {
+.app.has-panel:not(.is-panel-hidden) .panes {
   margin-right: 0;
+}
+
+/* The gap between the two sides: the handle that resizes them. */
+.pane-gutter {
+  display: grid;
+  place-items: center;
+  color: var(--text-3);
+  cursor: col-resize;
+  opacity: 0;
+  transition: opacity 0.12s ease;
+}
+
+.pane-gutter:hover,
+.pane-gutter:focus-visible {
+  opacity: 1;
+}
+
+/* The side you're not in: its name steps back. The only sign of which is which. */
+.panes.is-split .main.is-inactive .note-title,
+.panes.is-split .main.is-inactive .note-heading {
+  color: var(--text-2);
+}
+
+/* A tab dragged over the card: the right half says what will happen. */
+.drop-zone {
+  position: absolute;
+  inset: 0 0 0 50%;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  border-left: 1px solid var(--line-strong);
+  border-radius: 0 var(--r-card) var(--r-card) 0;
+  background: var(--selected);
+  pointer-events: none;
+}
+
+.drop-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 28px;
+  padding: 0 12px;
+  border-radius: var(--r-ctl);
+  background: var(--content);
+  font-weight: 500;
+  box-shadow: var(--float);
+}
+
+/* A wiki page beside a note that isn't among its sources. */
+.source-line {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px 4px var(--gutter);
+  border-bottom: 1px solid var(--line);
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--text-2);
+}
+
+.source-line > .icon {
+  color: var(--text-3);
+}
+
+.source-line b {
+  font-weight: 500;
+  color: var(--text);
+}
+
+.source-line-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.source-line .text-link {
+  flex: none;
+}
+
+.source-line .iconbtn {
+  width: 24px;
+  height: 24px;
 }
 
 /* The panel: about the open note, one view at a time (ui/panel.js). */
@@ -745,11 +840,12 @@ html[data-theme-fade]::view-transition-new(root) {
   }
 
   .app .panel,
-  .titlebar .panel-toggle {
+  .titlebar .panel-toggle,
+  .titlebar .beside-toggle {
     display: none;
   }
 
-  .app.has-panel:not(.is-panel-hidden) .main {
+  .app.has-panel:not(.is-panel-hidden) .panes {
     margin-right: 8px;
   }
 }

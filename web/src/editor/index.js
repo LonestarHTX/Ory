@@ -44,13 +44,17 @@ const highlight = HighlightStyle.define([
 /** Marks changes that came from disk, which must not be saved back. */
 const fromDisk = Annotation.define();
 
+/** Marks a change Ory makes for you (such as adding a source), allowed even while reading. */
+const byOry = Annotation.define();
+
 /** Whether the text can be changed: not while a wiki page is being read. */
 const editability = new Compartment();
 const editable = (on) => (on ? [] : [EditorView.editable.of(false), EditorState.readOnly.of(true)]);
 
 // A backstop for reading: no command, keymap or widget can change the text
-// while a page is read. Only a change from disk gets through.
-const readingGuard = EditorState.changeFilter.of((tr) => !isReading(tr.startState) || tr.annotation(fromDisk) === true);
+// while a page is read. Only a change from disk, or one Ory makes for you, gets through.
+const readingGuard = EditorState.changeFilter.of((tr) =>
+  !isReading(tr.startState) || tr.annotation(fromDisk) === true || tr.annotation(byOry) === true);
 
 /** Line endings: the editor always works in "\n"; a Windows note is saved back with "\r\n". */
 const toLF = (text) => text.replace(/\r\n?/g, "\n");
@@ -194,6 +198,11 @@ export function createEditor(parent, handlers) {
     rekey(from, to) {
       if (states.has(from)) states.set(to, states.get(from));
       states.delete(from);
+    },
+
+    /** Make a change for you, even while a page is read; it saves like your own edits. */
+    apply(changes) {
+      view.dispatch({ changes, annotations: byOry.of(true) });
     },
 
     goToLine(lineNo) {

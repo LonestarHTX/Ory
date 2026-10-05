@@ -2,6 +2,8 @@
 // note shows it in the current tab, or switches to its tab if it's open
 // already; Cmd-click, or the tabs' +, opens a new one. Other places (All wikis,
 // Search, the Archive...) leave the tabs as they are, none of them chosen.
+// Side by side, the other side's note keeps its tab, marked with the
+// side-by-side icon; a tab dragged onto the card opens beside (main.js).
 // Kept in this browser, one set per notes folder.
 
 import { closeNote, onMove, openNote } from "../actions.js";
@@ -12,9 +14,13 @@ import { h, icon } from "./dom.js";
 
 const key = () => `ory.tabs:${store.vaultName}`;
 
-export function createTabs({ onAdd }) {
+/** The drag data type a tab carries: its path. */
+export const TAB_DRAG = "application/x-ory-path";
+
+export function createTabs({ onAdd, onCloseBeside }) {
   let tabs = []; // paths
   let active = -1; // the tab shown, or -1 when another place is
+  let beside = null; // the other side's note, side by side
   let last = 0; // the tab to reuse when a note opens from another place
 
   const list = h("div", { class: "tab-list", role: "tablist", "aria-label": "Open notes" });
@@ -66,7 +72,14 @@ export function createTabs({ onAdd }) {
     render();
   }
 
+  /** Side by side: the note open on the other side (or null). */
+  function setBeside(path) {
+    beside = path;
+    render();
+  }
+
   function close(i) {
+    if (tabs[i] === beside) return onCloseBeside(beside); // closing its tab closes that side
     const wasActive = i === active;
     tabs.splice(i, 1);
     if (active > i) active--;
@@ -85,9 +98,14 @@ export function createTabs({ onAdd }) {
       const name = isPage(path) ? fileName(path).replace(/\.html?$/i, "") : noteName(path);
       const kind = isPage(path) ? "page" : wikiOf(path) ? "book" : path.startsWith(store.dailyFolder + "/") ? "calendar" : "file";
       const chosen = i === active;
+      const side = path === beside && !chosen;
       const tab = h("div", {
-        class: `tab${chosen ? " is-selected" : ""}`, role: "tab", "aria-selected": String(chosen), tabindex: chosen ? "0" : "-1",
-        title: path,
+        class: `tab${chosen ? " is-selected" : ""}${side ? " is-beside" : ""}`, role: "tab", "aria-selected": String(chosen),
+        tabindex: chosen ? "0" : "-1", title: side ? `${path}, open beside` : path, draggable: "true",
+        onDragstart: (e) => {
+          e.dataTransfer.setData(TAB_DRAG, path);
+          e.dataTransfer.effectAllowed = "move";
+        },
         onClick: () => !chosen && openNote(path),
         onAuxclick: (e) => e.button === 1 && close(i), // middle-click closes, as in a browser
         onKeydown: (e) => {
@@ -101,7 +119,7 @@ export function createTabs({ onAdd }) {
           }
         },
       },
-      icon(kind, 14),
+      icon(side ? "beside" : kind, 14),
       h("span", { class: "tab-name" }, name),
       h("button", {
         class: "tab-close", type: "button", tabindex: "-1", "aria-label": `Close ${name}`,
@@ -148,5 +166,5 @@ export function createTabs({ onAdd }) {
     render();
   });
 
-  return { el, shown, none };
+  return { el, shown, none, setBeside };
 }

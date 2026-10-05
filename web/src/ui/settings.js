@@ -405,6 +405,7 @@ export function createSettings({ theme }) {
         ["Open today's note", "Mod-Shift-D"],
         ["Settings", "Mod-,"],
         ["Hide or show the sidebar", "Mod-\\"],
+        ["Side by side: open or close", "Mod-Shift-\\"],
       ]),
       group("Writing", [
         ["Live preview or source", "Mod-E"],

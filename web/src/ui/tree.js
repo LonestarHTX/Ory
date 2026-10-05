@@ -119,8 +119,9 @@ export function createTree(el) {
       class: "tree-item",
       type: "button",
       tabindex: -1,
-      // Cmd-click opens a note in a new tab.
-      onClick: (e) => (kind === "folder" ? toggle(path) : kind === "file" && !isPage(path) ? openFile(path) : openNote(path, { newTab: mod(e) })),
+      // Cmd-click opens a note in a new tab; Option-click beside the one you're in.
+      onClick: (e) => (kind === "folder" ? toggle(path) : kind === "file" && !isPage(path) ? openFile(path)
+        : openNote(path, { newTab: mod(e), beside: e.altKey && kind === "note" })),
     },
     kind === "folder" ? h("span", { class: `tree-chevron${isOpen ? " is-open" : ""}` }, icon("chevron", 14)) : null,
     kind === "file"
@@ -166,7 +167,10 @@ export function createTree(el) {
         },
       });
     }
-    if (kind === "note") items.push({ label: isPinned(path) ? "Unpin" : "Pin to sidebar", run: () => togglePin(path) });
+    if (kind === "note") {
+      items.push({ label: "Open beside", run: () => openNote(path, { beside: true }) });
+      items.push({ label: isPinned(path) ? "Unpin" : "Pin to sidebar", run: () => togglePin(path) });
+    }
     items.push({ label: "Rename", run: () => startRename(path) });
     items.push({
       label: "Archive",

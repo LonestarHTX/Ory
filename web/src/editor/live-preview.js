@@ -566,9 +566,10 @@ export function livePreview({ resolve, openLink, fileSize = () => null, openPage
       const el = e.target.closest?.("[data-wikilink], [data-href]");
       if (!el || !view.contentDOM.contains(el)) return false;
       const modClick = e.metaKey || e.ctrlKey;
-      if (!modClick && !el.classList.contains("cm-link-live")) return false;
+      if (!modClick && !e.altKey && !el.classList.contains("cm-link-live")) return false;
       e.preventDefault();
-      if (el.dataset.wikilink != null) openLink({ wikilink: el.dataset.wikilink });
+      // Option-click opens a note beside this one.
+      if (el.dataset.wikilink != null) openLink({ wikilink: el.dataset.wikilink, beside: e.altKey });
       else openLink({ href: el.dataset.href });
       return true;
     },

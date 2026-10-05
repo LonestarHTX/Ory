@@ -79,6 +79,10 @@ tools can show:
   Today's note, Pinned notes (pin from a note's "..."), the folder tree and Recent.
 - **The title bar**: Back and Forward, where you are and the open note's state and
   actions, and the open notes as tabs.
+- **Side by side**: two notes next to each other, such as a daily note and the wiki page
+  it feeds. Option-click a note or link, drag a tab onto the note, or press
+  Cmd+Shift+\. Drag the gap between them to resize. With a note beside a wiki page, the
+  page offers to add the note to its `sources`.
 - **The panel**, at the right: Backlinks, Outline or Info (folder, when edited, words,
   links, tags) for the open note, one at a time.
 
@@ -217,6 +221,8 @@ agent to "find suggestions for my wikis", with no copying and pasting.
 | Cmd+O | Open or create a note (Shift+Enter creates, Cmd+Enter searches every note); the tabs' + does the same in a new tab |
 | Cmd+click | Open a note in a new tab (in the tree, Pinned and Recent) |
 | Cmd+\ | Hide or show the sidebar |
+| Cmd+Shift+\ | Side by side: open the note before beside, or close the side |
+| Option+click | Open a note beside (in the tree, Pinned, Recent, and on links) |
 | Cmd+Shift+F | Search all notes |
 | Cmd+Shift+D | Open today's note (`Daily/YYYY-MM-DD.md`) |
 | `[[` | Link to a note, with autocomplete |

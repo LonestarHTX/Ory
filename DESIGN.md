@@ -70,6 +70,23 @@ The rules Ory's interface follows. A value outside the scales below is a mistake
   header names the view and switches between Backlinks (with the count), Outline and
   Info (folder, when edited, words, links, tags, aliases). The choice, and whether the
   panel is shown, are remembered; it hides below 1100px.
+- **Side by side.** Two notes at most, each its own card, with the frame showing in
+  an 8px gap between them that resizes them (double-click for half and half; arrow
+  keys when focused). Each card then has its own header row (where it is, its name,
+  state, its action, "..." and × to close that side) and the title bar's middle stays
+  empty. The side you're in has its name in full text colour, the other's in
+  `--text-2`: the only sign of which is which. The address, the tabs, the tree's
+  selection and the panel follow the side you're in; the other side's note keeps its
+  tab, marked with the side-by-side icon. A note opens beside from the tree's "...",
+  Option-click (on a link or tree row), a tab dragged onto the card (the right half
+  shows "Open beside" on the selected fill), "Open a note beside..." in a note's
+  "...", or the side-by-side button (Cmd+Shift+\), which opens the note you were in
+  before. Closing the first side moves the note beside into it. Other places use the
+  whole card; coming back brings both sides. The panel has its own shown setting while
+  split (hidden at first); below 1100px the side closes and its note stays a tab.
+  With a note beside a wiki page that doesn't list it in `sources`, the page shows
+  one quiet line under its header: the note's name, "Add as source" (which adds it,
+  even while reading) and × for not now.
 - **The note sits on the card, not the canvas.** A note is a document read for a long
   time; in light mode that makes it white rather than grey.
 - **Keyboard hints in the sidebar** appear while a row is hovered or focused.

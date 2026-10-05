@@ -7,7 +7,7 @@ import {
   openToday, openWikis, takeOpenOptions,
 } from "./actions.js";
 import { api } from "./api.js";
-import { loadIndex, on, recentPaths, setCurrent, store } from "./store.js";
+import { emit, linkTextFor, loadIndex, on, recentPaths, resolve, setCurrent, store } from "./store.js";
 import { createArchiveView } from "./ui/archive-view.js";
 import { noteName } from "./links.js";
 import { pinned } from "./pins.js";
@@ -16,7 +16,7 @@ import { createBacklinks } from "./ui/backlinks.js";
 import { createFolderSwitcher } from "./ui/folder-switcher.js";
 import { createInfo } from "./ui/info.js";
 import { createPanel } from "./ui/panel.js";
-import { createTabs } from "./ui/tabs.js";
+import { createTabs, TAB_DRAG } from "./ui/tabs.js";
 import { h, icon, keys, mod } from "./ui/dom.js";
 import { createNoteView } from "./ui/note-view.js";
 import { createOutline } from "./ui/outline.js";
@@ -32,7 +32,7 @@ import { createSuggestionsView } from "./ui/suggestions-view.js";
 import { setBudget } from "./suggestions/prompts.js";
 import { createWikiNav } from "./ui/wiki-nav.js";
 import { createWikisHome } from "./ui/wikis-home.js";
-import { wikiOf } from "./wikis.js";
+import { isUpkeep, wikiOf } from "./wikis.js";
 
 const POLL_MS = 2000;
 
@@ -100,7 +100,11 @@ let panelShown = pref(PANEL_KEY, "1") === "1";
 // Title bar.
 const sideToggle = iconButton("panelLeft", "Sidebar", () => toggleSidebar(), "Mod-\\");
 const titleSlot = h("div", { class: "title-what" }); // the open view's header, moved here
-const tabs = createTabs({ onAdd: () => switcher.open({ newTab: true }) });
+const tabs = createTabs({
+  onAdd: () => switcher.open({ newTab: true }),
+  onCloseBeside: (path) => (path === sideView.path ? closeSide() : closeMainSide()),
+});
+const besideToggle = iconButton("beside", "Side by side", () => toggleBeside(), "Mod-Shift-\\", "beside-toggle");
 const panelToggle = iconButton("panelRight", "Panel", () => togglePanel(), null, "panel-toggle");
 const titlebar = h("header", { class: "titlebar" },
   h("div", { class: "title-nav" },
@@ -108,7 +112,7 @@ const titlebar = h("header", { class: "titlebar" },
     iconButton("arrowLeft", "Back", () => history.back()),
     iconButton("arrowRight", "Forward", () => history.forward())),
   titleSlot,
-  h("div", { class: "title-end" }, tabs.el, panelToggle));
+  h("div", { class: "title-end" }, tabs.el, besideToggle, panelToggle));
 
 // Rail: the places. Suggestions turns silver, with a count, while they wait.
 const railButton = (place, iconName, label, run, tipKeys = null) => h("button", {
@@ -129,7 +133,7 @@ const rail = h("nav", { class: "rail", "aria-label": "Places" },
 
 /** Notes: back to the note you were last in, outside the wikis. */
 function openNotes() {
-  const last = recentPaths().find((p) => store.paths.includes(p) && !wikiOf(p));
+  const last = (isSplit() && pausedMain) || recentPaths().find((p) => store.paths.includes(p) && !wikiOf(p));
   setSpace("notes");
   if (last) openNote(last);
   else closeNote();
@@ -170,7 +174,7 @@ const RECENT_ROWS = 5;
 /** A note's row in Pinned or Recent. */
 function noteRow(path) {
   const row = navItem(path.startsWith(store.dailyFolder + "/") ? "calendar" : "file", noteName(path), null,
-    (e) => openNote(path, { newTab: mod(e) }));
+    (e) => openNote(path, { newTab: mod(e), beside: e.altKey }));
   row.classList.toggle("is-selected", path === store.currentPath);
   return row;
 }
@@ -198,6 +202,17 @@ const suggestionsEl = h("section", { class: "view suggestions-view", hidden: tru
 const archiveEl = h("section", { class: "view archive-view", hidden: true });
 const views = [noteEl, pageEl, wikisEl, suggestionsEl, archiveEl, searchEl, emptyEl];
 const main = h("main", { class: "main" }, errorBar, views);
+
+// Side by side: a second card for the note beside, the gap between the two a
+// handle for resizing them, and where a dragged tab is dropped to open beside.
+const sideEl = h("section", { class: "view note-view" });
+const sideCard = h("div", { class: "main", hidden: true }, sideEl);
+const gutter = h("div", {
+  class: "pane-gutter", role: "separator", "aria-orientation": "vertical", "aria-label": "Resize the two sides",
+  tabindex: "0", hidden: true, dataset: { tip: "Drag to resize; double-click for half and half" },
+}, icon("grip", 14));
+const dropZone = h("div", { class: "drop-zone", hidden: true }, h("span", { class: "drop-label" }, "Open beside", icon("beside", 14)));
+const panes = h("div", { class: "panes" }, main, gutter, sideCard, dropZone);
 
 // The panel: Backlinks, Outline and Info, one at a time.
 const backlinksEl = h("div");
@@ -233,6 +248,7 @@ systemDark.addEventListener("change", () => mode === "system" && fadeTheme());
 applyTheme();
 
 const noteView = createNoteView(noteEl);
+const sideView = createNoteView(sideEl);
 const pageView = createPageView(pageEl);
 const searchView = createSearchView(searchEl);
 const backlinks = createBacklinks(backlinksEl);
@@ -249,7 +265,7 @@ const wikisHome = createWikisHome(wikisEl);
 const suggestionsView = createSuggestionsView(suggestionsEl);
 const archiveView = createArchiveView(archiveEl);
 
-const app = h("div", { class: "app" }, titlebar, rail, left, main, panel.el);
+const app = h("div", { class: "app" }, titlebar, rail, left, panes, panel.el);
 document.body.append(app);
 
 // Each view keeps its own header (name, state, actions); the title bar shows
@@ -258,7 +274,7 @@ const heads = new Map();
 let shownView = null;
 function adoptHead(view) {
   const head = [...view.children].find((c) => c.classList.contains("note-head"));
-  if (!head) return;
+  if (!head || (view === noteEl && splitShown())) return; // side by side, each card keeps its header
   heads.set(view, head);
   head.remove();
   if (view === shownView) titleSlot.replaceChildren(head);
@@ -274,20 +290,256 @@ function toggleSidebar() {
   applyPanes();
 }
 
+// Side by side the panel has its own setting, hidden at first, to give the two sides room.
+const PANEL_SPLIT_KEY = "ory.panelSplit";
+let panelInSplit = pref(PANEL_SPLIT_KEY, "0") === "1";
+
 function togglePanel() {
-  panelShown = !panelShown;
-  setPref(PANEL_KEY, panelShown ? "1" : "0");
+  if (splitShown()) {
+    panelInSplit = !panelInSplit;
+    setPref(PANEL_SPLIT_KEY, panelInSplit ? "1" : "0");
+  } else {
+    panelShown = !panelShown;
+    setPref(PANEL_KEY, panelShown ? "1" : "0");
+  }
   applyPanes();
 }
 
 function applyPanes() {
+  const panelOn = splitShown() ? panelInSplit : panelShown;
   app.classList.toggle("is-side-hidden", !sideShown);
-  app.classList.toggle("is-panel-hidden", !panelShown);
+  app.classList.toggle("is-panel-hidden", !panelOn);
   sideToggle.classList.toggle("is-on", sideShown);
   sideToggle.setAttribute("aria-pressed", String(sideShown));
-  panelToggle.classList.toggle("is-on", panelShown);
-  panelToggle.setAttribute("aria-pressed", String(panelShown));
+  panelToggle.classList.toggle("is-on", panelOn);
+  panelToggle.setAttribute("aria-pressed", String(panelOn));
 }
+
+// Side by side ---------------------------------------------------------------------
+// Two notes at most, each its own card with its own header. The address, the
+// tabs and the panel follow the side you're in; the other side's note keeps
+// its tab, marked beside. Notes only: other places, and HTML pages, use the
+// whole card, and the side comes back with the next note.
+
+const BESIDE_KEY = () => `ory.beside:${store.vaultName}`;
+const RATIO_KEY = "ory.splitRatio";
+let active = "main"; // the side you're in: "main" or "side"
+let ratio = Math.min(0.75, Math.max(0.25, Number(pref(RATIO_KEY, "0.5")) || 0.5));
+const narrow = window.matchMedia("(max-width: 1100px)");
+
+function isSplit() {
+  return !!sideView.path;
+}
+
+/** Side by side is showing: a note in each card. */
+function splitShown() {
+  return isSplit() && shownView === noteEl && !!noteView.path;
+}
+
+function activeView() {
+  return active === "side" && splitShown() ? sideView : noteView;
+}
+
+const closeButton = (run) => h("button", {
+  class: "iconbtn", type: "button", "aria-label": "Close this side", dataset: { tip: "Close this side" }, hidden: true, onClick: run,
+}, icon("close", 14));
+const closeMain = closeButton(() => closeMainSide());
+const closeBeside = closeButton(() => closeSide());
+heads.get(noteEl)?.querySelector(".note-meta").append(closeMain);
+sideEl.querySelector(":scope > .note-head .note-meta").append(closeBeside);
+
+function layoutSplit() {
+  const on = splitShown();
+  if (!on) active = "main";
+  panes.classList.toggle("is-split", on);
+  sideCard.hidden = !on;
+  gutter.hidden = !on;
+  main.classList.toggle("is-inactive", on && active !== "main");
+  sideCard.classList.toggle("is-inactive", on && active !== "side");
+  closeMain.hidden = !on;
+  closeBeside.hidden = !on;
+  besideToggle.hidden = shownView !== noteEl;
+  besideToggle.classList.toggle("is-on", on);
+  besideToggle.setAttribute("aria-pressed", String(on));
+  tabs.setBeside(on ? (active === "side" ? noteView.path : sideView.path) : null);
+  layoutRatio();
+  placeHeads();
+  applyPanes();
+  updateSourceLine();
+  saveBeside();
+}
+
+function layoutRatio() {
+  panes.style.setProperty("--left", `${ratio}fr`);
+  panes.style.setProperty("--right", `${1 - ratio}fr`);
+}
+
+// One note: its header is in the title bar. Side by side: each in its card.
+function placeHeads() {
+  if (splitShown()) {
+    const head = heads.get(noteEl);
+    if (head && head.parentNode !== noteEl) noteEl.prepend(head);
+    titleSlot.replaceChildren();
+  } else {
+    titleSlot.replaceChildren(heads.get(shownView) ?? "");
+  }
+}
+
+/** Go to one side: the address, tabs, panel and outline follow it. */
+function setActive(which) {
+  active = splitShown() ? which : "main";
+  const view = activeView();
+  if (view.path) {
+    history.replaceState(null, "", "#/" + encodeURI(view.path));
+    document.title = `${noteName(view.path)} · Ory`;
+    setCurrent(view.path);
+    tabs.shown(view.path);
+    emit("note-state", view.state);
+  }
+  layoutSplit();
+}
+
+for (const [card, which] of [[main, "main"], [sideCard, "side"]]) {
+  const go = () => splitShown() && active !== which && setActive(which);
+  card.addEventListener("focusin", go);
+  card.addEventListener("pointerdown", go);
+}
+
+// Both sides, and the one you're in, so a reload brings them back as they were.
+function saveBeside() {
+  if (restoreBeside) return; // not before a reload's sides are back
+  const main = noteView.path ?? pausedMain;
+  setPref(BESIDE_KEY(), sideView.path && main ? JSON.stringify({ main, side: sideView.path, active }) : "");
+}
+
+// Leaving for another place (All wikis, Search...) closes the first side's
+// note but keeps the side beside; coming back brings both.
+let pausedMain = null;
+async function leaveNotes() {
+  if (isSplit() && noteView.path) pausedMain = noteView.path;
+  await noteView.close();
+}
+
+/** Close the side beside; the other stays. */
+async function closeSide() {
+  if (!isSplit()) return;
+  pausedMain = null;
+  await sideView.close();
+  saveBeside();
+  setActive("main");
+}
+
+/** Close the first side: the note beside takes its place. */
+async function closeMainSide() {
+  const path = sideView.path;
+  pausedMain = null;
+  await sideView.close();
+  saveBeside();
+  active = "main";
+  layoutSplit();
+  if (path) openNote(path, { replace: true });
+}
+
+/** The side-by-side button: close the side, or open the note you were in before beside. */
+function toggleBeside() {
+  if (splitShown()) return closeSide();
+  if (noteEl.hidden || !noteView.path) return;
+  const before = recentPaths().find((p) => p !== noteView.path && store.paths.includes(p));
+  if (before) openNote(before, { beside: true });
+  else switcher.open({ beside: true });
+}
+window.addEventListener("ory:pick-beside", () => switcher.open({ beside: true }));
+
+// Narrow windows have room for one: the note beside stays as a tab.
+window.addEventListener("resize", () => narrow.matches && splitShown() && closeSide());
+
+// The gap between the sides resizes them; double-click for half and half.
+function setRatio(next) {
+  ratio = Math.min(0.75, Math.max(0.25, next));
+  layoutRatio();
+  setPref(RATIO_KEY, String(ratio));
+}
+gutter.addEventListener("pointerdown", (e) => {
+  e.preventDefault();
+  gutter.setPointerCapture(e.pointerId);
+  const box = panes.getBoundingClientRect();
+  const move = (ev) => setRatio((ev.clientX - box.left) / box.width);
+  gutter.addEventListener("pointermove", move);
+  gutter.addEventListener("pointerup", () => gutter.removeEventListener("pointermove", move), { once: true });
+});
+gutter.addEventListener("dblclick", () => setRatio(0.5));
+gutter.addEventListener("keydown", (e) => {
+  if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+  e.preventDefault();
+  setRatio(ratio + (e.key === "ArrowRight" ? 0.05 : -0.05));
+});
+
+// A tab dragged onto the card opens beside.
+panes.addEventListener("dragover", (e) => {
+  if (!e.dataTransfer.types.includes(TAB_DRAG) || noteEl.hidden || !noteView.path) return;
+  e.preventDefault();
+  e.dataTransfer.dropEffect = "move";
+  dropZone.hidden = false;
+});
+panes.addEventListener("dragleave", (e) => {
+  if (!panes.contains(e.relatedTarget)) dropZone.hidden = true;
+});
+panes.addEventListener("drop", (e) => {
+  const path = e.dataTransfer.getData(TAB_DRAG);
+  dropZone.hidden = true;
+  if (!path) return;
+  e.preventDefault();
+  openNote(path, { beside: true });
+});
+document.addEventListener("dragend", () => (dropZone.hidden = true));
+
+// With a note beside a wiki page, the page offers to take the note as a source.
+const sourceText = h("span", { class: "source-line-text" });
+const sourceLine = h("div", { class: "source-line" },
+  icon("link", 14), sourceText,
+  h("button", { class: "text-link", type: "button", onClick: () => addSource() }, "Add as source"),
+  h("button", {
+    class: "iconbtn", type: "button", "aria-label": "Not now", dataset: { tip: "Not now" },
+    onClick: () => {
+      passed.add(pairKey(sourcePair));
+      updateSourceLine();
+    },
+  }, icon("close", 14)));
+const passed = new Set(); // pairs added or dismissed, this session
+let sourcePair = null;
+const pairKey = (pair) => `${pair.page}\n${pair.note}`;
+
+function sourcesOf(page) {
+  const raw = store.notes.find((n) => n.path === page)?.properties?.sources;
+  return (Array.isArray(raw) ? raw : raw ? [raw] : []).map(String);
+}
+
+function updateSourceLine() {
+  sourcePair = null;
+  if (splitShown()) {
+    const sides = [[noteView, noteEl], [sideView, sideEl]];
+    const page = sides.find(([v]) => v.path && wikiOf(v.path) && !isUpkeep(v.path));
+    const note = sides.find(([v]) => v.path && !wikiOf(v.path));
+    if (page && note) {
+      const pair = { page: page[0].path, note: note[0].path, view: page[0], el: page[1] };
+      const linked = sourcesOf(pair.page).map((s) => resolve(s.replace(/^\[\[|\]\]$/g, "").split("|")[0], pair.page));
+      if (!passed.has(pairKey(pair)) && !linked.includes(pair.note)) sourcePair = pair;
+    }
+  }
+  if (!sourcePair) return sourceLine.remove();
+  sourceText.replaceChildren(h("b", null, noteName(sourcePair.note)), ", open beside this page, isn't one of its sources.");
+  const head = sourcePair.el.querySelector(":scope > .note-head");
+  if (head) head.after(sourceLine);
+  else sourcePair.el.prepend(sourceLine);
+}
+
+function addSource() {
+  const { page, note, view } = sourcePair;
+  view.setProperty("sources", [...sourcesOf(page), `[[${linkTextFor(note, page)}]]`]);
+  passed.add(pairKey(sourcePair));
+  updateSourceLine();
+}
+
 applyPanes();
 const settings = createSettings({ theme: themeControl });
 window.addEventListener("ory:settings", (e) => settings.open(e.detail?.section));
@@ -334,6 +586,7 @@ on("pins", renderPinned);
 on("current", () => {
   renderPinned();
   renderRecent();
+  updateSourceLine();
 });
 
 function renderEmpty(message) {
@@ -364,7 +617,6 @@ function renderEmpty(message) {
 function showOnly(view) {
   for (const el of views) el.hidden = el !== view;
   shownView = view;
-  titleSlot.replaceChildren(heads.get(view) ?? "");
   if (view !== archiveEl) archiveView.hide();
   // The panel belongs to a note or page; other views get the width.
   const panelled = view === noteEl || view === pageEl;
@@ -372,6 +624,7 @@ function showOnly(view) {
   panelToggle.hidden = !panelled;
   if (!panelled) tabs.none();
   setPlace();
+  layoutSplit(); // places the view's header too
   if (view !== pageEl) pageView.close(); // stop a page's animation when it is not shown
 }
 
@@ -408,13 +661,13 @@ function route() {
     // A newer route came in while this one waited: it decides what's shown.
     if (token !== routeToken) return;
     if (r.view === "search") {
-      await noteView.close();
+      await leaveNotes();
       setCurrent(null);
       showOnly(searchEl); // a note route that finished meanwhile may have shown itself
       return;
     }
     if (r.view === "suggestions") {
-      await noteView.close();
+      await leaveNotes();
       setCurrent(null);
       if (suggestionsEl.hidden) arrive(suggestionsEl);
       showOnly(suggestionsEl);
@@ -422,7 +675,7 @@ function route() {
       return;
     }
     if (r.view === "archive") {
-      await noteView.close();
+      await leaveNotes();
       setCurrent(null);
       if (archiveEl.hidden) arrive(archiveEl);
       showOnly(archiveEl);
@@ -430,7 +683,7 @@ function route() {
       return;
     }
     if (r.view === "wikis") {
-      await noteView.close();
+      await leaveNotes();
       setCurrent(null);
       if (wikisEl.hidden) arrive(wikisEl);
       showOnly(wikisEl);
@@ -438,7 +691,7 @@ function route() {
       return;
     }
     if (r.view === "page") {
-      await noteView.close();
+      await leaveNotes();
       if (pageEl.hidden || pageView.path !== r.path) arrive(pageEl);
       showOnly(pageEl);
       pageView.show(r.path);
@@ -446,20 +699,53 @@ function route() {
       return;
     }
     if (r.view === "note") {
-      const { error } = await noteView.show(r.path);
+      // Side by side, a note opens in the side you're in, or goes to the side
+      // it's open in already. Opening beside sends it to the second card.
+      const mainHasNote = !noteEl.hidden && !!noteView.path;
+      if (options.beside && mainHasNote && r.path !== noteView.path && !narrow.matches) active = "side";
+      if (isSplit() && mainHasNote) {
+        if (r.path === noteView.path) return setActive("main");
+        if (r.path === sideView.path) return setActive("side");
+      } else if (isSplit() && r.path === sideView.path) {
+        // Back from another place to the note beside: both sides come back.
+        if (pausedMain && store.paths.includes(pausedMain) && !(await noteView.show(pausedMain)).error) {
+          if (token !== routeToken) return;
+          showOnly(noteEl);
+          return setActive("side");
+        }
+        await sideView.close(); // the first side's note is gone: this one takes its place
+        saveBeside();
+      }
+      const view = active === "side" && mainHasNote ? sideView : noteView;
+      const { error } = await view.show(r.path);
       if (token !== routeToken) return; // you went elsewhere while it loaded
-      if (error) {
+      if (error && view === sideView) {
+        active = "main";
+        layoutSplit();
+        notify(error.status === 404 ? `"${r.path}" does not exist.` : error.message, "error");
+      } else if (error) {
         showOnly(emptyEl);
         renderEmpty(error.status === 404 ? `"${r.path}" does not exist. It may have been moved or deleted.` : error.message);
       } else {
-        if (noteEl.hidden || arrivedPath !== r.path) arrive(noteEl);
-        arrivedPath = r.path;
-        showOnly(noteEl);
-        tabs.shown(r.path, options);
-        noteView.focus(options);
+        if (view === noteView) {
+          if (noteEl.hidden || arrivedPath !== r.path) arrive(noteEl);
+          arrivedPath = r.path;
+          showOnly(noteEl);
+        } else {
+          arrive(sideEl);
+          saveBeside();
+        }
+        // Opened beside: a tab of its own; the first side keeps its tab.
+        tabs.shown(r.path, view === sideView && options.beside ? { newTab: true } : options);
+        layoutSplit();
+        view.focus(options);
+        if (restoreBeside) {
+          restoreBeside = false;
+          await reopenBeside();
+        }
       }
     } else {
-      await noteView.close();
+      await leaveNotes();
       setCurrent(null);
       if (r.view === "empty") {
         if (emptyEl.hidden) arrive(emptyEl);
@@ -500,6 +786,7 @@ window.addEventListener("keydown", (e) => {
   } else if (key === "e" && !e.shiftKey && !noteEl.hidden) noteView.toggleSource();
   else if (key === "," && !e.shiftKey) settings.toggle();
   else if (key === "\\" && !e.shiftKey) toggleSidebar();
+  else if ((key === "\\" || key === "|") && e.shiftKey) toggleBeside();
   else handled = false;
   if (handled) {
     e.preventDefault();
@@ -537,13 +824,35 @@ on("index", () => {
   renderPinned();
   renderRecent();
   noteView.refreshLinks();
+  sideView.refreshLinks();
   wikisHome.refresh();
   backlinks.refresh();
   noteView.checkDisk();
+  sideView.checkDisk();
+  layoutSplit();
   if (!searchEl.hidden) searchView.rerun();
 });
 
 // Boot ------------------------------------------------------------------------
+
+// The note that was beside comes back with the first note opened.
+let restoreBeside = true;
+async function reopenBeside() {
+  let saved = null;
+  try {
+    saved = JSON.parse(pref(BESIDE_KEY(), "") || "null");
+  } catch {
+    /* nothing saved, or from before */
+  }
+  if (!saved?.main || !saved.side || narrow.matches || ![saved.main, saved.side].every((p) => store.paths.includes(p))) return;
+  // The address is the side you were in; put each note back on its own side.
+  const inSide = noteView.path === saved.side;
+  if (!inSide && noteView.path !== saved.main) return; // you opened something else
+  if (inSide && (await noteView.show(saved.main)).error) return;
+  if ((await sideView.show(saved.side)).error) return;
+  tabs.shown(saved.side, { newTab: true });
+  setActive(inSide ? "side" : "main");
+}
 
 (async () => {
   try {

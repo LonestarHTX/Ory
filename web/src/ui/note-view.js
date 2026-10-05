@@ -9,7 +9,7 @@
 import { archivePath, ARCHIVE_NOTE, closeNote, followLink, movePath, notify, onMove, openNote } from "../actions.js";
 import { api } from "../api.js";
 import { createEditor } from "../editor/index.js";
-import { focusAddProperty, frontmatterRange, syncFocus } from "../editor/properties.js";
+import { editYaml, focusAddProperty, frontmatterRange, syncFocus } from "../editor/properties.js";
 import { folderOf, noteName, parseLink } from "../links.js";
 import { emit, linkTextFor, loadIndex, resolve, setCurrent, store } from "../store.js";
 import { coverUrl, infoboxRows, isBlank, isHome, pageParts, pageTitle, wiki as wikiInfo, wikiFolder, wikiOf } from "../wikis.js";
@@ -494,6 +494,7 @@ export function createNoteView(el) {
   // E edits the page being read; Esc in the editor goes back to reading.
   window.addEventListener("keydown", (e) => {
     if (el.hidden || !wiki || !reading || e.key !== "e" || e.metaKey || e.ctrlKey || e.altKey) return;
+    if (el.closest(".is-inactive")) return; // side by side: only the side you're in
     const t = e.target;
     if (t.closest?.("input, textarea, select, [contenteditable='true'], [contenteditable='plaintext-only'], .menu, dialog, [role='dialog']")) return;
     if (document.querySelector("[role='dialog']:not([hidden]), .menu")) return; // the switcher or a menu is open
@@ -528,6 +529,7 @@ export function createNoteView(el) {
     }
     items.push({ label: "Copy link", run: () => navigator.clipboard?.writeText(`[[${linkTextFor(note.path, null)}]]`) });
     items.push({ label: isPinned(note.path) ? "Unpin" : "Pin to sidebar", run: () => togglePin(note.path) });
+    items.push({ label: "Open a note beside…", run: () => window.dispatchEvent(new CustomEvent("ory:pick-beside")) });
     items.push({
       label: "Archive",
       confirm: `Archive "${noteName(note.path)}"? ${ARCHIVE_NOTE}`,
@@ -570,6 +572,20 @@ export function createNoteView(el) {
       emit("note-state", null);
     },
     goToLine: (line) => editor.goToLine(line),
+    /** The editor's state while a note is open, for the outline and Info. */
+    get state() {
+      return note ? editor.view.state : null;
+    },
+    /** Set a property in the open note's frontmatter (making it if need be); saves as an edit. */
+    setProperty(key, value) {
+      if (!note) return;
+      const doc = editor.view.state.doc;
+      const fm = frontmatterRange(doc);
+      const yaml = fm ? doc.sliceString(fm.yamlFrom, fm.yamlTo) : "";
+      const has = yaml.split("\n").some((line) => line.startsWith(key + ":"));
+      const next = editYaml(yaml, key, has ? { value } : { add: key, value });
+      editor.apply(fm ? { from: fm.yamlFrom, to: fm.yamlTo, insert: next } : { from: 0, insert: `---\n${next}---\n` });
+    },
   };
 }
 
