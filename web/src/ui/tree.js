@@ -9,8 +9,9 @@ import {
 import { api } from "../api.js";
 import { fileName, folderOf, isImage, isPage } from "../links.js";
 import { loadIndex, on, store } from "../store.js";
+import { isPinned, togglePin } from "../pins.js";
 import { wikiOf } from "../wikis.js";
-import { h, icon } from "./dom.js";
+import { h, icon, mod } from "./dom.js";
 import { openMenu } from "./menu.js";
 
 const EXPANDED_KEY = "ory.expanded";
@@ -118,7 +119,8 @@ export function createTree(el) {
       class: "tree-item",
       type: "button",
       tabindex: -1,
-      onClick: () => (kind === "folder" ? toggle(path) : kind === "file" && !isPage(path) ? openFile(path) : openNote(path)),
+      // Cmd-click opens a note in a new tab.
+      onClick: (e) => (kind === "folder" ? toggle(path) : kind === "file" && !isPage(path) ? openFile(path) : openNote(path, { newTab: mod(e) })),
     },
     kind === "folder" ? h("span", { class: `tree-chevron${isOpen ? " is-open" : ""}` }, icon("chevron", 14)) : null,
     kind === "file"
@@ -164,6 +166,7 @@ export function createTree(el) {
         },
       });
     }
+    if (kind === "note") items.push({ label: isPinned(path) ? "Unpin" : "Pin to sidebar", run: () => togglePin(path) });
     items.push({ label: "Rename", run: () => startRename(path) });
     items.push({
       label: "Archive",

@@ -1,4 +1,4 @@
-// The open note's headings, in the right sidebar under the backlinks. The
+// The open note's headings: a view of the right panel (ui/panel.js). The
 // heading the cursor is in is selected; clicking one jumps to it.
 
 import { syntaxTree } from "@codemirror/language";
@@ -24,7 +24,7 @@ export function headings(state) {
 
 export function createOutline(el, { goToLine }) {
   const list = h("div", { class: "outline" });
-  el.append(h("h2", { class: "side-title" }, "Outline"), list);
+  el.append(list);
 
   let items = [];
   let key = "";

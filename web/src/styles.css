@@ -60,7 +60,9 @@
   --r-window: 10px;
 
   --gutter: 24px; /* shared left edge of everything in the sidebars and headers */
-  --side-w: 280px;
+  --rail-w: 48px;
+  --side-w: 264px;
+  --panel-w: 280px;
   --head-h: 48px;
   --row-h: 28px;
   --prose-w: 720px;
@@ -115,35 +117,30 @@
 [data-palette="neutral"] {
   --chrome: var(--sidebar);
   --content: var(--card);
-  --head-well: var(--field);
 }
 
 :root {
   --content-line: transparent;
   --content-shadow: none;
-  --switch-track: var(--canvas); /* below the panel, so the chosen space stands out */
-  --switch-on: var(--card);
-  --switch-ring: linear-gradient(var(--switch-on), var(--switch-on));
+  --tab-on: var(--card); /* the chosen tab or panel view takes the card's colour */
+  --tab-ring: linear-gradient(var(--tab-on), var(--tab-on));
 }
 
 /* In light mode the card is set apart by a hairline and a faint shadow. */
 :root[data-theme="light"] {
   --content-line: rgba(0, 0, 0, 0.11);
   --content-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
-  --switch-track: var(--selected);
 }
 
 [data-palette="dusk"] {
   --chrome: radial-gradient(ellipse 60% 120% at 100% 0, #492221, transparent),
     linear-gradient(to right, #282237, #2a2233 45%, #3a1e1e);
   --content: #131215;
-  --head-well: #211a2a;
 }
 
 :root[data-palette="dusk"] {
-  --switch-track: rgba(0, 0, 0, 0.24);
-  --switch-on: #131215;
-  --switch-ring: linear-gradient(90deg, #8e87a9, #c39c92); /* the chosen space, outlined lilac to peach */
+  --tab-on: #131215;
+  --tab-ring: linear-gradient(90deg, #8e87a9, #c39c92); /* the chosen tab, outlined lilac to peach */
 }
 
 :root[data-theme="light"][data-palette="dusk"],
@@ -151,13 +148,11 @@
   --chrome: radial-gradient(ellipse 60% 120% at 100% 0, #f3dcd9, transparent),
     linear-gradient(to right, #e8e5f0, #ece7f0 45%, #f2e5e3);
   --content: #ffffff;
-  --head-well: #ffffff;
 }
 
 :root[data-theme="light"][data-palette="dusk"] {
-  --switch-track: rgba(0, 0, 0, 0.06);
-  --switch-on: #ffffff;
-  --switch-ring: linear-gradient(90deg, #8a83a8, #c09086);
+  --tab-on: #ffffff;
+  --tab-ring: linear-gradient(90deg, #8a83a8, #c09086);
 }
 
 /* Names the first version of text colour wrote into notes. */
@@ -249,11 +244,10 @@ dd {
 
 /* Thin scrollbars in the line colour. */
 .tree,
-.sidebar-right,
+.panel-body,
 .search-body,
 .switcher-list,
 .note-scroll,
-.wiki-contents,
 .wikis-home {
   scrollbar-width: thin;
   scrollbar-color: var(--border-strong) transparent;
@@ -377,72 +371,214 @@ html[data-theme-fade]::view-transition-new(root) {
   }
 }
 
-/* ---------- Layout ---------- */
+/* ---------- Layout ----------
+   One title bar over everything. Under it, on one line: the rail, the
+   sidebar, the open view (a card set into the frame) and the panel. The title
+   bar, rail, sidebar and panel are one surface, var(--chrome). */
 
-/* The frame: a header row across the window (the space switch over the
-   left side bar, the field over the open view), both side bars below it, and
-   the open view set in between as a card. One surface, var(--chrome). */
 .app {
   display: grid;
-  grid-template-columns: var(--side-w) minmax(0, 1fr);
+  grid-template-columns: var(--rail-w) var(--side-w) minmax(0, 1fr) 0;
   grid-template-rows: var(--head-h) minmax(0, 1fr);
   height: 100vh;
   background: var(--chrome);
 }
 
-.app-head-switch {
-  grid-row: 1;
-  grid-column: 1;
-  display: flex;
-  align-items: center;
-  padding: 0 calc(var(--gutter) - 8px);
+.app.is-side-hidden {
+  --side-w: 0px;
 }
 
-.head-field {
+.app.has-panel:not(.is-panel-hidden) {
+  grid-template-columns: var(--rail-w) var(--side-w) minmax(0, 1fr) var(--panel-w);
+}
+
+/* Title bar: the sidebar toggle with Back and Forward over the rail and
+   sidebar; the open view's header over the card (main.js moves it there); the
+   tabs and the panel toggle at the right. */
+.titlebar {
+  grid-column: 1 / -1;
   grid-row: 1;
-  grid-column: 2;
-  align-self: center;
+  display: grid;
+  grid-template-columns: calc(var(--rail-w) + var(--side-w)) minmax(0, 1fr) auto;
+  align-items: center;
+  min-width: 0;
+  border-bottom: 1px solid var(--line);
+}
+
+/* Its first button sits over the rail's icons. */
+.title-nav {
+  display: flex;
+  gap: 4px;
+  padding-left: 9px;
+}
+
+.title-what {
+  min-width: 0;
+  height: 100%;
+}
+
+.title-what > .note-head {
+  height: 100%;
+  padding: 0 16px;
+  border-bottom: 0;
+}
+
+.title-end {
   display: flex;
   align-items: center;
   gap: 8px;
-  height: 32px;
-  padding: 0 8px 0 12px;
-  border: 1px solid var(--line);
+  min-width: 0;
+  padding-right: 9px;
+}
+
+.iconbtn.is-on {
+  color: var(--text);
+}
+
+/* Tabs: small chips; the chosen one takes the card's colour (Dusk outlines it). */
+.tabs {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  max-width: 50vw;
+  padding: 0 8px;
+  border-left: 1px solid var(--line);
+  border-right: 1px solid var(--line);
+}
+
+.tab-list {
+  display: flex;
+  gap: 2px;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.tab {
+  flex: 0 1 auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 72px;
+  max-width: 160px;
+  height: 28px;
+  padding: 0 4px 0 8px;
+  border: 1px solid transparent;
   border-radius: var(--r-ctl);
-  background: var(--head-well);
-  color: var(--text-3);
-  font-size: 13px;
-  transition: border-color 0.12s ease, color 0.12s ease;
-}
-
-.head-field:hover {
-  border-color: var(--line-strong);
   color: var(--text-2);
+  font-size: 13px;
+  cursor: pointer;
+  transition: background-color 0.12s ease, color 0.12s ease;
 }
 
-.head-field > span {
+.tab:not(.is-selected):hover {
+  background: var(--hover);
+  color: var(--text);
+}
+
+.tab.is-selected {
+  background: linear-gradient(var(--tab-on), var(--tab-on)) padding-box, var(--tab-ring) border-box;
+  color: var(--text);
+  font-weight: 500;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.16);
+}
+
+.tab > .icon {
+  color: var(--text-3);
+}
+
+.tab-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tab-close {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 20px;
+  height: 20px;
+  border-radius: var(--r-sm);
+  color: var(--text-3);
+  opacity: 0;
+}
+
+.tab:hover .tab-close,
+.tab.is-selected .tab-close {
+  opacity: 1;
+}
+
+.tab-close:hover {
+  background: var(--hover);
+  color: var(--text);
+}
+
+.tab-add {
+  flex: none;
+  width: 28px;
+  height: 28px;
+}
+
+/* Rail: the places, with Settings at its foot. */
+.rail {
+  grid-column: 1;
+  grid-row: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 0;
+}
+
+.rail-gap {
   flex: 1;
 }
 
-.sidebar-left {
-  grid-row: 2;
-  grid-column: 1;
+.rail-btn {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--r-ctl);
+  color: var(--text-2);
+  transition: background-color 0.12s ease, color 0.12s ease;
 }
 
-.sidebar-right {
-  grid-row: 2;
-  grid-column: 3;
+.rail-btn:hover {
+  background: var(--hover);
+  color: var(--text);
 }
 
-.app.has-rail {
-  grid-template-columns: var(--side-w) minmax(0, 1fr) var(--side-w);
+.rail-btn.is-selected {
+  background: var(--selected);
+  color: var(--text);
 }
 
-.app:not(.has-rail) .sidebar-right {
-  display: none;
+/* How many suggestions wait, on the rail's silver bulb. */
+.rail-badge {
+  position: absolute;
+  top: -2px;
+  right: -4px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-sm);
+  background: var(--tab-on);
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 14px;
+  text-align: center;
 }
 
 .sidebar {
+  grid-row: 2;
   display: flex;
   flex-direction: column;
   min-height: 0;
@@ -450,9 +586,49 @@ html[data-theme-fade]::view-transition-new(root) {
   font-size: 13px;
 }
 
-.sidebar-right {
-  overflow-y: auto;
-  padding-bottom: var(--gutter);
+.sidebar-left {
+  grid-column: 2;
+}
+
+.app.is-side-hidden .sidebar-left {
+  display: none;
+}
+
+/* The sidebar's header: the notes folder (a switcher) and the space's actions. */
+.side-head {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: var(--head-h);
+  padding: 0 calc(var(--gutter) - 8px) 0 8px;
+}
+
+.folder-switcher {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  height: 32px;
+  padding: 0 8px;
+  border-radius: var(--r-ctl);
+  font-weight: 600;
+  transition: background-color 0.12s ease;
+}
+
+.folder-switcher:hover,
+.folder-switcher[aria-expanded="true"] {
+  background: var(--hover);
+}
+
+.folder-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.folder-switcher .icon {
+  color: var(--text-3);
 }
 
 /* The open view: a card set into the frame. Inside it, "raised" is the card's
@@ -460,12 +636,12 @@ html[data-theme-fade]::view-transition-new(root) {
 .main {
   --card: var(--content);
   grid-row: 2;
-  grid-column: 2;
+  grid-column: 3;
   display: flex;
   flex-direction: column;
   min-width: 0;
   min-height: 0;
-  margin-bottom: 8px;
+  margin: 8px 8px 8px 0;
   overflow: hidden;
   border: 1px solid var(--content-line);
   border-radius: var(--r-card);
@@ -473,24 +649,107 @@ html[data-theme-fade]::view-transition-new(root) {
   box-shadow: var(--content-shadow);
 }
 
-/* With no side bar on the right, the card and the field keep off the edge. */
-.app:not(.has-rail) .main,
-.app:not(.has-rail) .head-field {
-  margin-right: 8px;
+.app.has-panel:not(.is-panel-hidden) .main {
+  margin-right: 0;
+}
+
+/* The panel: about the open note, one view at a time (ui/panel.js). */
+.panel {
+  grid-column: 4;
+  grid-row: 2;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  font-size: 13px;
+}
+
+.app:not(.has-panel) .panel,
+.app.is-panel-hidden .panel {
+  display: none;
+}
+
+.panel-head {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: var(--head-h);
+  padding: 0 calc(var(--gutter) - 8px) 0 var(--gutter);
+}
+
+.panel-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.panel-views {
+  display: flex;
+  padding: 2px;
+  border-radius: var(--r-ctl);
+  background: var(--selected);
+}
+
+.panel-view {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 24px;
+  border-radius: var(--r-sm);
+  color: var(--text-2);
+  transition: background-color 0.12s ease, color 0.12s ease;
+}
+
+.panel-view:hover {
+  color: var(--text);
+}
+
+.panel-view.is-selected {
+  background: var(--tab-on);
+  color: var(--text);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.16);
+}
+
+.panel-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding-bottom: var(--gutter);
+}
+
+/* Info: facts about the open note. */
+.info {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  column-gap: 16px;
+  row-gap: 8px;
+  padding: 0 var(--gutter);
+  font-size: 12px;
+  line-height: 16px;
+}
+
+.info dt {
+  color: var(--text-3);
+}
+
+.info dd {
+  overflow-wrap: anywhere;
 }
 
 @media (max-width: 1100px) {
-  .app,
-  .app.has-rail {
-    grid-template-columns: var(--side-w) minmax(0, 1fr);
+  .app.has-panel:not(.is-panel-hidden) {
+    grid-template-columns: var(--rail-w) var(--side-w) minmax(0, 1fr) 0;
   }
 
-  .sidebar-right {
+  .app .panel,
+  .titlebar .panel-toggle {
     display: none;
   }
 
-  .app.has-rail .main,
-  .app.has-rail .head-field {
+  .app.has-panel:not(.is-panel-hidden) .main {
     margin-right: 8px;
   }
 }
@@ -504,40 +763,6 @@ html[data-theme-fade]::view-transition-new(root) {
 
 /* ---------- Sidebars ---------- */
 
-/* Notes | Wikis: the two spaces, as a segmented control. */
-.space-switch {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  width: 100%;
-  height: 32px;
-  padding: 2px;
-  border-radius: var(--r-ctl);
-  background: var(--switch-track);
-}
-
-.space-tab {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  border-radius: var(--r-sm);
-  color: var(--text-2);
-  font-weight: 500;
-  transition: background 0.12s, color 0.12s;
-}
-
-.space-tab:hover {
-  color: var(--text);
-}
-
-/* The chosen space takes the card's colour; Dusk outlines it. */
-.space-tab.is-selected {
-  border: 1px solid transparent;
-  background: linear-gradient(var(--switch-on), var(--switch-on)) padding-box, var(--switch-ring) border-box;
-  color: var(--text);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.16);
-}
-
 .space-panel {
   flex: 1;
   display: flex;
@@ -547,6 +772,15 @@ html[data-theme-fade]::view-transition-new(root) {
 
 .space-panel[hidden] {
   display: none;
+}
+
+/* The wikis' groups scroll together; in Notes the tree scrolls between
+   Pinned and Recent. */
+.space-panel[data-space="wikis"] {
+  overflow-y: auto;
+  padding-bottom: var(--gutter);
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
 }
 
 /* List rows sit 8px inside the gutter so their text lines up with it. */
@@ -600,12 +834,22 @@ html[data-theme-fade]::view-transition-new(root) {
   padding: 0 calc(var(--gutter) - 8px) 0 var(--gutter);
 }
 
-.sidebar-right .side-title {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  height: var(--head-h);
-  padding: 0 var(--gutter);
+/* A wiki section's heading, under the wiki's own label. */
+.side-subtitle {
+  font-size: 11px;
+  line-height: 16px;
+  font-weight: 500;
+  color: var(--text-3);
+}
+
+.nav-hint {
+  flex: none;
+  max-width: 45%;
+  overflow: hidden;
+  font-size: 12px;
+  color: var(--text-3);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .count {
@@ -616,14 +860,6 @@ html[data-theme-fade]::view-transition-new(root) {
 
 .side-actions {
   display: flex;
-}
-
-.side-foot {
-  flex: none;
-  display: flex;
-  flex-direction: column;
-  padding: 8px calc(var(--gutter) - 8px);
-  border-top: 1px solid var(--line);
 }
 
 .side-empty {
@@ -2643,28 +2879,6 @@ html[data-theme-fade]::view-transition-new(root) {
   margin-right: 4px;
 }
 
-/* Docked: the switcher opens over the header's field, its own field exactly
-   where that one was, and the list drops below. No veil: nothing moves. */
-.scrim.is-docked {
-  padding: 0;
-  background: transparent;
-  animation: none;
-}
-
-.switcher.is-docked {
-  position: fixed;
-  width: auto;
-  max-height: min(70vh, 560px);
-  animation: veil-in 0.12s ease;
-}
-
-.switcher.is-docked .switcher-field {
-  height: 32px;
-  margin: 4px;
-  padding: 0 11px;
-  font-size: 13px;
-}
-
 /* ---------- Pages ---------- */
 
 .page-body {
@@ -2937,9 +3151,8 @@ mark {
 
 /* ---------- Wikis ---------- */
 
-/* The wiki sidebar: the wikis, or one wiki's contents. */
-.wiki-list .nav-item,
-.wiki-contents .nav-item {
+/* The wiki sidebar: names that don't fit end in an ellipsis. */
+.space-panel[data-space="wikis"] .nav-item {
   min-width: 0;
 }
 
@@ -2979,15 +3192,10 @@ mark {
   opacity: 0;
 }
 
-.wiki-list .nav-label,
-.wiki-contents .nav-label {
+.space-panel[data-space="wikis"] .nav-label {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.nav-item.nav-back {
-  color: var(--text-3);
 }
 
 .nav-item.is-indented .nav-label {
@@ -2996,39 +3204,6 @@ mark {
 
 .nav-item.is-quiet {
   color: var(--text-3);
-}
-
-.wiki-head {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 8px calc(var(--gutter) - 8px) 12px var(--gutter);
-}
-
-.wiki-head-text {
-  flex: 1;
-  min-width: 0;
-}
-
-.wiki-head-name {
-  overflow: hidden;
-  font-size: 14px;
-  font-weight: 600;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.wiki-head-count {
-  font-size: 12px;
-  line-height: 16px;
-  color: var(--text-3);
-}
-
-.wiki-contents {
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  padding-bottom: var(--gutter);
 }
 
 .wiki-section {
@@ -4097,22 +4272,6 @@ mark {
 /* ---------- Settings ----------
    A floating window with its own sidebar of sections (ui/settings.js). */
 
-.side-foot {
-  flex-direction: row;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-}
-
-.side-foot-name {
-  overflow: hidden;
-  padding-left: 8px;
-  color: var(--text-3);
-  font-size: 12px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 .scrim:has(.settings) {
   align-items: center;
   padding-top: 0;
@@ -4384,20 +4543,23 @@ h3.setting-label {
   align-items: center;
 }
 
-.theme-preview-switch {
-  width: 32px;
+/* The title bar in small: its buttons, and the chosen tab in the card's colour. */
+.theme-preview-nav {
+  width: 24px;
   height: 12px;
   margin-left: 8px;
   border-radius: var(--r-sm);
   background: var(--line-strong);
 }
 
-.theme-preview-field {
+.theme-preview-tab {
+  justify-self: end;
+  width: 40px;
   height: 12px;
   margin-right: 8px;
   border: 1px solid var(--line);
   border-radius: var(--r-sm);
-  background: var(--head-well);
+  background: var(--content);
 }
 
 .theme-preview-side {

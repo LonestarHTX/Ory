@@ -1,4 +1,4 @@
-// Backlinks for the open note, in the right sidebar.
+// Backlinks for the open note: a view of the right panel (ui/panel.js).
 
 import { openNote } from "../actions.js";
 import { api } from "../api.js";
@@ -9,7 +9,7 @@ import { readable } from "./readable.js";
 export function createBacklinks(el) {
   const count = h("span", { class: "count" });
   const body = h("div", { class: "backlinks" });
-  el.append(h("h2", { class: "side-title" }, "Backlinks", count), body);
+  el.append(body);
 
   let seq = 0;
 
@@ -44,5 +44,5 @@ export function createBacklinks(el) {
 
   on("current", refresh);
   refresh();
-  return { refresh };
+  return { refresh, count }; // the panel shows the count in its header
 }

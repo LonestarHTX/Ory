@@ -33,6 +33,13 @@ class SettingsTests(unittest.TestCase):
         with open(self.config_path) as fh:
             return json.load(fh)
 
+    def test_switching_remembers_the_folders_left(self):
+        result = settings.update(self.state, {"notesDir": self.second})
+        self.assertEqual(result["recentNotesDirs"], [os.path.realpath(self.first)])
+        self.assertEqual(self.saved()["recent_notes_dirs"], [os.path.realpath(self.first)])
+        result = settings.update(self.state, {"notesDir": self.first})
+        self.assertEqual(result["recentNotesDirs"], [os.path.realpath(self.second)])  # never the open one
+
     def test_switching_the_notes_folder_swaps_the_vault_and_saves(self):
         result = settings.update(self.state, {"notesDir": self.second})
         self.assertEqual(result["notesDir"], os.path.realpath(self.second))

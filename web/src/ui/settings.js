@@ -260,7 +260,7 @@ export function createSettings({ theme }) {
   /** The themes as cards, each drawing a small Ory window in its own colours. */
   function themes() {
     const preview = (id) => h("span", { class: "theme-preview", dataset: { palette: id }, "aria-hidden": "true" },
-      h("span", { class: "theme-preview-head" }, h("span", { class: "theme-preview-switch" }), h("span", { class: "theme-preview-field" })),
+      h("span", { class: "theme-preview-head" }, h("span", { class: "theme-preview-nav" }), h("span", { class: "theme-preview-tab" })),
       h("span", { class: "theme-preview-side" }, h("i"), h("i"), h("i")),
       h("span", { class: "theme-preview-card" }, h("i"), h("i"), h("i")));
     const current = theme.palette.get();
@@ -404,6 +404,7 @@ export function createSettings({ theme }) {
         ["Search everything", "Mod-Shift-F"],
         ["Open today's note", "Mod-Shift-D"],
         ["Settings", "Mod-,"],
+        ["Hide or show the sidebar", "Mod-\\"],
       ]),
       group("Writing", [
         ["Live preview or source", "Mod-E"],

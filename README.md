@@ -63,16 +63,29 @@ tools can show:
   A bare name matches any note with that file name, preferring the linking note's folder.
 - YAML frontmatter at the top of a note is shown as properties.
 - Nothing is deleted straight away: archiving a note, file, folder or wiki moves it to
-  the Archive (`.archive/` in the notes folder). The Archive button at the foot of the
-  sidebar lists it, with Restore, for 30 days; then Ory deletes it for good. Anything put
+  the Archive (`.archive/` in the notes folder). The Archive, on the rail at the left of the
+  window, lists it, with Restore, for 30 days; then Ory deletes it for good. Anything put
   in `.archive/` some other way is listed but kept until you restore or delete it.
 - Folders that start with a dot (such as `.git` or `.archive`) are ignored.
 - Screenshots and files pasted or dropped into a note are saved to the attachments
   folder and embedded as `![[Pasted image 20260927194019.png]]`.
 
+## The window
+
+- **The rail**, at the left: Notes, Wikis, Suggestions (silver while suggestions wait) and
+  the Archive, with Settings at its foot.
+- **The sidebar** for the place you're in. Its header names the notes folder (click it to
+  switch back to one opened before) and holds Search and New. In Notes: New note,
+  Today's note, Pinned notes (pin from a note's "..."), the folder tree and Recent.
+- **The title bar**: Back and Forward, where you are and the open note's state and
+  actions, and the open notes as tabs.
+- **The panel**, at the right: Backlinks, Outline or Info (folder, when edited, words,
+  links, tags) for the open note, one at a time.
+
 ## Notes and wikis
 
-Ory has two spaces over the same folder, switched at the top left of the window:
+Ory has two spaces over the same folder, the first two places on the rail at the left
+of the window:
 
 - **Notes** are where you think: quick, dated, messy. They open straight into the
   editor. Everything outside the wikis folder is notes.
@@ -139,8 +152,8 @@ version to keep instead of overwriting either.
 
 ## Settings
 
-Settings opens in a window over your notes, from the small gear at the bottom of the
-sidebar or Cmd+,. It has five sections:
+Settings opens in a window over your notes, from the gear at the foot of the rail or
+Cmd+,. It has five sections:
 
 - **Folders:** switch the notes folder without restarting, and name the daily notes,
   attachments and wikis folders. These are saved in `ory.config.json` on this computer.
@@ -201,7 +214,9 @@ agent to "find suggestions for my wikis", with no copying and pasting.
 
 | Key | Does |
 | --- | --- |
-| Cmd+O | Open or create a note, from the field at the top (Shift+Enter creates, Cmd+Enter searches every note) |
+| Cmd+O | Open or create a note (Shift+Enter creates, Cmd+Enter searches every note); the tabs' + does the same in a new tab |
+| Cmd+click | Open a note in a new tab (in the tree, Pinned and Recent) |
+| Cmd+\ | Hide or show the sidebar |
 | Cmd+Shift+F | Search all notes |
 | Cmd+Shift+D | Open today's note (`Daily/YYYY-MM-DD.md`) |
 | `[[` | Link to a note, with autocomplete |

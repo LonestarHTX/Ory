@@ -14,6 +14,7 @@ import { folderOf, noteName, parseLink } from "../links.js";
 import { emit, linkTextFor, loadIndex, resolve, setCurrent, store } from "../store.js";
 import { coverUrl, infoboxRows, isBlank, isHome, pageParts, pageTitle, wiki as wikiInfo, wikiFolder, wikiOf } from "../wikis.js";
 import { clear, formatDate, h, icon, keys, timeAgo, todayISO } from "./dom.js";
+import { isPinned, togglePin } from "../pins.js";
 import { pref, readsWiki, setPref, SOURCE_KEY } from "../prefs.js";
 import { createFormatToolbar } from "./format-toolbar.js";
 import { headings } from "./outline.js";
@@ -230,6 +231,10 @@ export function createNoteView(el) {
     setCurrent(data.path);
     renderHead();
     editor.open(data.path, data.text, { source: sourcePref, reading });
+    // Opening swaps the editor's state without an update; say what's open now,
+    // so the outline, Info and toolbar follow.
+    toolbar.update(editor.view.state);
+    emit("note-state", editor.view.state);
     renderMode();
     scroller.scrollTop = 0;
     setStatus("idle");
@@ -522,6 +527,7 @@ export function createNoteView(el) {
       });
     }
     items.push({ label: "Copy link", run: () => navigator.clipboard?.writeText(`[[${linkTextFor(note.path, null)}]]`) });
+    items.push({ label: isPinned(note.path) ? "Unpin" : "Pin to sidebar", run: () => togglePin(note.path) });
     items.push({
       label: "Archive",
       confirm: `Archive "${noteName(note.path)}"? ${ARCHIVE_NOTE}`,

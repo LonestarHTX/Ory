@@ -28,47 +28,68 @@ The rules Ory's interface follows. A value outside the scales below is a mistake
   the Dusk theme, which someone chooses.
 - **Themes.** Light or dark is one choice (System, Light, Dark) and the theme is
   another (Neutral, Dusk), both under Settings → Appearance and remembered in the
-  browser. A theme only sets the frame and the card: `--chrome`, `--content`,
-  `--head-well` and the space switch's `--switch-*` tokens (Themes in `styles.css`).
+  browser. A theme only sets the frame and the card: `--chrome`, `--content` and the
+  chosen tab's `--tab-on` and `--tab-ring` (Themes in `styles.css`).
   Neutral is Ory's own greys and is the default. Dusk is the one place hue and a
   gradient are allowed: violet grey `#282237` on the left warming to wine `#3a1e1e`,
   warmest at the top right (`#492221`), with a darker card (`#131215`) and the chosen
-  space outlined lilac to peach. Every text colour passes 4.5:1 on all of its
+  tab outlined lilac to peach. Every text colour passes 4.5:1 on all of its
   surfaces in both modes (the closest is hint text on light Dusk's top right, 4.56).
   Floating layers keep Ory's own surfaces in every theme.
 
 ## Layout
 
-- **The frame.** A header row runs across the window: the Notes | Wikis switch over
-  the left sidebar, and a field over the open view. Below it are both sidebars. The
-  header and sidebars are one surface (`--chrome`), with no hairlines between them,
-  and the open view is set in as a card (`--content`, 6px corners, 8px clear of the
-  bottom, and of the right edge when there is no right sidebar). In light mode the
-  card also has a hairline and a faint shadow.
-- **The header's field is the quick switcher, docked.** Clicking it, or Cmd+O, opens
-  the switcher with its field exactly over the header's (the window's border and the
-  field's margin are taken off each side) and its list below, with no veil. The last
-  row, or Cmd+Enter, searches every note. So the left sidebar's navigation is only
-  Today's note.
+- **One title bar over everything** (48px, a hairline below). Over the rail and
+  sidebar: the sidebar toggle (Cmd+\), Back and Forward. Over the card: the open
+  view's own header (where it is, its name, its state such as "Edited 2 min ago",
+  and its one action and "..."), which `main.js` moves out of the view into the
+  title bar. At the right: the tabs and the panel toggle. Views have no header row
+  of their own on the card.
+- **Every column starts on one line under the title bar**, each with a 48px header
+  row: the rail's first icon, the sidebar's header and the panel's header line up.
+- **The rail** (48px) holds the places: Notes, Wikis, Suggestions and the Archive,
+  with Settings at its foot. The place you're in has the selected fill. Suggestions
+  is the silver bulb, with its count, while suggestions wait.
+- **The sidebar** (264px) starts with its header: the notes folder's name, which is
+  a menu for switching back to folders opened before (or Settings for another), and
+  the space's actions (Search, and New note or New wiki). Below it, the space's
+  groups under 11px labels. Notes: New note and Today's note, Pinned (only when
+  something is pinned), Folders (the tree, which scrolls), and Recent (the last five
+  notes you were in, not the one you're in) at the bottom.
+- **Tabs** are 28px chips in the title bar, at most 160px wide; the chosen one takes
+  the card's colour (Dusk outlines it). A note opens in the current tab, or in its
+  own tab if it's open already; Cmd-click (in the tree, Pinned or Recent) and the
+  tabs' + open a new one. Places other than notes leave the tabs with none chosen.
+  Tabs follow moves, close for archived notes, and are remembered per notes folder.
+- **The open view is set into the frame as a card** (`--content`, 6px corners, 8px
+  clear of the title bar, the bottom, and the right edge when the panel is hidden).
+  The title bar, rail, sidebar and panel are one surface (`--chrome`) with no
+  hairlines between them. In light mode the card also has a hairline and a faint
+  shadow.
+- **The panel** (280px) is about the open note or page, one view at a time: its
+  header names the view and switches between Backlinks (with the count), Outline and
+  Info (folder, when edited, words, links, tags, aliases). The choice, and whether the
+  panel is shown, are remembered; it hides below 1100px.
 - **The note sits on the card, not the canvas.** A note is a document read for a long
   time; in light mode that makes it white rather than grey.
 - **Keyboard hints in the sidebar** appear while a row is hovered or focused.
-- **Sidebars are 280px** and share the 24px `--gutter`.
+- **The sidebar and panel share the 24px `--gutter`.**
 
 ## Ory-specific rules
 
-- **Two spaces, one tool.** Notes | Wikis is a segmented control in the header, over
-  the left sidebar (the selected segment takes the card's colour). The
-  sidebar below it belongs to the space: the notes tree, or the wikis. The tree never
-  shows the wikis folder.
-- **Wikis sidebar** has no nested tree. Outside a wiki it lists the wikis, each with
-  a 20px picture (its cover, or its initial on a card) and its page count. Inside one
-  it becomes that wiki's contents under an "All wikis" back row and a header with the
-  wiki's 32px picture, name and size. Subfolders are section headings with their
-  pages indented; upkeep pages sit last, in tertiary text, above a hairline. A wiki's
-  "..." holds Archive, confirmed in place with the page count; it is on each
-  wiki row (on hover, in place of the count, and on right-click), in the header
-  inside a wiki, and on each All wikis card (on hover, over the cover).
+- **Two spaces, one tool.** Notes and Wikis are the rail's first two places; the
+  sidebar belongs to the space you're in: the notes tree, or the wikis. The tree
+  never shows the wikis folder.
+- **Wikis sidebar** has no nested tree, and its groups scroll together. It starts
+  with All wikis and Suggestions (with how many wait). On All wikis: the wikis, each
+  with a 20px picture (its cover, or its initial on a card) and its page count, then
+  the five pages edited most recently, each with its wiki's name. Inside a wiki: its
+  contents under its name (with New page and "..."), subfolders as quieter section
+  headings with their pages indented, upkeep pages last in tertiary text above a
+  hairline; then Other wikis. A wiki's "..." holds Archive, confirmed in place with
+  the page count; it is on each wiki row (on hover, in place of the count, and on
+  right-click), beside the wiki's name inside it, and on each All wikis card (on
+  hover, over the cover).
 - **Reading view.** Wiki pages open read-only with every mark hidden, no caret and no
   toolbar. The header's Edit button (with its E key cap) becomes Done (primary, Esc)
   while editing. The page header is 24px semibold title, 17px secondary summary, tags
@@ -102,8 +123,7 @@ The rules Ory's interface follows. A value outside the scales below is a mistake
   dims. The draft list on the left shows each page's +/− counts and a tick when every
   change is decided.
 - **Settings** is a floating window over whatever is open, like the quick switcher,
-  opened by the small gear at the foot of the sidebar (beside the notes folder's name)
-  or Cmd+,; Esc, a click outside or Cmd+, again closes it. It has its own sidebar of
+  opened by the gear at the foot of the rail or Cmd+,; Esc, a click outside or Cmd+, again closes it. It has its own sidebar of
   sections (Folders, Appearance, Editing, AI, Shortcuts), moved through with the
   arrow keys, and remembers the last one. Tab stays inside it, and focus stays put
   when a choice redraws the section. Each section starts with a short line saying
@@ -203,8 +223,7 @@ The rules Ory's interface follows. A value outside the scales below is a mistake
 - **Destructive actions** live in "..." menus and confirm in place. Nothing is
   deleted at once: Archive moves a note, file, folder or wiki to `.archive/`, and the
   confirmation says it can be restored for 30 days.
-- **The Archive** is a full page (the archive button at the foot of the sidebar,
-  beside Settings, selected while you're on it). One row per item, newest first:
+- **The Archive** is a full page (a place on the rail, selected while you're on it). One row per item, newest first:
   name with its kind's icon (and note count for folders and wikis), where it was,
   when it was archived, and when it will be deleted, with a warning dot in the last
   three days. Restore is the row's button; Delete now is in its "..." menu and

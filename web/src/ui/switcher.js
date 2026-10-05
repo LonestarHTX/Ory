@@ -1,7 +1,7 @@
-// Quick switcher (Mod-O, or the header's field): type to find a note by name,
-// alias or path. Enter opens; Shift+Enter creates a note with the typed name;
-// the last row, or Mod+Enter, searches every note for it. It opens docked over
-// the header's field when there is one.
+// Quick switcher (Mod-O, or the tabs' +): type to find a note by name, alias
+// or path. Enter opens; Shift+Enter creates a note with the typed name; the
+// last row, or Mod+Enter, searches every note for it. Opened from the tabs' +,
+// what you choose opens in a new tab.
 
 import { createNote, openNote, openSearch } from "../actions.js";
 import { folderOf } from "../links.js";
@@ -58,13 +58,12 @@ function results(query) {
   return scored.slice(0, LIMIT);
 }
 
-/** anchor: returns the field to open over, or null to open in the middle. */
-export function createSwitcher({ anchor = () => null } = {}) {
+export function createSwitcher() {
   let dialog = null;
-  let place = null;
   let returnFocus = null;
 
-  function open() {
+  /** {newTab}: what's chosen opens in a new tab. */
+  function open({ newTab = false } = {}) {
     if (dialog) return dialog.querySelector("input").focus();
     closeMenu({ restoreFocus: false }); // a "…" menu would sit above the switcher
     returnFocus = document.activeElement;
@@ -134,12 +133,12 @@ export function createSwitcher({ anchor = () => null } = {}) {
         try {
           const path = await createNote(name);
           close(false);
-          openNote(path);
+          openNote(path, { newTab });
         } catch (err) {
           // An existing note with that name: open it instead of failing.
           if (err.status === 409) {
             close(false);
-            openNote(name.toLowerCase().endsWith(".md") ? name : name + ".md");
+            openNote(name.toLowerCase().endsWith(".md") ? name : name + ".md", { newTab });
           } else {
             error.hidden = false;
             error.replaceChildren(h("span", { class: "status-dot error" }), err.message);
@@ -149,7 +148,7 @@ export function createSwitcher({ anchor = () => null } = {}) {
       }
       if (!item) return;
       close(false);
-      openNote(item.note.path);
+      openNote(item.note.path, { newTab });
     };
 
     input.addEventListener("input", () => {
@@ -182,29 +181,15 @@ export function createSwitcher({ anchor = () => null } = {}) {
       }
     });
 
-    const field = anchor();
-    const docked = !!field?.offsetParent;
-    const win = h("div", { class: `window switcher${docked ? " is-docked" : ""}`, role: "dialog", "aria-modal": "true", "aria-label": "Open a note or search" },
-      input, error, list, foot);
-    dialog = h("div", { class: `scrim${docked ? " is-docked" : ""}`, onMousedown: (e) => e.target === dialog && close() }, win);
+    dialog = h("div", { class: "scrim", onMousedown: (e) => e.target === dialog && close() },
+      h("div", { class: "window switcher", role: "dialog", "aria-modal": "true", "aria-label": "Open a note or search" },
+        input, error, list, foot));
     document.body.append(dialog);
-    if (docked) {
-      // Its field lands on the header's: the window's border and the field's
-      // margin (1 + 4px) are taken off each side.
-      place = () => {
-        const box = field.getBoundingClientRect();
-        Object.assign(win.style, { top: `${box.top - 5}px`, left: `${box.left - 5}px`, width: `${box.width + 10}px` });
-      };
-      place();
-      window.addEventListener("resize", place);
-    }
     render();
     input.focus();
   }
 
   function close(restore = true) {
-    if (place) window.removeEventListener("resize", place);
-    place = null;
     if (dialog) {
       const leaving = dialog;
       leave(leaving.firstChild, () => {});

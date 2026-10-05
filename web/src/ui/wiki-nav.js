@@ -1,14 +1,16 @@
-// The sidebar in the Wikis space. Outside a wiki it lists the wikis; inside
-// one it becomes that wiki's contents: Home, its pages, a heading for each
-// subfolder, then the wiki's upkeep pages (Instructions, Log) at the bottom.
+// The sidebar in the Wikis space, under the sidebar's header (main.js): All
+// wikis and Suggestions, then labelled groups. On All wikis: the wikis and the
+// pages edited most recently. Inside a wiki: its contents under its name (Home,
+// its pages, a heading per subfolder, upkeep pages last), then the other wikis.
 
 import { alertError, createNote, currentRoute, newNote, openNote, openSuggestions, openWikis, archiveWiki, ARCHIVE_NOTE } from "../actions.js";
 import { waiting } from "../suggestions/state.js";
-import { silverBulb } from "./silver-icon.js";
 import { noteName } from "../links.js";
 import { on, store } from "../store.js";
-import { coverUrl, HOME_TEMPLATE, wiki as wikiInfo, wikiFolder, wikiOf, wikis } from "../wikis.js";
-import { h, icon, keys } from "./dom.js";
+import { coverUrl, HOME_TEMPLATE, isUpkeep, wiki as wikiInfo, wikiFolder, wikiOf, wikis } from "../wikis.js";
+
+const RECENT_PAGES = 5;
+import { clear, h, icon, keys } from "./dom.js";
 import { openMenu } from "./menu.js";
 
 export function createWikiNav(el) {
@@ -16,94 +18,92 @@ export function createWikiNav(el) {
     const name = wikiOf(store.currentPath);
     // Keep keyboard focus on the same row when the list is rebuilt.
     const focused = el.contains(document.activeElement) ? document.activeElement.closest(".nav-item")?.textContent : null;
-    el.replaceChildren(...(name ? inside(wikiInfo(name)) : library()));
+    clear(el, name ? inside(wikiInfo(name)) : library()); // flattens the groups, skipping empty ones
     if (focused != null) [...el.querySelectorAll(".nav-item")].find((b) => b.textContent === focused)?.focus();
   }
 
-  // While suggestions wait, the row's lightbulb is cast in liquid silver. The
-  // bulb is made once, so its WebGL context outlives re-renders.
-  const bulb = silverBulb(16);
+  // The rail's bulb turns silver while suggestions wait; here the row shows how many.
   const suggestionsRow = () => {
     const n = waiting();
-    const selected = currentRoute().view === "suggestions";
-    const el = row({ label: "Suggestions", selected, run: () => openSuggestions() });
-    el.prepend(n ? bulb.el : icon("suggestions", 16));
-    // The number shows here, in the Wikis sidebar; the space switch shows only the bulb.
+    const el = row({ iconName: "suggestions", label: "Suggestions", selected: currentRoute().view === "suggestions", run: () => openSuggestions() });
     if (n) {
       el.append(h("span", { class: "nav-badge" }, String(n)));
       el.setAttribute("aria-label", `Suggestions, ${n} waiting`);
     }
-    bulb.wake();
     return el;
   };
 
+  const top = () => h("div", { class: "nav-list" },
+    row({ iconName: "grid", label: "All wikis", selected: currentRoute().view === "wikis", run: openWikis }),
+    suggestionsRow());
+
+  const section = (title, ...actions) => h("div", { class: "side-section-head" },
+    h("h2", { class: "side-title" }, title), h("div", { class: "side-actions" }, actions));
+
+  const iconButton = (iconName, label, run) => h("button", {
+    class: "iconbtn", type: "button", "aria-label": label, dataset: { tip: label }, onClick: run,
+  }, icon(iconName, 16));
+
+  /** A wiki's row, with a "..." on hover as in the notes tree; right-click opens it too. */
+  const wikiRow = (w) => {
+    const more = moreButton(w, { tabindex: -1, cls: "wiki-row-more" });
+    return h("div", {
+      class: "wiki-row",
+      onContextmenu: (e) => {
+        e.preventDefault();
+        openMenu(more, wikiActions(w));
+      },
+    }, row({ thumb: thumb(w), label: w.name, count: w.count, run: () => openWiki(w) }), more);
+  };
+
+  /** All wikis: the wikis, then the pages changed most recently in any of them. */
   function library() {
-    const home = currentRoute().view === "wikis";
+    const list = wikis();
+    const recent = store.notes.filter((n) => wikiOf(n.path) && !isUpkeep(n.path))
+      .sort((a, b) => b.mtime - a.mtime).slice(0, RECENT_PAGES);
     return [
-      h("div", { class: "nav-list" },
-        row({ iconName: "grid", label: "All wikis", selected: home, run: openWikis }),
-        suggestionsRow()),
-      h("div", { class: "side-section-head" },
-        h("h2", { class: "side-title" }, "Wikis"),
-        h("div", { class: "side-actions" },
-          h("button", {
-            class: "iconbtn", type: "button", "aria-label": "New wiki", dataset: { tip: "New wiki" },
-            onClick: () => openWikis({ create: true }),
-          }, icon("plus", 16)))),
+      top(),
+      section("Wikis", iconButton("plus", "New wiki", () => openWikis({ create: true }))),
       h("div", { class: "nav-list wiki-list" },
-        wikis().map((w) => {
-          // A "..." on hover, as in the notes tree; right-click opens it too.
-          const more = moreButton(w, { tabindex: -1, cls: "wiki-row-more" });
-          return h("div", {
-            class: "wiki-row",
-            onContextmenu: (e) => {
-              e.preventDefault();
-              openMenu(more, wikiActions(w));
-            },
-          }, row({ thumb: thumb(w), label: w.name, count: w.count, run: () => openWiki(w) }), more);
-        }),
-        wikis().length ? null : h("p", { class: "side-empty" }, "No wikis yet.")),
+        list.map(wikiRow),
+        list.length ? null : h("p", { class: "side-empty" }, "No wikis yet.")),
+      recent.length ? [
+        section("Recently edited"),
+        h("div", { class: "nav-list" }, recent.map((n) => row({
+          iconName: "file", label: noteName(n.path), hint: wikiOf(n.path), run: () => openNote(n.path),
+        }))),
+      ] : null,
     ];
   }
 
+  /** Inside a wiki: its contents under its name, then the other wikis. */
   function inside(w) {
     const current = store.currentPath;
     const page = (note, extra = "") => row({
+      iconName: "file",
       label: noteName(note.path),
       selected: note.path === current,
       run: () => openNote(note.path),
       cls: extra,
     });
+    const others = wikis().filter((o) => o.name !== w.name);
     return [
+      top(),
+      section(w.name,
+        iconButton("plus", `New page in ${w.name}`, () => newNote(w.folder).catch(alertError)),
+        moreButton(w)),
       h("div", { class: "nav-list" },
-        row({ iconName: "chevronLeft", label: "All wikis", run: openWikis, cls: "nav-back" }),
-        suggestionsRow()),
-      h("div", { class: "wiki-head" },
-        thumb(w, true),
-        h("div", { class: "wiki-head-text" },
-          h("div", { class: "wiki-head-name" }, w.name),
-          h("div", { class: "wiki-head-count" }, `${w.count} ${w.count === 1 ? "page" : "pages"}`)),
-        h("div", { class: "side-actions" },
-          h("button", {
-            class: "iconbtn", type: "button", "aria-label": `New page in ${w.name}`, dataset: { tip: "New page" },
-            onClick: () => newNote(w.folder).catch(alertError),
-          }, icon("plus", 16)),
-          moreButton(w))),
-      h("div", { class: "wiki-contents" },
-        h("div", { class: "nav-list" },
-          w.home ? row({ label: "Home", selected: w.home.path === current, run: () => openNote(w.home.path) }) : null,
-          w.pages.map((note) => page(note))),
-        w.sections.map((s) => [
-          h("div", { class: "side-section-head wiki-section" },
-            h("h2", { class: "side-title" }, s.name),
-            h("div", { class: "side-actions" },
-              h("button", {
-                class: "iconbtn", type: "button", "aria-label": `New page in ${s.name}`, dataset: { tip: `New page in ${s.name}` },
-                onClick: () => newNote(s.folder).catch(alertError),
-              }, icon("plus", 16)))),
-          h("div", { class: "nav-list" }, s.pages.map((note) => page(note, "is-indented"))),
-        ]),
-        w.upkeep.length ? h("div", { class: "nav-list wiki-upkeep" }, w.upkeep.map((note) => page(note, "is-quiet"))) : null),
+        w.home ? row({ iconName: "file", label: "Home", selected: w.home.path === current, run: () => openNote(w.home.path) }) : null,
+        w.pages.map((note) => page(note))),
+      w.sections.map((s) => [
+        h("div", { class: "side-section-head wiki-section" },
+          h("h3", { class: "side-subtitle" }, s.name),
+          h("div", { class: "side-actions" },
+            iconButton("plus", `New page in ${s.name}`, () => newNote(s.folder).catch(alertError)))),
+        h("div", { class: "nav-list" }, s.pages.map((note) => page(note, "is-indented"))),
+      ]),
+      w.upkeep.length ? h("div", { class: "nav-list wiki-upkeep" }, w.upkeep.map((note) => page(note, "is-quiet"))) : null,
+      others.length ? [section("Other wikis"), h("div", { class: "nav-list wiki-list" }, others.map(wikiRow))] : null,
     ];
   }
 
@@ -112,7 +112,7 @@ export function createWikiNav(el) {
   on("suggestions", render);
   window.addEventListener("hashchange", render);
   render();
-  return { render, bulb };
+  return { render };
 }
 
 /** What can be done to a whole wiki, for its "..." menus. */
@@ -150,7 +150,7 @@ export async function openWiki(w) {
   }
 }
 
-function row({ iconName, thumb: thumbEl, label, shortcut, count, selected, run, cls = "" }) {
+function row({ iconName, thumb: thumbEl, label, hint, shortcut, count, selected, run, cls = "" }) {
   return h("button", {
     class: `nav-item${selected ? " is-selected" : ""}${cls ? " " + cls : ""}`,
     type: "button",
@@ -159,6 +159,7 @@ function row({ iconName, thumb: thumbEl, label, shortcut, count, selected, run, 
   },
   thumbEl ?? (iconName ? icon(iconName, 16) : null),
   h("span", { class: "nav-label" }, label),
+  hint ? h("span", { class: "nav-hint" }, hint) : null,
   shortcut ? keys(shortcut) : null,
   count != null ? h("span", { class: "count" }, String(count)) : null);
 }

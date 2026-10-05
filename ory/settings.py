@@ -21,6 +21,7 @@ from .guide import REPO_ROOT, remove_guides, write_guides
 from .vault import Vault, VaultError
 
 PROMPT_SIZES = (30000, 60000, 150000)
+RECENT_FOLDERS = 5  # notes folders remembered for switching back
 
 
 class State:
@@ -144,6 +145,9 @@ def current(state: State) -> Dict[str, Any]:
         "promptSizes": list(PROMPT_SIZES),
         "configPath": cfg.config_path,
         "notesFromFlag": cfg.notes_from_flag,
+        # Folders switched away from, to switch back from the sidebar.
+        "recentNotesDirs": [d for d in cfg.recent_notes_dirs
+                            if os.path.isdir(d) and os.path.realpath(d) != state.vault.root],
         "mcp": mcp_status(),
     }
 
@@ -165,6 +169,10 @@ def update(state: State, body: Dict[str, Any]) -> Dict[str, Any]:
             raise VaultError("Give the notes folder's full path, like /Users/you/Notes.")
         if not os.path.isdir(notes):
             raise VaultError(f"There is no folder at {notes}.", 404)
+        if os.path.realpath(notes) != vault.root:
+            seen = {vault.root, os.path.realpath(notes)}
+            cfg.recent_notes_dirs = ([vault.root] + [d for d in cfg.recent_notes_dirs
+                                                     if os.path.realpath(d) not in seen])[:RECENT_FOLDERS]
         cfg.notes_dir = notes
         cfg.notes_from_flag = False
     if "dailyFolder" in body:

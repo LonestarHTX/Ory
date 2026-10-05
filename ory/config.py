@@ -25,6 +25,7 @@ class Config:
     open_browser: bool = False
     config_path: str = DEFAULT_CONFIG
     notes_from_flag: bool = False  # --notes was given, so the file's notes_dir is not in use
+    recent_notes_dirs: List[str] = field(default_factory=list)  # folders switched away from, newest first
     command: List[str] = field(default_factory=list)  # e.g. ["read", "Welcome"]; empty runs the app
 
 
@@ -97,6 +98,7 @@ def load(argv: Optional[List[str]] = None) -> Config:
         command=command,
         config_path=os.path.abspath(args.config),
         notes_from_flag=bool(args.notes),
+        recent_notes_dirs=[d for d in data.get("recent_notes_dirs", []) if isinstance(d, str)],
     )
 
 
@@ -117,6 +119,7 @@ def save(cfg: Config) -> None:
     data["wikis_folder"] = cfg.wikis_folder
     data["guides"] = cfg.guides
     data["prompt_budget"] = cfg.prompt_budget
+    data["recent_notes_dirs"] = cfg.recent_notes_dirs
     tmp = cfg.config_path + ".tmp"
     with open(tmp, "w", encoding="utf-8") as fh:
         json.dump(data, fh, indent=2)
