@@ -31,8 +31,59 @@ export function pageFrame(path, title, fragment = null) {
     loading: "lazy",
     referrerpolicy: "no-referrer",
   });
-  frame.addEventListener("load", () => sendTheme(frame));
+  wire(frame);
   return frame;
+}
+
+/** Tell a frame's page the theme and whether it can be seen, now and whenever it loads again. */
+function wire(frame) {
+  frame.addEventListener("load", () => {
+    sendTheme(frame);
+    sendVisible(frame);
+  });
+  seen.observe(frame);
+}
+
+/** Load a page again from scratch, in a fresh frame (the same size and place). */
+export function reloadFrame(frame) {
+  const fresh = frame.cloneNode(false);
+  wire(fresh);
+  frame.replaceWith(fresh);
+  return fresh;
+}
+
+const frameOf = (source) => [...document.querySelectorAll("iframe.page-frame")].find((f) => f.contentWindow === source);
+
+// Size ---------------------------------------------------------------------------
+// A page that knows how tall it is at the width it's given says so with
+// {type: "ory:size", height}, again whenever it changes; an embed in a note then
+// fits it (the frame passes it on as an "ory:page-size" event).
+
+window.addEventListener("message", (event) => {
+  if (event.data?.type !== "ory:size") return;
+  const height = Number(event.data.height);
+  const frame = Number.isFinite(height) && height > 0 && frameOf(event.source);
+  if (frame) frame.dispatchEvent(new CustomEvent("ory:page-size", { bubbles: true, detail: height }));
+});
+
+// Visibility ---------------------------------------------------------------------
+// Ory tells a page {type: "ory:visible", visible} when it scrolls into or out
+// of view, so one that animates can rest while nobody can see it.
+
+const seen = new IntersectionObserver((entries) => {
+  for (const entry of entries) {
+    if (!entry.target.isConnected) {
+      seen.unobserve(entry.target); // a frame that has gone (the note closed, the theme changed)
+      continue;
+    }
+    entry.target.oryVisible = entry.isIntersecting;
+    sendVisible(entry.target);
+  }
+});
+
+function sendVisible(frame) {
+  if (frame.oryVisible == null) return;
+  frame.contentWindow?.postMessage({ type: "ory:visible", visible: frame.oryVisible }, "*");
 }
 
 // Themes ------------------------------------------------------------------------
@@ -65,9 +116,7 @@ export function broadcastTheme() {
     if (themeAware.has(frame)) {
       sendTheme(frame);
     } else {
-      const fresh = frame.cloneNode(false); // a new frame loads the page again
-      fresh.addEventListener("load", () => sendTheme(fresh));
-      frame.replaceWith(fresh);
+      reloadFrame(frame); // a new frame loads the page again
     }
   }
 }

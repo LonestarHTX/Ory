@@ -18,7 +18,7 @@ import { colourPreview } from "./colour-preview.js";
 import { wikilinkCompletion } from "./autocomplete.js";
 import { setHeading, startNoteLink, toggleInline, toggleList } from "./format.js";
 import { highlightTag, HighlightSyntax } from "./highlight-syntax.js";
-import { indexChanged, isReading, linkAt, livePreview, setQuiet, setReading, setSourceMode, sourceMode } from "./live-preview.js";
+import { byOry, indexChanged, isReading, linkAt, livePreview, setQuiet, setReading, setSourceMode, sourceMode } from "./live-preview.js";
 import { frontmatterRange, properties } from "./properties.js";
 import { tables } from "./tables.js";
 import { propertyTables } from "./property-tables.js";
@@ -43,9 +43,6 @@ const highlight = HighlightStyle.define([
 
 /** Marks changes that came from disk, which must not be saved back. */
 const fromDisk = Annotation.define();
-
-/** Marks a change Ory makes for you (such as adding a source), allowed even while reading. */
-const byOry = Annotation.define();
 
 /** Whether the text can be changed: not while a wiki page is being read. */
 const editability = new Compartment();

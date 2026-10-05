@@ -257,9 +257,16 @@ The rules Ory's interface follows. A value outside the scales below is a mistake
   the image, so nothing jumps.
 - **Pages** (HTML files) open across the whole main area under the usual note header
   (folder / name, "Open in new tab", "..."). Embedded in a note they are a bordered
-  card: a heading strip in the hover fill with the page icon, name and Open, over the
-  frame at the given height (480px by default). A page keeps its own design; to look
-  like part of Ory it should use the shared tokens.
+  card: a 32px head with the page icon and name, then Wide (a text toggle on the
+  selected fill), Open across the main area (arrow) and "..." (Reload, Open in new
+  tab, and "Use the page's own height" once you've set one); under it the frame. Its
+  height is the note's (`|640`), else what the page says it needs, else 480px, so a
+  page that sizes itself is never cut off or letterboxed. The bottom edge is an 8px
+  handle that shows a 40 × 4 bar on hover: drag it for a height of your own (written
+  into the link), double-click it to hand the height back. Wide (`|wide`) runs the
+  card's width less the gutter each side, at most 1280px, centred on the text column.
+  Resizing never reloads the page. A page keeps its own design; to look like part of
+  Ory it should use the shared tokens.
 - **Property tables** use the note-table style, read-only, under a heading row: the
   view's name (or tabs), the count, and Edit on the right.
 - **Outline** sits under Backlinks in the right sidebar; the heading the cursor is

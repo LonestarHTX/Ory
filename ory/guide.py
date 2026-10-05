@@ -52,7 +52,7 @@ This folder belongs to Ory: plain Markdown files, written and read by a person i
 
 ## Conventions
 
-- **Links:** `[[Note name]]`, `[[Folder/Note]]`, `[[Note#Heading]]` and `[[Note|shown text]]`. A bare name matches any note with that file name, preferring the linking note's folder. `![[file.png]]` embeds a file; `![[Page.html]]` embeds an HTML page.
+- **Links:** `[[Note name]]`, `[[Folder/Note]]`, `[[Note#Heading]]` and `[[Note|shown text]]`. A bare name matches any note with that file name, preferring the linking note's folder. `![[file.png]]` embeds a file; `![[Page.html]]` embeds an HTML page (`|640` sets its height, `|wide` lets it run the card's width; a page that posts `{{type: "ory:size", height}}` to its parent is sized to fit).
 - **Properties** are YAML frontmatter between `---` lines at the top of a file.
 - **Wiki pages** use these properties:
   - `summary`: one line.

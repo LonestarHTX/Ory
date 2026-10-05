@@ -2035,13 +2035,26 @@ html[data-theme-fade]::view-transition-new(root) {
   color: var(--text-3);
 }
 
-/* An HTML page embedded in a note: a titled frame with Open, full text width. */
+/* An HTML page embedded in a note: a titled frame, the text column's width or,
+   Wide, the card's (less the gutter each side, at most 1280px), centred on the
+   column. Its height is the page's own, or the note's; the bottom edge drags. */
+.note-editor {
+  container-type: inline-size;
+}
+
 .cm-embed-page {
-  margin: 8px 0;
+  --embed-w: 100%;
+  position: relative;
+  width: var(--embed-w);
+  margin: 8px 0 8px calc((100% - var(--embed-w)) / 2);
   border: 1px solid var(--line);
   border-top-color: var(--line-strong);
   border-radius: var(--r-card);
   overflow: hidden;
+}
+
+.cm-embed-page.is-wide {
+  --embed-w: max(100%, min(100cqw - 2 * var(--gutter), 1280px));
 }
 
 .cm-embed-page-head {
@@ -2049,9 +2062,9 @@ html[data-theme-fade]::view-transition-new(root) {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 4px 4px 4px 12px;
+  height: 32px;
+  padding: 0 4px 0 12px;
   border-bottom: 1px solid var(--line);
-  background: var(--hover);
   font-size: 13px;
   line-height: 20px;
 }
@@ -2060,11 +2073,83 @@ html[data-theme-fade]::view-transition-new(root) {
   display: flex;
   align-items: center;
   gap: 8px;
+  min-width: 0;
+  overflow: hidden;
   font-weight: 500;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
 .cm-embed-page-title .icon {
   color: var(--text-3);
+}
+
+.cm-embed-page-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: none;
+}
+
+.cm-embed-page-actions .iconbtn {
+  width: 24px;
+  height: 24px;
+}
+
+.cm-embed-page-wide {
+  height: 24px;
+  padding: 0 8px;
+  border-radius: var(--r-ctl);
+  color: var(--text-2);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.cm-embed-page-wide:hover {
+  background: var(--hover);
+  color: var(--text);
+}
+
+.cm-embed-page-wide.is-on {
+  background: var(--selected);
+  color: var(--text);
+}
+
+/* The bottom edge: a handle shows on hover; dragging sets the height. */
+.cm-embed-page-grip {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: grid;
+  place-items: center;
+  height: 8px;
+  cursor: row-resize;
+}
+
+.cm-embed-page-grip::after {
+  content: "";
+  width: 40px;
+  height: 4px;
+  border-radius: 4px;
+  background: var(--text-3);
+  opacity: 0;
+  transition: opacity 0.12s ease;
+}
+
+.cm-embed-page:hover .cm-embed-page-grip::after,
+.cm-embed-page.is-resizing .cm-embed-page-grip::after {
+  opacity: 0.6;
+}
+
+.cm-embed-page-grip:hover::after,
+.cm-embed-page.is-resizing .cm-embed-page-grip::after {
+  opacity: 1;
+}
+
+/* While dragging, the page underneath mustn't take the pointer. */
+.cm-embed-page.is-resizing .page-frame {
+  pointer-events: none;
 }
 
 /* Frames take the theme's colour scheme, which is what the page inside sees

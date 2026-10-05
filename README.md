@@ -312,8 +312,11 @@ formulas yet.
 
 **Pages:** an `.html` file in the notes folder (an interactive model, a calculator, a
 generated report) opens inside Ory across the main area when you click it in the tree
-or follow a `[[Page.html]]` link. Embed one in a note with `![[Page.html]]`, or
-`![[Page.html|640]]` to set its height; Open takes it full size. Pages run sandboxed:
+or follow a `[[Page.html]]` link. Embed one in a note with `![[Page.html]]`: it is as
+tall as the page says it needs (below), or 480px. Drag its bottom edge to choose a
+height yourself (Ory writes it into the link, as `![[Page.html|640]]`; double-click the
+edge to hand it back), and press Wide (`|wide`) to let it run the width of the card
+while the text keeps its column. Open (the arrow) takes it full size. Pages run sandboxed:
 their own scripts work, but they cannot reach Ory, your other notes or the network, so
 a page from anywhere is safe to open. Pages open in Ory's theme. When the theme changes,
 a page is reloaded in the new one, unless it listens for
@@ -325,6 +328,18 @@ window.addEventListener("message", (e) => {
   if (e.data?.type !== "ory:theme") return;
   document.documentElement.dataset.theme = e.data.theme;
   e.source.postMessage({ type: "ory:theme-applied" }, "*");
+});
+```
+
+Two more messages help a page sit well in a note. A page that knows how tall it is at
+the width it's given says so, and again whenever that changes; the embed fits it
+(between 120 and 2000px), unless the note sets a height. And Ory tells a page when it
+scrolls out of view and back, so one that animates can rest meanwhile:
+
+```js
+parent.postMessage({ type: "ory:size", height: document.documentElement.scrollHeight }, "*");
+window.addEventListener("message", (e) => {
+  if (e.data?.type === "ory:visible") paused = !e.data.visible;
 });
 ```
 

@@ -6,14 +6,19 @@
 // missing notes dashed. Clicking a rendered link opens it; Mod-click always does.
 
 import { ensureSyntaxTree, syntaxTree } from "@codemirror/language";
-import { EditorState, Prec, StateEffect, StateField } from "@codemirror/state";
+import { Annotation, EditorState, Prec, StateEffect, StateField } from "@codemirror/state";
 import { Decoration, EditorView, keymap, ViewPlugin, WidgetType } from "@codemirror/view";
 
 import { fileName, isImage, isPage, parseLink } from "../links.js";
 import { hidesMarks } from "../prefs.js";
 import { inkPaint, markPaint } from "../ui/color.js";
-import { icon } from "../ui/dom.js";
-import { pageFrame } from "../ui/page-view.js";
+import { h, icon } from "../ui/dom.js";
+import { openFile } from "../actions.js";
+import { openMenu } from "../ui/menu.js";
+import { pageFrame, reloadFrame } from "../ui/page-view.js";
+
+/** Marks a change Ory makes for you (adding a source, sizing a page), allowed even while reading. */
+export const byOry = Annotation.define();
 
 export const setSourceMode = StateEffect.define();
 /** Fired when the vault index changes, so link styles re-resolve. */
@@ -192,42 +197,169 @@ function embedWidth(alias) {
 }
 
 /**
- * An HTML page embedded in a note: a titled frame, and a button to open it
- * across the whole main area. The frame is sandboxed (see ui/page-view.js).
+ * A page embed's "|640", "|wide" or "|wide 640": a height of your own (which
+ * wins over the page's), and whether it runs the card's width.
+ */
+export function pageAlias(alias) {
+  let height = null, wide = false;
+  for (const word of (alias ?? "").trim().split(/[\s,]+/)) {
+    const size = /^(\d{1,4})(?:x\d{1,4})?$/.exec(word);
+    if (size) height = Number(size[1]);
+    else if (word.toLowerCase() === "wide") wide = true;
+  }
+  return { height, wide };
+}
+
+const PAGE_HEIGHT = 480; // a page that says nothing about its height
+const PAGE_MIN = 120, PAGE_MAX = 2000;
+const clampHeight = (px) => Math.round(Math.min(PAGE_MAX, Math.max(PAGE_MIN, px)));
+
+/**
+ * Rewrite the alias of the embed whose widget is `dom`: ![[Page.html|wide 640]].
+ * Ory makes the change for you, so it also works while reading.
+ */
+function setPageAlias(view, dom, { height, wide }) {
+  let pos;
+  try {
+    pos = view.posAtDOM(dom);
+  } catch {
+    return;
+  }
+  const line = view.state.doc.lineAt(pos);
+  const before = line.text.slice(0, pos - line.from);
+  const start = before.lastIndexOf("![[");
+  if (start === -1 || !before.endsWith("]]")) return;
+  const inner = before.slice(start + 3, -2);
+  const pipe = inner.indexOf("|");
+  const ref = pipe === -1 ? inner : inner.slice(0, pipe);
+  const alias = [wide ? "wide" : "", height ? String(height) : ""].filter(Boolean).join(" ");
+  const from = line.from + start + 3, to = pos - 2;
+  const insert = alias ? `${ref}|${alias}` : ref;
+  if (view.state.sliceDoc(from, to) === insert) return;
+  view.dispatch({ changes: { from, to, insert }, annotations: byOry.of(true) });
+}
+
+/**
+ * An HTML page embedded in a note: a titled frame, sandboxed (see
+ * ui/page-view.js). Its height is the note's (|640) if it gives one, else what
+ * the page says it needs ({type: "ory:size", height}), else 480px. Drag the
+ * bottom edge to set your own; double-click it to give the height back to the
+ * page. Wide (|wide) lets it run the card's width while the text keeps its column.
+ * Changing the height or width keeps the page as it is; nothing reloads.
  */
 class PageEmbedWidget extends WidgetType {
-  constructor(path, height, openPage, fragment) {
+  constructor(path, fragment, height, wide, openPage) {
     super();
     this.path = path;
-    this.height = height;
-    this.openPage = openPage;
     this.fragment = fragment;
+    this.height = height;
+    this.wide = wide;
+    this.openPage = openPage;
   }
   eq(other) {
-    return other.path === this.path && other.height === this.height && other.fragment === this.fragment;
+    return other.path === this.path && other.fragment === this.fragment && other.height === this.height && other.wide === this.wide;
   }
-  toDOM() {
+  updateDOM(dom) {
+    if (!dom.oryPage || dom.oryPage.path !== this.path || dom.oryPage.fragment !== this.fragment) return false;
+    dom.oryPage.set(this.height, this.wide);
+    return true;
+  }
+  toDOM(view) {
     const name = fileName(this.path).replace(/\.html?$/i, "");
-    const wrap = document.createElement("div");
-    wrap.className = "cm-embed-page";
-    const head = document.createElement("div");
-    head.className = "cm-embed-page-head";
-    const title = document.createElement("span");
-    title.className = "cm-embed-page-title";
-    title.append(icon("page", 14), name);
-    const open = document.createElement("button");
-    open.type = "button";
-    open.className = "btn btn--small btn--plain";
-    open.textContent = "Open";
-    open.addEventListener("click", () => this.openPage(this.path));
-    head.append(title, open);
-    const frame = pageFrame(this.path, name, this.fragment);
-    frame.style.height = `${this.height}px`;
-    wrap.append(head, frame);
+    const state = { own: this.height, wide: this.wide, told: null };
+    const wrap = h("div", { class: "cm-embed-page" });
+    const frameOf = () => wrap.querySelector("iframe");
+    const fit = () => {
+      frameOf().style.height = `${clampHeight(state.own ?? state.told ?? PAGE_HEIGHT)}px`;
+      view.requestMeasure();
+    };
+    const write = (change) => setPageAlias(view, wrap, { height: state.own, wide: state.wide, ...change });
+
+    const wideBtn = h("button", {
+      class: "cm-embed-page-wide", type: "button", "aria-pressed": "false",
+      dataset: { tip: "Run the card's width" },
+      onClick: () => write({ wide: !state.wide }),
+    }, "Wide");
+    const more = h("button", {
+      class: "iconbtn iconbtn--small", type: "button", "aria-label": "Page actions", "aria-haspopup": "menu",
+      dataset: { tip: "Page actions" },
+      onClick: () => openMenu(more, [
+        { label: "Reload", run: () => reloadFrame(frameOf()) },
+        { label: "Open in new tab", run: () => openFile(this.path) },
+        ...(state.own ? [{ label: "Use the page's own height", run: () => write({ height: null }) }] : []),
+      ]),
+    }, icon("more", 16));
+    const head = h("div", { class: "cm-embed-page-head" },
+      h("span", { class: "cm-embed-page-title" }, icon("page", 14), name),
+      h("span", { class: "cm-embed-page-actions" },
+        wideBtn,
+        h("button", {
+          class: "iconbtn iconbtn--small", type: "button", "aria-label": `Open ${name}`,
+          dataset: { tip: "Open across the main area" },
+          onClick: () => this.openPage(this.path),
+        }, icon("arrowRight", 16)),
+        more));
+
+    // The bottom edge: drag for a height of your own; double-click to give it back.
+    const grip = h("div", { class: "cm-embed-page-grip", dataset: { tip: "Drag to resize · Double-click for the page's own height" } });
+    grip.addEventListener("pointerdown", (e) => {
+      if (e.button !== 0) return;
+      e.preventDefault();
+      const frame = frameOf();
+      const startY = e.clientY, startH = frame.offsetHeight;
+      let height = startH;
+      wrap.classList.add("is-resizing");
+      try { grip.setPointerCapture(e.pointerId); } catch { /* a synthetic pointer */ }
+      const move = (ev) => {
+        height = clampHeight(startH + ev.clientY - startY);
+        frame.style.height = `${height}px`;
+        view.requestMeasure();
+      };
+      const up = () => {
+        grip.removeEventListener("pointermove", move);
+        grip.removeEventListener("pointerup", up);
+        grip.removeEventListener("pointercancel", up);
+        wrap.classList.remove("is-resizing");
+        if (Math.abs(height - startH) >= 2) {
+          state.own = height;
+          write({ height });
+        }
+      };
+      grip.addEventListener("pointermove", move);
+      grip.addEventListener("pointerup", up);
+      grip.addEventListener("pointercancel", up);
+    });
+    grip.addEventListener("dblclick", () => {
+      if (state.own == null) return;
+      state.own = null;
+      fit();
+      write({ height: null });
+    });
+
+    // The page says how tall it is at the width it's given (see ui/page-view.js).
+    wrap.addEventListener("ory:page-size", (e) => {
+      state.told = e.detail;
+      if (state.own == null) fit();
+    });
+
+    wrap.append(head, pageFrame(this.path, name, this.fragment), grip);
+    wrap.oryPage = {
+      path: this.path,
+      fragment: this.fragment,
+      set(height, wide) {
+        state.own = height;
+        state.wide = wide;
+        wrap.classList.toggle("is-wide", wide);
+        wideBtn.setAttribute("aria-pressed", String(wide));
+        wideBtn.classList.toggle("is-on", wide);
+        fit();
+      },
+    };
+    wrap.oryPage.set(this.height, this.wide);
     return wrap;
   }
   get estimatedHeight() {
-    return this.height + 37;
+    return (this.height ?? PAGE_HEIGHT) + 33;
   }
   ignoreEvent() {
     return true;
@@ -236,8 +368,6 @@ class PageEmbedWidget extends WidgetType {
     return true; // the frame may be swapped for a fresh one when the theme changes
   }
 }
-
-const PAGE_HEIGHT = 480;
 
 /** A code block's language, in place of its opening fence while you're not in it. */
 class LanguageWidget extends WidgetType {
@@ -398,8 +528,9 @@ function build(view, { resolve, fileSize, openPage }) {
             // itself is hidden; at the cursor it shows above the embed.
             if (live && doc.sliceString(node.from, node.from + 1) === "!" && resolved && !/\.md$/i.test(resolved)) {
               const size = embedWidth(aliasText);
-              const widget = isPage(resolved)
-                ? new PageEmbedWidget(resolved, size ?? PAGE_HEIGHT, openPage, heading)
+              const page = isPage(resolved) && pageAlias(aliasText);
+              const widget = page
+                ? new PageEmbedWidget(resolved, heading, page.height, page.wide, openPage)
                 : isImage(resolved)
                   ? new ImageWidget(fileUrl(resolved), size, name)
                   : new FileWidget(resolved, fileSize(resolved));
