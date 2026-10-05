@@ -188,6 +188,7 @@ export function renamePath(path, newName) {
   return movePath(path, to);
 }
 
+/** Move a note, file or folder to `.trash/`. Returns whether it went. */
 export async function trashPath(path) {
   try {
     // Same hooks as a move: pending edits are saved before the file goes.
@@ -206,9 +207,19 @@ export async function trashPath(path) {
       if (home && home !== current && store.paths.includes(home)) openNote(home, { replace: true });
       else closeNote();
     }
+    return true;
   } catch (err) {
     alertError(err);
+    return false;
   }
+}
+
+/** Move a wiki, its folder and everything in it, to `.trash/`. From inside it,
+    you land on All wikis. */
+export async function trashWiki(name) {
+  const folder = `${store.wikisFolder}/${name}`;
+  const inside = !!store.currentPath?.startsWith(folder + "/");
+  if ((await trashPath(folder)) && inside) openWikis();
 }
 
 export function displayName(path) {

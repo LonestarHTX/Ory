@@ -2,13 +2,14 @@
 // one it becomes that wiki's contents: Home, its pages, a heading for each
 // subfolder, then the wiki's upkeep pages (Instructions, Log) at the bottom.
 
-import { alertError, createNote, currentRoute, newNote, openNote, openSuggestions, openWikis } from "../actions.js";
+import { alertError, createNote, currentRoute, newNote, openNote, openSuggestions, openWikis, trashWiki } from "../actions.js";
 import { waiting } from "../suggestions/state.js";
 import { silverBulb } from "./silver-icon.js";
 import { noteName } from "../links.js";
 import { on, store } from "../store.js";
 import { coverUrl, HOME_TEMPLATE, wiki as wikiInfo, wikiFolder, wikiOf, wikis } from "../wikis.js";
 import { h, icon, keys } from "./dom.js";
+import { openMenu } from "./menu.js";
 
 export function createWikiNav(el) {
   function render() {
@@ -50,12 +51,17 @@ export function createWikiNav(el) {
             onClick: () => openWikis({ create: true }),
           }, icon("plus", 16)))),
       h("div", { class: "nav-list wiki-list" },
-        wikis().map((w) => row({
-          thumb: thumb(w),
-          label: w.name,
-          count: w.count,
-          run: () => openWiki(w),
-        })),
+        wikis().map((w) => {
+          // A "..." on hover, as in the notes tree; right-click opens it too.
+          const more = moreButton(w, { tabindex: -1, cls: "wiki-row-more" });
+          return h("div", {
+            class: "wiki-row",
+            onContextmenu: (e) => {
+              e.preventDefault();
+              openMenu(more, wikiActions(w));
+            },
+          }, row({ thumb: thumb(w), label: w.name, count: w.count, run: () => openWiki(w) }), more);
+        }),
         wikis().length ? null : h("p", { class: "side-empty" }, "No wikis yet.")),
     ];
   }
@@ -77,10 +83,12 @@ export function createWikiNav(el) {
         h("div", { class: "wiki-head-text" },
           h("div", { class: "wiki-head-name" }, w.name),
           h("div", { class: "wiki-head-count" }, `${w.count} ${w.count === 1 ? "page" : "pages"}`)),
-        h("button", {
-          class: "iconbtn", type: "button", "aria-label": `New page in ${w.name}`, dataset: { tip: "New page" },
-          onClick: () => newNote(w.folder).catch(alertError),
-        }, icon("plus", 16))),
+        h("div", { class: "side-actions" },
+          h("button", {
+            class: "iconbtn", type: "button", "aria-label": `New page in ${w.name}`, dataset: { tip: "New page" },
+            onClick: () => newNote(w.folder).catch(alertError),
+          }, icon("plus", 16)),
+          moreButton(w))),
       h("div", { class: "wiki-contents" },
         h("div", { class: "nav-list" },
           w.home ? row({ label: "Home", selected: w.home.path === current, run: () => openNote(w.home.path) }) : null,
@@ -105,6 +113,29 @@ export function createWikiNav(el) {
   window.addEventListener("hashchange", render);
   render();
   return { render, bulb };
+}
+
+/** What can be done to a whole wiki, for its "..." menus. */
+export function wikiActions(w) {
+  const pages = `${w.count} ${w.count === 1 ? "page" : "pages"}`;
+  return [{
+    label: "Move to trash",
+    confirm: `Move the ${w.name} wiki and its ${pages} to the trash?`,
+    run: () => trashWiki(w.name),
+  }];
+}
+
+/** A wiki's "..." button. */
+export function moreButton(w, { tabindex = null, cls = "" } = {}) {
+  const button = h("button", {
+    class: `iconbtn${cls ? " " + cls : ""}`, type: "button", tabindex,
+    "aria-label": `Actions for the ${w.name} wiki`, "aria-haspopup": "menu", dataset: { tip: "Move to trash" },
+    onClick: (e) => {
+      e.stopPropagation();
+      openMenu(button, wikiActions(w));
+    },
+  }, icon("more", 16));
+  return button;
 }
 
 /** Open a wiki at its Home, making the Home page if it has none yet. */

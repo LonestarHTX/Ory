@@ -7,7 +7,7 @@ import { decide, drafts, KINDS, openFindings, target, unreadNotes } from "../sug
 import { coverUrl, HOME_TEMPLATE, wikiFolder, wikis } from "../wikis.js";
 import { h, icon, timeAgo } from "./dom.js";
 import { coverPattern } from "./pattern.js";
-import { openWiki } from "./wiki-nav.js";
+import { moreButton, openWiki } from "./wiki-nav.js";
 
 export function createWikisHome(el) {
   let creating = false;
@@ -36,7 +36,7 @@ export function createWikisHome(el) {
         h("div", { class: "wiki-cards" },
           list.map((w) => {
             const cover = coverUrl(w.cover);
-            return h("button", { class: "wiki-card", type: "button", onClick: () => openWiki(w) },
+            const card = h("button", { class: "wiki-card", type: "button", onClick: () => openWiki(w) },
               h("span", { class: "wiki-card-cover" }, cover ? h("img", { src: cover, alt: "" }) : coverPattern(w.name)),
               h("span", { class: "wiki-card-body" },
                 h("span", { class: "wiki-card-name" }, w.name),
@@ -44,6 +44,7 @@ export function createWikisHome(el) {
                 h("span", { class: "wiki-card-meta" },
                   `${w.count} ${w.count === 1 ? "page" : "pages"}`,
                   w.mtime ? ` · edited ${timeAgo(w.mtime * 1000)}` : "")));
+            return h("div", { class: "wiki-card-wrap" }, card, moreButton(w, { cls: "wiki-card-more" }));
           }),
           creating ? newCard() : h("button", { class: "wiki-card is-new", type: "button", onClick: () => startCreate() },
             h("span", { class: "wiki-card-cover" }, icon("plus", 24)),

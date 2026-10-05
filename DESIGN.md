@@ -65,7 +65,10 @@ The rules Ory's interface follows. A value outside the scales below is a mistake
   a 20px picture (its cover, or its initial on a card) and its page count. Inside one
   it becomes that wiki's contents under an "All wikis" back row and a header with the
   wiki's 32px picture, name and size. Subfolders are section headings with their
-  pages indented; upkeep pages sit last, in tertiary text, above a hairline.
+  pages indented; upkeep pages sit last, in tertiary text, above a hairline. A wiki's
+  "..." holds Move to trash, confirmed in place with the page count; it is on each
+  wiki row (on hover, in place of the count, and on right-click), in the header
+  inside a wiki, and on each All wikis card (on hover, over the cover).
 - **Reading view.** Wiki pages open read-only with every mark hidden, no caret and no
   toolbar. The header's Edit button (with its E key cap) becomes Done (primary, Esc)
   while editing. The page header is 24px semibold title, 17px secondary summary, tags

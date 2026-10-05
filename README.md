@@ -80,7 +80,9 @@ Ory has two spaces over the same folder, switched at the top left of the window:
 summary and size, and a card to start a new one. Opening a wiki turns the sidebar into
 its contents: Home, its pages, a heading for each subfolder, and upkeep pages
 (`Instructions.md`, `Log.md`) at the bottom. An `order:` property sets a page's place;
-otherwise pages go by name.
+otherwise pages go by name. To delete a wiki, choose Move to trash from its "..." (on
+its card, beside it in the sidebar, or in its header once it's open): the whole folder
+goes to `.trash/`, so nothing is lost.
 
 A wiki page opens for **reading**: a header with the title, the `summary:` property, the
 tags and a `cover:` image, then the text with no Markdown showing and nothing editable.

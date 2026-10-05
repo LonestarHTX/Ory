@@ -2523,6 +2523,42 @@ mark {
   min-width: 0;
 }
 
+/* A wiki's "..." shows on hover or focus, in place of its page count. */
+.wiki-row {
+  position: relative;
+  display: flex;
+}
+
+.wiki-row > .nav-item {
+  flex: 1;
+}
+
+.wiki-row:hover > .nav-item {
+  background: var(--hover);
+  color: var(--text);
+}
+
+.wiki-row-more {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 24px;
+  height: 24px;
+  opacity: 0;
+}
+
+.wiki-row:hover .wiki-row-more,
+.wiki-row:focus-within .wiki-row-more,
+.wiki-row-more[aria-expanded="true"] {
+  opacity: 1;
+}
+
+.wiki-row:hover .count,
+.wiki-row:focus-within .count,
+.wiki-row:has([aria-expanded="true"]) .count {
+  opacity: 0;
+}
+
 .wiki-list .nav-label,
 .wiki-contents .nav-label {
   overflow: hidden;
@@ -2646,6 +2682,41 @@ mark {
 }
 
 .wiki-card:hover {
+  border-color: var(--line-strong);
+}
+
+/* A card's "..." sits on its cover, shown on hover or focus. */
+.wiki-card-wrap {
+  position: relative;
+  display: flex;
+}
+
+.wiki-card-wrap > .wiki-card {
+  flex: 1;
+  min-width: 0;
+}
+
+.wiki-card-more {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  border: 1px solid var(--line);
+  background: var(--card);
+  opacity: 0;
+}
+
+.wiki-card-more:hover {
+  background: var(--card);
+  color: var(--text);
+}
+
+.wiki-card-wrap:hover .wiki-card-more,
+.wiki-card-wrap:focus-within .wiki-card-more,
+.wiki-card-more[aria-expanded="true"] {
+  opacity: 1;
+}
+
+.wiki-card-wrap:hover > .wiki-card {
   border-color: var(--line-strong);
 }
 
