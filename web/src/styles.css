@@ -1852,9 +1852,12 @@ input[type="radio"] {
    heading band. The cell being edited gets the focus ring, like Excel's active
    cell. */
 
+/* Block widgets (tables, property tables, properties) take padding, never a
+   vertical margin: CodeMirror measures a block without its margins, so a margin
+   throws off where every click below it lands (a line off, past a 16px one). */
 .md-table-wrap {
   position: relative;
-  margin: 8px 0;
+  padding: 8px 0;
 }
 
 .md-table-scroll {
@@ -1944,7 +1947,7 @@ input[type="radio"] {
    hidden button takes no room. */
 .md-table-add {
   position: absolute;
-  top: calc(100% + 2px);
+  top: calc(100% - 6px); /* 2px under the table, inside the wrap's 8px padding */
   left: 0;
   z-index: 1;
   padding: 4px 12px;
@@ -2307,9 +2310,9 @@ input[type="radio"] {
   display: grid;
   grid-template-columns: minmax(96px, max-content) minmax(0, 1fr) 24px;
   column-gap: 16px;
-  margin: 0 -8px 16px;
-  padding: 4px 0 8px;
-  background: linear-gradient(var(--line), var(--line)) center bottom / calc(100% - 16px) 1px no-repeat;
+  margin: 0 -8px;
+  padding: 4px 0 24px;
+  background: linear-gradient(var(--line), var(--line)) center calc(100% - 16px) / calc(100% - 16px) 1px no-repeat;
   font-size: 13px;
   line-height: 20px;
 }
@@ -3465,7 +3468,7 @@ mark {
    column, the chips, and the cells (a note's property each). */
 
 .ptable {
-  margin: 8px 0;
+  padding: 8px 0;
 }
 
 .ptable-head {

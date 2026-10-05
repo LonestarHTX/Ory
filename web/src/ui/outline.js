@@ -5,6 +5,7 @@ import { syntaxTree } from "@codemirror/language";
 
 import { on } from "../store.js";
 import { h } from "./dom.js";
+import { readable } from "./readable.js";
 
 /** Headings as [{level, text, line, from}], skipping any in the frontmatter. */
 export function headings(state) {
@@ -48,7 +49,7 @@ export function createOutline(el, { goToLine }) {
           type: "button",
           style: `--level: ${x.level - Math.min(...found.map((f) => f.level))}`,
           onClick: () => goToLine(x.line),
-        }, x.text))
+        }, readable(x.text))) // as the heading reads: no ** or [[ ]]
         : [h("p", { class: "side-empty" }, "Headings in this note appear here.")]));
     }
     [...list.querySelectorAll(".outline-item")].forEach((b, i) => b.classList.toggle("is-selected", i === current));
