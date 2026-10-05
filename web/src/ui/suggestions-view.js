@@ -60,7 +60,7 @@ export function createSuggestionsView(el) {
         h("div", { class: "note-meta" },
           h("span", { class: "note-status" },
             last ? `Last run ${timeAgo(last)}` : "Not run yet",
-            unread ? ` · ${unread} ${unread === 1 ? "note" : "notes"} to read` : ""),
+            unread ? ` · ${unread} ${unread === 1 ? "note" : "notes"} not read yet` : ""),
           h("button", {
             class: "btn btn--small", type: "button",
             disabled: run || busy || !unread ? true : null,
@@ -201,7 +201,7 @@ export function createSuggestionsView(el) {
       return h("div", { class: "sugg-empty" },
         h("p", null, "Ory asks an AI what your wikis should gain from your notes: new pages, additions, conflicts, links, even new wikis. You decide what's worth writing, and review every change before it's saved. The AI never changes your notes."),
         h("p", null, unreadNotes().length
-          ? `${unreadNotes().length} ${unreadNotes().length === 1 ? "note hasn't" : "notes haven't"} been read yet. Choose Find suggestions to start.`
+          ? `${unreadNotes().length} ${unreadNotes().length === 1 ? "note" : "notes"} not read yet. Choose Find suggestions to start.`
           : "Every note has been read. New and changed notes will be read next time."),
         drafted ? h("p", null, `${drafted} approved ${drafted === 1 ? "finding has a draft" : "findings have drafts"} to review under Drafts.`) : null);
     }

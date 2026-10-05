@@ -4,7 +4,7 @@
 import {
   AppWindow, ArrowRight, BookOpen, CalendarDays, Check, ChevronDown, ChevronLeft, ChevronRight, Code, Copy, Ellipsis, File,
   FileImage, FilePlus, FolderPlus, Highlighter, LayoutGrid, Link, List, ListChecks, ListOrdered, ListTree, Monitor, Moon,
-  Lightbulb, NotebookPen, Palette, Paperclip, Plus, Search, Settings, SquarePen, Sun, Table, TableProperties, TextQuote,
+  Lightbulb, NotebookPen, Palette, Paperclip, Plus, Search, Settings, SquarePen, Sun, Table, Database, TextQuote,
   TriangleAlert, Folder, Keyboard, X, Archive, ArrowLeft, Info, PanelLeft, PanelRight, Columns2, GripVertical, PanelsTopLeft,
 } from "lucide";
 
@@ -45,7 +45,7 @@ const ICONS = {
   page: AppWindow,
   plus: Plus,
   outline: ListTree,
-  propertyTable: TableProperties,
+  propertyTable: Database, // a table of notes by their properties: unlike Table at 14px
   chevronDown: ChevronDown,
   code: Code,
   highlight: Highlighter,

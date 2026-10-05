@@ -27,11 +27,11 @@ export function createOutline(el, { goToLine }) {
   el.append(list);
 
   let items = [];
-  let key = "";
+  let key = null; // what's listed; null while no note is open
 
   function render(state) {
     if (!state) {
-      key = "";
+      key = null;
       list.replaceChildren(h("p", { class: "side-empty" }, "Open a note to see its headings."));
       return;
     }

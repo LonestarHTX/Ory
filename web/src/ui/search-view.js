@@ -103,11 +103,11 @@ export function createSearchView(el) {
   };
 }
 
-/** Where a result lives: its folder, or for a wiki page, the wiki (and section). */
-function place(path) {
+/** Where a note lives: its folder, or for a wiki page, the wiki (and section), as the sidebar names them. */
+export function place(path, cls = "result-path") {
   const folder = folderOf(path);
-  if (!wikiOf(path)) return h("span", { class: "result-path" }, folder);
-  return h("span", { class: "result-path" }, icon("book", 12), folder.slice(store.wikisFolder.length + 1).replace(/\//g, " / "));
+  if (!wikiOf(path)) return h("span", { class: cls }, folder);
+  return h("span", { class: cls }, icon("book", 12), folder.slice(store.wikisFolder.length + 1).replace(/\//g, " / "));
 }
 
 function highlight({ text, ranges, cutStart, cutEnd }) {

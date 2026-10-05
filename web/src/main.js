@@ -113,7 +113,7 @@ const titlebar = h("header", { class: "titlebar" },
     iconButton("arrowLeft", "Back", () => history.back()),
     iconButton("arrowRight", "Forward", () => history.forward())),
   titleSlot,
-  h("div", { class: "title-end" }, tabs.el, besideToggle, panelToggle));
+  h("div", { class: "title-end" }, tabs.el, h("div", { class: "title-toggles" }, besideToggle, panelToggle)));
 
 // Rail: the places. Suggestions turns silver, with a count, while they wait.
 const railButton = (place, iconName, label, run, tipKeys = null) => h("button", {

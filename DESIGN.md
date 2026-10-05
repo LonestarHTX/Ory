@@ -10,13 +10,16 @@ The rules Ory's interface follows. A value outside the scales below is a mistake
   `--veil`, `--float`; corners `--r-sm` 4, `--r-ctl`/`--r-card` 6, `--r-window` 10.
 - **Scales:** type 11, 12, 13, 14, 17, 24 on whole-pixel line heights 16, 20, 24, 32;
   spacing 4, 8, 12, 16, 24, 32, 48; motion 0.12s and 0.24s.
-- **Type:** the system text face for anything you read; monospace only for counts,
-  keys and code, one pixel under the text beside it. Medium for titles and selection;
+- **Type:** the system text face for anything you read; monospace only for counts
+  and code, one pixel under the text beside it. Key caps use the text face, since
+  monospace draws ⌘ and ⇧ too small. A count beside a name sits on its baseline. Medium for titles and selection;
   sidebar section labels are 11px medium. Markdown bold is semibold (600): it is the
   writer's own emphasis, not chrome, and needs to stand apart from medium headings.
 - **Controls:** `.btn` (outlined, medium, border darkens on hover), `.input` (40px well),
   `.input--bare` (reads as text until hovered or edited), `.iconbtn` (30px), `.kbd`
-  (bordered key cap), `.menu`, `.window`.
+  (bordered key cap), `.menu`, `.window`. Every floating layer (menus, the switcher,
+  Settings) has the window's 10px corners, its rows 6px inside them; menu rows are
+  13px text, 32px tall. Checkboxes take the text colour, never the system accent.
 - **Motion:** hovers fade over 0.12s; menus and windows arrive over 0.24s and leave over
   0.12s; navigating to a note fades it in; the theme cross-fades over 0.24s.
 - **States:** selection is the selected fill plus a medium, full-colour label. Focus is

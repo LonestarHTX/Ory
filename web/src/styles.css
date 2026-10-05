@@ -275,10 +275,15 @@ dd {
 
 /* ---------- Type ----------
    Two faces, each with one job. The text face is for anything you read;
-   monospace is for data compared or copied character by character: counts,
-   keys and code. This is the only place a font family is chosen. */
+   monospace is for data compared or copied character by character: counts
+   and code. Keys use the text face: monospace draws the ⌘ and ⇧ glyphs too
+   small to read. This is the only place a font family is chosen. */
 
-.kbd,
+.kbd {
+  font-family: var(--font-sans);
+  font-variant-numeric: tabular-nums;
+}
+
 .count,
 .cm-md-code,
 .cm-line.cm-md-codeblock,
@@ -469,9 +474,21 @@ html[data-theme-fade]::view-transition-new(root) {
   gap: 4px;
   min-width: 0;
   max-width: 50vw;
-  padding: 0 8px;
+  padding-left: 8px;
   border-left: 1px solid var(--line);
-  border-right: 1px solid var(--line);
+}
+
+/* Side by side and the panel, after a hairline; gone (hairline too) when neither shows. */
+.title-toggles {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-left: 8px;
+  border-left: 1px solid var(--line);
+}
+
+.title-toggles:not(:has(> :not([hidden]))) {
+  display: none;
 }
 
 .tab-list {
@@ -848,7 +865,7 @@ html[data-theme-fade]::view-transition-new(root) {
 
 .panel-title {
   display: flex;
-  align-items: center;
+  align-items: baseline;
   gap: 8px;
   font-size: 13px;
   font-weight: 600;
@@ -913,8 +930,7 @@ html[data-theme-fade]::view-transition-new(root) {
   }
 
   .app .panel,
-  .titlebar .panel-toggle,
-  .titlebar .beside-toggle {
+  .titlebar .title-toggles {
     display: none;
   }
 
@@ -1005,6 +1021,7 @@ html[data-theme-fade]::view-transition-new(root) {
 
 /* A wiki section's heading, under the wiki's own label. */
 .side-subtitle {
+  margin: 0;
   font-size: 11px;
   line-height: 16px;
   font-weight: 500;
@@ -1023,6 +1040,7 @@ html[data-theme-fade]::view-transition-new(root) {
 
 .count {
   font-size: 11px;
+  line-height: 16px; /* on a heading's baseline without making its line taller */
   font-weight: 400;
   color: var(--text-3);
 }
@@ -1036,6 +1054,18 @@ html[data-theme-fade]::view-transition-new(root) {
   font-size: 12px;
   line-height: 16px;
   color: var(--text-2);
+}
+
+/* Lists already inset to their rows' padding: the message lines up with the rows' text. */
+.outline > .side-empty,
+.backlinks > .side-empty {
+  padding: 0 8px;
+}
+
+/* Checkboxes in the text colour, as a task's box is: no system blue. */
+input[type="checkbox"],
+input[type="radio"] {
+  accent-color: var(--text);
 }
 
 /* ---------- Controls ---------- */
@@ -1106,7 +1136,7 @@ html[data-theme-fade]::view-transition-new(root) {
 
 .btn--primary:disabled {
   background: var(--selected);
-  color: var(--text-3);
+  color: var(--text-2); /* --text-3 on the fill is under 4.5:1 */
 }
 
 .btn--primary .kbd {
@@ -1258,6 +1288,7 @@ html[data-theme-fade]::view-transition-new(root) {
 }
 
 .tree-row {
+  position: relative;
   display: flex;
   align-items: center;
   height: var(--row-h);
@@ -1325,13 +1356,14 @@ html[data-theme-fade]::view-transition-new(root) {
   white-space: nowrap;
 }
 
-/* A note with attachments: a quiet paperclip at the end of its row. */
+/* A note with attachments: a quiet paperclip where the row's "..." appears on hover. */
 .tree-clip {
+  position: absolute;
+  top: 50%;
+  right: 8px; /* centred on the "..." (24px, 2px in from the edge) */
   display: inline-flex;
-  flex: none;
-  margin-left: auto;
-  padding-left: 8px;
   color: var(--text-3);
+  transform: translateY(-50%);
 }
 
 /* A picture or file no note uses: kept in view, quieter, and said so. */
@@ -1405,7 +1437,7 @@ html[data-theme-fade]::view-transition-new(root) {
 
 .note-name {
   display: flex;
-  align-items: center;
+  align-items: baseline; /* a count (Archive 3) sits on the name's baseline */
   flex: 1;
   min-width: 0;
 }
@@ -1572,8 +1604,8 @@ html[data-theme-fade]::view-transition-new(root) {
 }
 
 .format-btn--ink > span:first-child {
-  padding: 1px 3px;
-  border-radius: 2px;
+  padding: 0 4px;
+  border-radius: var(--r-sm);
 }
 
 .format-ink {
@@ -1611,6 +1643,11 @@ html[data-theme-fade]::view-transition-new(root) {
   display: flex;
   flex-direction: column;
   overflow-y: auto;
+}
+
+/* A wiki Home lists its pages under the text: the text takes only its own height. */
+.note-scroll:has(> .page-foot:not([hidden])) > .note-editor {
+  flex-grow: 0;
 }
 
 .note-editor {
@@ -1694,14 +1731,14 @@ html[data-theme-fade]::view-transition-new(root) {
 
 /* ==Highlight== is marked text, drawn like a search match. */
 .cm-md-highlight {
-  border-radius: 2px;
+  border-radius: var(--r-sm);
   background: var(--selected);
 }
 
 /* A coloured highlight: <mark style="background: ...">, shown as a wash of
    its colour so the text keeps its own colour and stays readable. */
 .cm-mark {
-  border-radius: 2px;
+  border-radius: var(--r-sm);
   color: inherit;
   font-weight: inherit;
   background: color-mix(in srgb, var(--mark) var(--mark-mix), transparent);
@@ -2264,13 +2301,15 @@ html[data-theme-fade]::view-transition-new(root) {
 
 /* Properties: a table you edit in place. Rows share their columns (subgrid)
    so keys line up; a row's "..." appears on hover, like the tree's. */
+/* The rows' hover fill reaches 8px past the text column (as tree rows do), so
+   the names line up with the text; the hairline under them keeps to the column. */
 .cm-props {
   display: grid;
   grid-template-columns: minmax(96px, max-content) minmax(0, 1fr) 24px;
   column-gap: 16px;
-  margin-bottom: 16px;
+  margin: 0 -8px 16px;
   padding: 4px 0 8px;
-  border-bottom: 1px solid var(--line);
+  background: linear-gradient(var(--line), var(--line)) center bottom / calc(100% - 16px) 1px no-repeat;
   font-size: 13px;
   line-height: 20px;
 }
@@ -2494,18 +2533,20 @@ html[data-theme-fade]::view-transition-new(root) {
   max-width: 320px;
   padding: 4px;
   border: 1px solid var(--line);
-  border-radius: var(--r-card);
+  border-radius: var(--r-window); /* a floating layer, as the switcher and Settings */
   background: var(--card);
   box-shadow: var(--float);
   animation: window-in 0.12s cubic-bezier(0.2, 0.7, 0.2, 1);
 }
 
+/* 13px rows, 32px tall: the sidebar's text size; 6px corners nest in the menu's 10. */
 .menu-item {
   display: block;
   width: 100%;
-  padding: 8px;
+  padding: 6px 8px;
   border-radius: var(--r-ctl);
-  font-size: 14px;
+  font-size: 13px;
+  line-height: 20px;
 }
 
 .menu-item:hover,
@@ -3253,6 +3294,9 @@ html[data-theme-fade]::view-transition-new(root) {
 }
 
 .switcher-path {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   margin-left: auto;
   font-size: 12px;
   color: var(--text-3);
@@ -3343,8 +3387,11 @@ html[data-theme-fade]::view-transition-new(root) {
   background: var(--hover);
 }
 
+/* Results' text lines up with the field's (12px in); a name with or without its folder is one height. */
 .result-note {
-  padding: 4px 8px;
+  align-items: center; /* one height with or without the 12px folder beside the name */
+  padding: 4px 12px;
+  line-height: 20px;
 }
 
 .result-name {
@@ -3361,7 +3408,7 @@ html[data-theme-fade]::view-transition-new(root) {
 
 .result-line {
   display: block;
-  padding: 2px 8px;
+  padding: 2px 12px;
   overflow: hidden;
   font-size: 13px;
   color: var(--text-2);
@@ -3370,7 +3417,7 @@ html[data-theme-fade]::view-transition-new(root) {
 }
 
 mark {
-  border-radius: 2px;
+  border-radius: var(--r-sm);
   background: var(--selected);
   color: var(--text);
   font-weight: 500;
@@ -3602,8 +3649,9 @@ mark {
   white-space: nowrap;
 }
 
-.nav-item.is-indented .nav-label {
-  padding-left: 24px;
+/* A page in a wiki's section: the whole row steps in one tree indent. */
+.nav-item.is-indented {
+  padding-left: 20px;
 }
 
 .nav-item.is-quiet {
@@ -3634,6 +3682,11 @@ mark {
   color: var(--text-2);
   font-size: 11px;
   font-weight: 600;
+}
+
+/* In a sidebar row the 20px picture takes a 16px icon's place, so names line up. */
+.nav-item > .wiki-thumb:not(.is-large) {
+  margin: 0 -2px;
 }
 
 .wiki-thumb.is-large {
@@ -3758,6 +3811,7 @@ mark {
 }
 
 .wiki-card-body {
+  flex: 1;
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -3774,8 +3828,10 @@ mark {
   color: var(--text-2);
 }
 
+/* The pages · edited line sits at the card's foot, whatever the summary's length. */
 .wiki-card-meta {
-  margin-top: 4px;
+  margin-top: auto;
+  padding-top: 4px;
   font-size: 11px;
   line-height: 16px;
   color: var(--text-3);
@@ -3817,6 +3873,16 @@ mark {
   max-width: calc(var(--prose-w) + 2 * 32px);
   margin: 0 auto;
   padding: 32px 32px 24px;
+  position: relative;
+}
+
+/* The hairline under a page's header runs the text column, as under a note's properties. */
+.page-intro::after {
+  content: "";
+  position: absolute;
+  left: 32px;
+  right: 32px;
+  bottom: 0;
   border-bottom: 1px solid var(--line);
 }
 
@@ -4694,14 +4760,18 @@ mark {
   display: flex;
   flex-direction: column;
   gap: 2px;
-  padding: 16px 12px;
+  padding: 0 12px 16px;
   border-right: 1px solid var(--line);
   background: var(--sidebar);
   font-size: 13px;
 }
 
+/* On one line with the section's header across the window: the same 48px row. */
 .settings-title {
-  margin: 0 8px 12px;
+  display: flex;
+  align-items: center;
+  height: var(--head-h);
+  margin: 0 8px;
   font-size: 14px;
   font-weight: 600;
 }
@@ -4733,7 +4803,13 @@ mark {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding: 16px var(--gutter) var(--gutter);
+  padding: 16px var(--gutter) 0;
+}
+
+.settings-body::after {
+  content: "";
+  display: block;
+  height: var(--gutter);
 }
 
 .settings-intro {
@@ -4851,7 +4927,7 @@ mark {
 
 .setting-pick.is-empty {
   padding-right: 12px;
-  color: var(--text-3);
+  color: var(--text-2);
 }
 
 .setting-pick > .icon {
@@ -4891,10 +4967,19 @@ mark {
   vertical-align: 1px;
 }
 
+/* Save and Revert stay in reach: below the fold they hold to the window's bottom
+   edge, over a hairline. (The body's bottom space is a spacer, not padding, so
+   the row can sit flush with the edge.) */
 .setting-actions {
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
   display: flex;
   align-items: center;
   gap: 8px;
+  padding: 8px 0 12px;
+  background: var(--card);
+  box-shadow: 0 -1px 0 var(--line);
 }
 
 .setting-actions .setting-status {
@@ -5191,7 +5276,7 @@ h3.setting-label {
 .info-file {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   max-width: 100%;
   color: var(--text);
   text-align: left;

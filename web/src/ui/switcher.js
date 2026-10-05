@@ -4,7 +4,7 @@
 // what you choose opens in a new tab.
 
 import { createNote, openNote, openSearch } from "../actions.js";
-import { folderOf } from "../links.js";
+import { place } from "./search-view.js";
 import { recentPaths, store } from "../store.js";
 import { closeMenu } from "./menu.js";
 import { h, keys, leave } from "./dom.js";
@@ -108,7 +108,7 @@ export function createSwitcher() {
             : h("div", { class: "switcher-item" },
               h("span", { class: "switcher-name" }, item.note.name),
               item.alias ? h("span", { class: "switcher-hint" }, item.alias) : null,
-              h("span", { class: "switcher-path" }, folderOf(item.note.path)));
+              place(item.note.path, "switcher-path"));
         option.id = `switcher-option-${i}`;
         option.setAttribute("role", "option");
         option.setAttribute("aria-selected", String(i === selected));

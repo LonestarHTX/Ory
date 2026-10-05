@@ -7,7 +7,8 @@ import { parseLink } from "../links.js";
 import { h } from "./dom.js";
 
 const PREFIX = /^\s*(?:>\s*)*(?:(?:[-*+]|\d+[.)])\s+(?:\[[ xX]\]\s+)?|#{1,6}\s+)?/;
-const TOKENS = /"?!?\[\[([^\[\]]+)\]\]"?|\*\*|__|==|~~|`|<\/?span[^>]*>/g;
+// A single * is emphasis when it touches a word ("*italic*"), not in "2 * 3".
+const TOKENS = /"?!?\[\[([^\[\]]+)\]\]"?|\*\*|__|==|~~|`|<\/?(?:span|mark)[^>]*>|\*(?=\S)|(?<=\S)\*/g;
 
 /** Nodes for `text`, with [from, to) `ranges` of the original text marked. */
 export function readable(text, ranges = []) {

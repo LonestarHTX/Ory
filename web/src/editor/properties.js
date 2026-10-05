@@ -229,7 +229,8 @@ class PropertiesWidget extends WidgetType {
 
   row(view, key, value, write) {
     const date = asDate(value);
-    const keyCell = h("button", { class: "cm-prop-key", type: "button", dataset: { tip: "Rename property" } }, key);
+    // No tooltip: it would cover the next row's name, and a click on a name renaming it is plain enough.
+    const keyCell = h("button", { class: "cm-prop-key", type: "button", "aria-description": "Click to rename" }, key);
     const valueCell = h("div", { class: "cm-prop-value", tabindex: typeof value === "boolean" ? null : 0 });
     const row = h("div", { class: "cm-prop-row", dataset: { key } }, keyCell, valueCell);
 

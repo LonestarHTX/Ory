@@ -261,7 +261,7 @@ export function createSettings({ theme, pickNote }) {
         h("span", { class: "setting-label" }, "Daily note template"),
         h("div", { class: "setting-row" },
           h("span", { class: `setting-pick${template ? "" : " is-empty"}` },
-            icon("file", 14), template ? noteName(template) : "None",
+            template ? icon("file", 14) : null, template ? noteName(template) : "No template",
             template ? h("button", {
               class: "iconbtn", type: "button", "aria-label": "No template", dataset: { tip: "No template" },
               onClick: () => save({ dailyTemplate: "" }),
