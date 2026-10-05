@@ -5,6 +5,7 @@
 export const SOURCE_KEY = "ory.sourceMode";
 export const READ_WIKI_KEY = "ory.readWiki";
 export const SPELLCHECK_KEY = "ory.spellcheck";
+export const MARKS_KEY = "ory.marks";
 
 export function pref(key, fallback) {
   try {
@@ -27,3 +28,6 @@ export const readsWiki = () => pref(READ_WIKI_KEY, "1") === "1";
 
 /** Whether the browser marks misspelt words while you write (on by default). */
 export const spellchecks = () => pref(SPELLCHECK_KEY, "1") === "1";
+
+/** Whether formatting marks (**, #, [[ ]]...) stay hidden even where you're typing (the default). */
+export const hidesMarks = () => pref(MARKS_KEY, "hidden") === "hidden";

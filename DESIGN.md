@@ -165,7 +165,16 @@ The rules Ory's interface follows. A value outside the scales below is a mistake
 
 - **Missing links** are secondary text with a dashed underline, so the difference
   does not rest on colour alone. Clicking one creates the note.
-- **Live preview** hides Markdown syntax except in the element holding the cursor.
+- **Live preview reads like a document.** Formatting marks (`**`, `*`, `~~`, `==`,
+  backticks, `#`, `>`, `[[ ]]`, link syntax, list and task marks) stay hidden even
+  where you're typing, and each is one step for the cursor. Typing Markdown still
+  works: `# ` makes a heading and `**bold**` turns bold as it closes. The cursor
+  never sits before a heading's or quote's hidden mark; Backspace at the start of one
+  makes the line body text, Enter there adds a line above (on an empty heading, it
+  makes it body text), and deleting the last character inside bold or a colour
+  removes its marks too. Code fences show while you're in the block. Settings →
+  Editing can show marks at the cursor instead ("At the cursor"), and Cmd+E shows all
+  the Markdown.
   Frontmatter shows as a properties table until the cursor enters it; dates show in
   words ("Nov 1, 2026 in 35 days").
 - **Save as you go.** The header shows "Saving", "Saved", then "Edited 4 min ago".

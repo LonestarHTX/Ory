@@ -5,7 +5,7 @@
 // and a list of the keyboard shortcuts.
 
 import { api } from "../api.js";
-import { pref, READ_WIKI_KEY, setPref, SOURCE_KEY, SPELLCHECK_KEY, spellchecks } from "../prefs.js";
+import { MARKS_KEY, pref, READ_WIKI_KEY, setPref, SOURCE_KEY, SPELLCHECK_KEY, spellchecks } from "../prefs.js";
 import { setBudget } from "../suggestions/prompts.js";
 import { closeMenu } from "./menu.js";
 import { clear, h, icon, keys, leave } from "./dom.js";
@@ -289,6 +289,11 @@ export function createSettings({ theme }) {
         setPref(READ_WIKI_KEY, v);
         render();
       }, h("span", null, keys("E"), " edits a page you're reading; ", keys("Esc"), " goes back.")),
+      choice("Formatting marks", [["hidden", "Hidden"], ["cursor", "At the cursor"]], pref(MARKS_KEY, "hidden"), (v) => {
+        setPref(MARKS_KEY, v);
+        window.dispatchEvent(new CustomEvent("ory:marks")); // open notes redraw at once
+        render();
+      }, h("span", null, "Hidden: notes read like a document, and ", keys("Mod-E"), " shows the Markdown. At the cursor: marks like ** show where you're typing.")),
       choice("Spell check", [["1", "On"], ["0", "Off"]], spellchecks() ? "1" : "0", (v) => {
         setPref(SPELLCHECK_KEY, v);
         // Open notes and tables pick it up at once; new ones read it as they open.

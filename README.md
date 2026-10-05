@@ -164,7 +164,8 @@ Cmd+,. It has five sections:
 - **Appearance:** the theme, Neutral (Ory's own greys) or Dusk (violet warming to
   wine), and light, dark or following the computer. Kept in the browser.
 - **Editing:** whether notes open in live preview or source, whether wiki pages open
-  for reading or editing, and spell check. Kept in the browser.
+  for reading or editing, whether formatting marks (`**`, `#`...) stay hidden as you
+  type (the default) or show at the cursor, and spell check. Kept in the browser.
 - **AI:** whether Claude Desktop and Claude Code are connected to Ory's tools, a switch
   for the guide for agents, and the longest prompt Suggestions asks you to paste. While
   Claude Desktop is open it can't be connected; quit it and a Connect button appears.

@@ -6,10 +6,11 @@
 // missing notes dashed. Clicking a rendered link opens it; Mod-click always does.
 
 import { ensureSyntaxTree, syntaxTree } from "@codemirror/language";
-import { Prec, StateEffect, StateField } from "@codemirror/state";
+import { EditorState, Prec, StateEffect, StateField } from "@codemirror/state";
 import { Decoration, EditorView, keymap, ViewPlugin, WidgetType } from "@codemirror/view";
 
 import { fileName, isImage, isPage, parseLink } from "../links.js";
+import { hidesMarks } from "../prefs.js";
 import { inkPaint, markPaint } from "../ui/color.js";
 import { icon } from "../ui/dom.js";
 import { pageFrame } from "../ui/page-view.js";
@@ -257,6 +258,52 @@ class LanguageWidget extends WidgetType {
 
 const hide = Decoration.replace({});
 
+/** A heading's or quote's mark at the start of a line, as text. */
+const LINE_PREFIX = /^(#{1,6}[ \t]+|>[ \t]?)/;
+
+/** Hidden marks are on: live preview, not reading, and Settings keeps them hidden at the cursor. */
+const concealing = (state) => !state.field(sourceMode, false) && !isReading(state) && hidesMarks();
+
+/**
+ * Where the cursor is just after a heading's or quote's hidden mark: {line, end},
+ * or null. Only a real heading or quote (not "# " inside a code block).
+ */
+function prefixEnd(state) {
+  const sel = state.selection;
+  if (sel.ranges.length > 1 || !sel.main.empty || !concealing(state)) return null;
+  const line = state.doc.lineAt(sel.main.head);
+  const m = LINE_PREFIX.exec(line.text);
+  if (!m || sel.main.head !== line.from + m[0].length) return null;
+  const node = syntaxTree(state).resolveInner(line.from, 1);
+  if (node.name !== "HeaderMark" && node.name !== "QuoteMark") return null;
+  return { line, end: line.from + m[0].length };
+}
+
+// While marks stay hidden, the cursor never sits before a heading's or quote's
+// mark (typing there would break it): it goes just after the mark, or, moving
+// left from there, to the end of the line above.
+const prefixSnap = EditorState.transactionFilter.of((tr) => {
+  if (!tr.selection || tr.selection.ranges.length > 1 || !tr.selection.main.empty) return tr;
+  const state = tr.state;
+  if (!concealing(state)) return tr;
+  const head = tr.selection.main.head;
+  const line = state.doc.lineAt(head);
+  if (head !== line.from) return tr;
+  const m = LINE_PREFIX.exec(line.text);
+  if (!m) return tr;
+  const node = syntaxTree(state).resolveInner(line.from, 1);
+  if (node.name !== "HeaderMark" && node.name !== "QuoteMark") return tr;
+  const end = line.from + m[0].length;
+  const was = tr.startState.selection.main;
+  const leftward = !tr.docChanged && was.empty && was.head === end && line.number > 1;
+  return [tr, { selection: { anchor: leftward ? line.from - 1 : end }, sequential: true }];
+});
+
+/** A heading, quote or task's mark at the start of its line ("## ", "> ", "- [ ] "). */
+const BLOCK_PREFIX = /^(#{1,6}\s|>\s?|\s*([-*+]|\d+[.)])\s+\[[ xX]\]\s?)$/;
+/** Inline marks that open and close alike: **bold**, *italic*, ~~struck~~, ==marked==, `code`. */
+const INLINE_MARKS = new Set(["**", "__", "*", "_", "~~", "==", "`"]);
+
 class SeparatorWidget extends WidgetType {
   eq() {
     return true;
@@ -299,9 +346,21 @@ function build(view, { resolve, fileSize, openPage }) {
     if (deco.point && from < to && doc.lineAt(from).to < to) return;
     if (from < to || deco.point) out.push(deco.range(from, to));
   };
+  // Formatting marks (**, #, >, [[ ]], list and task marks) are hidden. By
+  // default they stay hidden at the cursor too, so a note reads like a
+  // document, and each becomes one step for the cursor (atomic). Settings can
+  // show them where you're typing instead. Code fences show while you're in
+  // the block either way, and Cmd+E shows all the Markdown.
+  const concealAll = live && !read && hidesMarks();
+  const near = (from, to) => !concealAll && touches(view, from, to);
+  const conceal = (from, to) => {
+    if (from >= to || doc.lineAt(from).to < to) return;
+    out.push(hide.range(from, to));
+    if (concealAll) atomic.push(hide.range(from, to));
+  };
   const lineTouched = (pos) => {
     const l = doc.lineAt(pos);
-    return touches(view, l.from, l.to);
+    return near(l.from, l.to);
   };
   // Only the part on screen: a long block (or an unclosed fence) mustn't cost every line.
   let visible = { from: 0, to: doc.length };
@@ -332,7 +391,7 @@ function build(view, { resolve, fileSize, openPage }) {
             const resolved = resolve(name);
             const missing = !resolved;
             const shown = alias ?? target;
-            const active = touches(view, node.from, node.to);
+            const active = near(node.from, node.to);
             // ![[file]] shows the image, the page or a file chip, always drawn
             // just after the embed so it is never rebuilt (a page would reload)
             // as the cursor comes and goes. Away from the cursor the Markdown
@@ -346,7 +405,7 @@ function build(view, { resolve, fileSize, openPage }) {
                   : new FileWidget(resolved, fileSize(resolved));
               add(node.to, node.to, Decoration.widget({ widget, side: 1 }));
               if (!active) {
-                add(node.from, node.to, hide);
+                conceal(node.from, node.to);
                 return false;
               }
             }
@@ -356,8 +415,8 @@ function build(view, { resolve, fileSize, openPage }) {
               attributes: { "data-wikilink": inner, "data-tip": missing ? `Create note "${name}"` : `Open ${name}` },
             }));
             if (live && !active) {
-              add(node.from, shown.from, hide);
-              add(shown.to, node.to, hide);
+              conceal(node.from, shown.from);
+              conceal(shown.to, node.to);
               // [[Note#Heading]] reads as "Note › Heading".
               const hash = alias ? -1 : inner.indexOf("#");
               if (hash > 0) add(target.from + hash, target.from + hash + 1, headingSeparator);
@@ -368,14 +427,14 @@ function build(view, { resolve, fileSize, openPage }) {
             const marks = node.getChildren("LinkMark");
             const url = node.getChild("URL");
             if (marks.length < 2 || !url) return false;
-            const active = touches(view, node.from, node.to);
+            const active = near(node.from, node.to);
             add(marks[0].to, marks[1].from, Decoration.mark({
               class: `cm-md-link${live && !active ? " cm-link-live" : ""}`,
               attributes: { "data-href": doc.sliceString(url.from, url.to), "data-tip": doc.sliceString(url.from, url.to) },
             }));
             if (live && !active) {
-              add(marks[0].from, marks[0].to, hide);
-              add(marks[1].from, node.to, hide);
+              conceal(marks[0].from, marks[0].to);
+              conceal(marks[1].from, node.to);
             }
             return false;
           }
@@ -438,8 +497,11 @@ function build(view, { resolve, fileSize, openPage }) {
             const marks = node.getChildren("LinkMark");
             const alt = marks.length >= 2 ? doc.sliceString(marks[0].to, marks[1].from) : "";
             const widget = new ImageWidget(src, null, alt);
-            if (touches(view, node.from, node.to)) add(node.to, node.to, Decoration.widget({ widget, side: 1 }));
-            else add(node.from, node.to, Decoration.replace({ widget }));
+            if (near(node.from, node.to)) add(node.to, node.to, Decoration.widget({ widget, side: 1 }));
+            else {
+              add(node.from, node.to, Decoration.replace({ widget }));
+              if (concealAll && doc.lineAt(node.from).to >= node.to) atomic.push(hide.range(node.from, node.to));
+            }
             return false;
           }
           case "FencedCode": {
@@ -479,21 +541,21 @@ function build(view, { resolve, fileSize, openPage }) {
             eachLine(node.from, node.to, (l) => add(l.from, l.from, line("cm-md-quote")));
             return;
           case "QuoteMark":
-            if (live && !lineTouched(node.from)) add(node.from, spaceAfter(doc, node.to), hide);
+            if (live && !lineTouched(node.from)) conceal(node.from, spaceAfter(doc, node.to));
             return;
           case "HeaderMark":
             if (live && node.parent?.name.startsWith("ATXHeading") && !lineTouched(node.from)) {
               // Hide the opening "## " (and a closing "##", if present).
               const isOpening = node.from === node.parent.from;
-              add(isOpening ? node.from : node.from - 1, isOpening ? spaceAfter(doc, node.to) : node.to, hide);
+              conceal(isOpening ? node.from : node.from - 1, isOpening ? spaceAfter(doc, node.to) : node.to);
             }
             return;
           case "EmphasisMark":
           case "CodeMark":
           case "StrikethroughMark":
           case "HighlightMark":
-            if (live && node.parent && node.parent.name !== "FencedCode" && !touches(view, node.parent.from, node.parent.to)) {
-              add(node.from, node.to, hide);
+            if (live && node.parent && node.parent.name !== "FencedCode" && !near(node.parent.from, node.parent.to)) {
+              conceal(node.from, node.to);
             }
             return;
           case "HorizontalRule":
@@ -506,12 +568,12 @@ function build(view, { resolve, fileSize, openPage }) {
             const markEnd = spaceAfter(doc, node.to);
             if (task) {
               const marker = task.getChild("TaskMarker");
-              if (marker && !touches(view, node.from, marker.to)) {
-                add(node.from, markEnd, hide);
+              if (marker && !near(node.from, marker.to)) {
+                conceal(node.from, markEnd);
                 const checked = /x/i.test(doc.sliceString(marker.from, marker.to));
                 add(marker.from, marker.to, Decoration.replace({ widget: new CheckboxWidget(checked, marker.from, read) }));
               }
-            } else if (item?.parent?.name === "BulletList" && !touches(view, node.from, node.to)) {
+            } else if (item?.parent?.name === "BulletList" && !near(node.from, node.to)) {
               add(node.from, node.to, bullet);
             }
             return;
@@ -542,16 +604,25 @@ function spaceAfter(doc, pos) {
   return doc.sliceString(pos, pos + 1) === " " ? pos + 1 : pos;
 }
 
+/** Redraw the marks: Settings changed whether they hide at the cursor ("ory:marks"). */
+const restyle = StateEffect.define();
+
 export function livePreview({ resolve, openLink, fileSize = () => null, openPage = () => {} }) {
   const plugin = ViewPlugin.fromClass(
     class {
       constructor(view) {
         ({ decorations: this.decorations, atomic: this.atomic } = build(view, { resolve, fileSize, openPage }));
+        this.onMarks = () => view.dispatch({ effects: restyle.of(null) });
+        window.addEventListener("ory:marks", this.onMarks);
+      }
+      destroy() {
+        window.removeEventListener("ory:marks", this.onMarks);
       }
       update(u) {
         if (u.docChanged || u.viewportChanged || u.selectionSet || u.focusChanged
             || syntaxTree(u.state) !== syntaxTree(u.startState)
-            || u.transactions.some((tr) => tr.effects.some((e) => e.is(setSourceMode) || e.is(setReading) || e.is(setQuiet) || e.is(indexChanged)))
+            || u.transactions.some((tr) => tr.effects.some((e) =>
+              e.is(setSourceMode) || e.is(setReading) || e.is(setQuiet) || e.is(indexChanged) || e.is(restyle)))
             || u.startState.field(quiet, false) !== u.state.field(quiet, false)) {
           ({ decorations: this.decorations, atomic: this.atomic } = build(u.view, { resolve, fileSize, openPage }));
         }
@@ -575,11 +646,14 @@ export function livePreview({ resolve, openLink, fileSize = () => null, openPage
     },
   });
 
-  // Hidden colour tags are single steps for the cursor.
+  // Hidden colour tags, and formatting marks while they stay hidden, are
+  // single steps for the cursor.
   const atomic = EditorView.atomicRanges.of((view) => view.plugin(plugin)?.atomic ?? Decoration.none);
 
-  // Backspace just after a hidden tag deletes the character before it, not
-  // the tag (which would leave half a span); emptying a span removes it.
+  // Backspace just after a hidden tag or mark deletes the character before it,
+  // not the mark (which would leave half a span or half a bold); emptying a
+  // span or a bold removes it; at the start of a heading, quote or task,
+  // Backspace turns the line back into body text, as in a word processor.
   const tagAt = (view, pos, side) => {
     let found = null;
     view.plugin(plugin)?.atomic.between(pos - 1, pos + 1, (from, to) => {
@@ -590,14 +664,35 @@ export function livePreview({ resolve, openLink, fileSize = () => null, openPage
   const deleteAround = (dir) => (view) => {
     const sel = view.state.selection.main;
     if (!sel.empty) return false;
+    const text = view.state.doc;
+    // The last character between two hidden marks (**a**, <span>a</span>):
+    // deleting it removes the marks too, rather than leaving "****" behind.
+    const char = dir < 0 ? sel.head - 1 : sel.head;
+    if (char >= 0 && char < text.length && text.sliceString(char, char + 1) !== "\n") {
+      const open = tagAt(view, char, -1);
+      const close = tagAt(view, char + 1, 1);
+      const pair = open && close && (
+        (INLINE_MARKS.has(text.sliceString(open.from, open.to)) && text.sliceString(open.from, open.to) === text.sliceString(close.from, close.to))
+        || (text.sliceString(open.from, open.from + 1) === "<" && text.sliceString(close.from, close.from + 2) === "</"));
+      if (pair) {
+        view.dispatch({ changes: { from: open.from, to: close.to }, selection: { anchor: open.from }, userEvent: "delete" });
+        return true;
+      }
+    }
     const tag = tagAt(view, sel.head, dir);
     if (!tag) return false;
-    const text = view.state.doc;
-    // An empty span (opening tag, cursor, closing tag): remove the whole span.
     const left = tagAt(view, sel.head, -1);
     const right = tagAt(view, sel.head, 1);
-    if (left && right && text.sliceString(left.from, left.from + 5) === "<span"
-        && text.sliceString(right.from, right.to) === "</span>") {
+    const slice = (t) => text.sliceString(t.from, t.to);
+    // The start of a heading, quote or task: the line becomes body text.
+    if (dir < 0 && left && left.from === text.lineAt(left.from).from && BLOCK_PREFIX.test(slice(left))) {
+      view.dispatch({ changes: { from: left.from, to: left.to }, selection: { anchor: left.from }, userEvent: "delete.backward" });
+      return true;
+    }
+    // An empty span or bold (opening, cursor, closing): remove it whole.
+    const emptySpan = left && right && slice(left).startsWith("<span") && slice(right) === "</span>";
+    const emptyPair = left && right && INLINE_MARKS.has(slice(left)) && slice(left) === slice(right);
+    if (emptySpan || emptyPair) {
       view.dispatch({ changes: { from: left.from, to: right.to }, selection: { anchor: left.from }, userEvent: "delete" });
       return true;
     }
@@ -612,12 +707,28 @@ export function livePreview({ resolve, openLink, fileSize = () => null, openPage
     });
     return true;
   };
+  // Enter at the start of a heading's (or quote's) text, while its mark is
+  // hidden, adds a line above and leaves the heading whole; on an empty
+  // heading it makes the line body text, as a word processor does.
+  const enterAtPrefix = (view) => {
+    const at = prefixEnd(view.state);
+    if (!at) return false;
+    const { line, end } = at;
+    if (line.to === end) {
+      view.dispatch({ changes: { from: line.from, to: end }, selection: { anchor: line.from }, userEvent: "delete" });
+    } else {
+      view.dispatch({ changes: { from: line.from, insert: "\n" }, selection: { anchor: end + 1 }, userEvent: "input" });
+    }
+    return true;
+  };
+
   const keys = Prec.high(keymap.of([
     { key: "Backspace", run: deleteAround(-1) },
     { key: "Delete", run: deleteAround(1) },
+    { key: "Enter", run: enterAtPrefix },
   ]));
 
-  return [sourceMode, reading, quiet, plugin, clicks, atomic, keys, readingFlow];
+  return [sourceMode, reading, quiet, plugin, clicks, atomic, keys, prefixSnap, readingFlow];
 }
 
 // Reading: a paragraph written across several lines reads as one, as in any
