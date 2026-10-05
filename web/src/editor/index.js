@@ -14,6 +14,7 @@ import { GFM, parser as commonmark } from "@lezer/markdown";
 
 import { spellchecks } from "../prefs.js";
 import { attachments, insertFiles } from "./attachments.js";
+import { colourPreview } from "./colour-preview.js";
 import { wikilinkCompletion } from "./autocomplete.js";
 import { setHeading, startNoteLink, toggleInline, toggleList } from "./format.js";
 import { highlightTag, HighlightSyntax } from "./highlight-syntax.js";
@@ -98,6 +99,7 @@ export function createEditor(parent, handlers) {
       openPage: handlers.openPath,
     }),
     attachments(uploadEnv),
+    colourPreview,
     properties({ openLink: handlers.openLink }),
     tables({ resolve: handlers.resolve, openLink: handlers.openLink }),
     propertyTables({

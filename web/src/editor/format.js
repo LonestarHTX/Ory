@@ -300,20 +300,32 @@ export function applyLink(view, url, target) {
   });
 }
 
-// Text colour ----------------------------------------------------------------------
-// Coloured text is an HTML span in the note, which any Markdown renderer
-// shows: <span style="color: #d9a05b">text</span> for a picked colour, or
-// <span style="color: var(--ink-red)">text</span> for a theme ink that
-// follows light and dark mode. Any colour can be picked (ui/color-picker.js).
+// Text colour and highlight colour --------------------------------------------------
+// Both are HTML in the note, which any Markdown renderer shows:
+//   <span style="color: var(--ink-red)">text</span>        coloured text
+//   <mark style="background: var(--ink-blue)">text</mark>  a coloured highlight
+// (the same form Obsidian's Highlightr writes). A plain ==highlight== is the
+// grey one. Theme inks follow light and dark mode; a hex colour written by
+// another tool is shown readably (ui/color.js).
 
-const COLOR_SPAN = /<span style="color:\s*([^";]+?);?\s*">([^<]*?)<\/span>/g;
-const openTag = (color) => `<span style="color: ${color}">`;
+const TAGGED = {
+  color: {
+    re: /<span style="color:\s*([^";]+?);?\s*">([^]*?)<\/span>/g,
+    open: (color) => `<span style="color: ${color}">`,
+    close: "</span>",
+  },
+  mark: {
+    re: /<mark style="background(?:-color)?:\s*([^";]+?);?\s*">([^]*?)<\/mark>/g,
+    open: (color) => `<mark style="background: ${color}">`,
+    close: "</mark>",
+  },
+};
 
-/** The coloured span holding [from, to] on one line: its tags, content and colour. */
-function colorSpanAt(state, from, to) {
+/** The coloured span (`kind` color or mark) holding [from, to] on one line: its tags, content and colour. */
+function taggedAt(state, from, to, kind) {
   const line = state.doc.lineAt(from);
   if (to > line.to) return null;
-  for (const m of line.text.matchAll(COLOR_SPAN)) {
+  for (const m of line.text.matchAll(TAGGED[kind].re)) {
     const start = line.from + m.index;
     const contentFrom = start + m[0].indexOf(">") + 1;
     const contentTo = contentFrom + m[2].length;
@@ -326,13 +338,14 @@ function colorSpanAt(state, from, to) {
 
 /**
  * Colour the selection, or the word at the cursor, with `color` (null removes
- * the colour). Text already in a coloured span is recoloured, not nested.
+ * it). Text already in such a span is recoloured, not nested.
  */
-export function setColor(color) {
+function setTagged(kind, color) {
+  const { open, close } = TAGGED[kind];
   return (view) => {
     const { state } = view;
     view.dispatch(state.changeByRange((range) => {
-      const span = colorSpanAt(state, range.from, range.to);
+      const span = taggedAt(state, range.from, range.to, kind);
       if (span) {
         const oldOpen = span.contentFrom - span.start;
         if (!color) {
@@ -342,7 +355,7 @@ export function setColor(color) {
             range: EditorSelection.range(shift(range.anchor), shift(range.head)),
           };
         }
-        const tag = openTag(color);
+        const tag = open(color);
         const delta = tag.length - oldOpen;
         return {
           changes: { from: span.start, to: span.contentFrom, insert: tag },
@@ -354,32 +367,85 @@ export function setColor(color) {
       if (from === to) {
         const word = state.wordAt(from);
         if (!word) {
-          const tag = openTag(color);
-          return { changes: { from, insert: tag + "</span>" }, range: EditorSelection.cursor(from + tag.length) };
+          const tag = open(color);
+          return { changes: { from, insert: tag + close }, range: EditorSelection.cursor(from + tag.length) };
         }
         ({ from, to } = word);
       }
+      // Hug the text, like ** marks: a wash over a stray space looks like a mistake.
+      const text = state.sliceDoc(from, to);
+      from += text.length - text.trimStart().length;
+      to -= text.length - text.trimEnd().length;
+      if (from >= to) return { range };
       // One span per line: an inline tag cannot cross a paragraph break.
       const changes = [];
-      const tag = openTag(color);
+      const tag = open(color);
       for (let pos = from; pos <= to;) {
         const line = state.doc.lineAt(pos);
         const a = Math.max(from, line.from);
         const b = Math.min(to, line.to);
-        if (b > a) changes.push({ from: a, insert: tag }, { from: b, insert: "</span>" });
+        if (b > a) changes.push({ from: a, insert: tag }, { from: b, insert: close });
         pos = line.to + 1;
       }
       const set = state.changes(changes);
       return {
         changes: set,
+        // The selection keeps to the coloured text (trimmed), inside the tags.
         range: range.empty
           ? EditorSelection.cursor(set.mapPos(range.head, 1))
-          : EditorSelection.range(set.mapPos(range.anchor, range.anchor <= range.head ? 1 : -1),
-            set.mapPos(range.head, range.anchor <= range.head ? -1 : 1)),
+          : range.anchor <= range.head
+            ? EditorSelection.range(set.mapPos(from, 1), set.mapPos(to, -1))
+            : EditorSelection.range(set.mapPos(to, -1), set.mapPos(from, 1)),
       };
     }), { userEvent: "input.format", scrollIntoView: true });
     return true;
   };
+}
+
+/** Colour the selection's text (null: back to the default colour). */
+export function setColor(color) {
+  return setTagged("color", color);
+}
+
+/** The plain, grey highlight: ==text==. */
+export const PLAIN_HIGHLIGHT = "plain";
+
+/**
+ * Highlight the selection (or the highlight or word at the cursor):
+ * PLAIN_HIGHLIGHT for ==text==, a colour for a coloured <mark>, or null for
+ * none. A highlight that is already there changes in place: its marks are
+ * swapped, so it keeps its extent.
+ */
+export function setHighlight(color) {
+  return (view) => {
+    const { state } = view;
+    const { from, to } = state.selection.main;
+    const marked = taggedAt(state, from, to, "mark");
+    const plain = enclosing(state, from, to, INLINE.highlight.node);
+    if (color === PLAIN_HIGHLIGHT) {
+      if (plain) return true;
+      if (marked) return swapTags(view, marked, "==", "==");
+      return toggleInline("highlight")(view);
+    }
+    if (plain && !marked) {
+      if (!color) return toggleInline("highlight")(view);
+      const open = plain.firstChild;
+      const close = plain.lastChild;
+      const span = { start: open.from, contentFrom: open.to, contentTo: close.from, end: close.to };
+      return swapTags(view, span, TAGGED.mark.open(color), TAGGED.mark.close);
+    }
+    return setTagged("mark", color)(view);
+  };
+}
+
+/** Replace a span's opening and closing marks, keeping its content and the selection on it. */
+function swapTags(view, span, open, close) {
+  const changes = view.state.changes([
+    { from: span.start, to: span.contentFrom, insert: open },
+    { from: span.contentTo, to: span.end, insert: close },
+  ]);
+  view.dispatch({ changes, selection: view.state.selection.map(changes), userEvent: "input.format", scrollIntoView: true });
+  return true;
 }
 
 // State for the toolbar ----------------------------------------------------------
@@ -396,6 +462,7 @@ export function formatState(state) {
     link: !!enclosing(state, from, to, "Link"),
   };
   for (const [kind, { node }] of Object.entries(INLINE)) out[kind] = !!enclosing(state, from, to, node);
-  out.color = colorSpanAt(state, from, to)?.color ?? null;
+  out.color = taggedAt(state, from, to, "color")?.color ?? null;
+  out.mark = taggedAt(state, from, to, "mark")?.color ?? (out.highlight ? PLAIN_HIGHLIGHT : null);
   return out;
 }

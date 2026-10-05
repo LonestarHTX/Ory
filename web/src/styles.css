@@ -41,6 +41,14 @@
   --ink-amber: #d5ab68;
   --ink-red: #dc958e; /* a step lighter, to pass 4.5:1 inside a highlight */
   --ink-grey: #a5a5aa;
+  /* Four more on the same ring (OKLCH lightness 0.74, chroma 0.08 here), so
+     every colour in the picker reads like the inks. */
+  --ink-orange: #d69e7c;
+  --ink-teal: #68bcc0;
+  --ink-violet: #b4a1d9;
+  --ink-pink: #d497b3;
+  /* A coloured highlight is this much of its colour over the page. */
+  --mark-mix: 26%;
   --scheme: dark;
 
   --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
@@ -88,6 +96,11 @@
   --ink-amber: #7a5518;
   --ink-red: #974940;
   --ink-grey: #55555b;
+  --ink-orange: #854f2c;
+  --ink-teal: #006c70;
+  --ink-violet: #665288;
+  --ink-pink: #834865;
+  --mark-mix: 16%;
   --scheme: light;
 }
 
@@ -1115,7 +1128,8 @@ html[data-theme-fade]::view-transition-new(root) {
   text-decoration: line-through;
 }
 
-/* Text colour: an "A" over a bar in the colour at the cursor. */
+/* Colour: an "A" over a bar in the text colour at the cursor, the letter on
+   the highlight's wash when there is one. */
 .format-btn--ink {
   display: flex;
   flex-direction: column;
@@ -1123,6 +1137,11 @@ html[data-theme-fade]::view-transition-new(root) {
   justify-content: center;
   gap: 1px;
   line-height: 1;
+}
+
+.format-btn--ink > span:first-child {
+  padding: 1px 3px;
+  border-radius: 2px;
 }
 
 .format-ink {
@@ -1245,6 +1264,67 @@ html[data-theme-fade]::view-transition-new(root) {
 .cm-md-highlight {
   border-radius: 2px;
   background: var(--selected);
+}
+
+/* A coloured highlight: <mark style="background: ...">, shown as a wash of
+   its colour so the text keeps its own colour and stays readable. */
+.cm-mark {
+  border-radius: 2px;
+  color: inherit;
+  font-weight: inherit;
+  background: color-mix(in srgb, var(--mark) var(--mark-mix), transparent);
+}
+
+/* Previewing a colour from the picker: it runs through the selection in
+   reading order, each letter (or its wash) switching as the wave reaches it
+   with a short bold pulse. --wave-d is the letter's delay. */
+.cm-wave {
+  animation: 0.6s linear var(--wave-d, 0ms) both;
+}
+
+.cm-wave--text * {
+  color: inherit !important;
+}
+
+.cm-wave--text {
+  color: var(--wave-to);
+  animation-name: wave-text;
+}
+
+/* A drag in Custom: the colour follows at once, no wave. */
+.cm-wave--still {
+  animation: none !important;
+}
+
+.cm-wave--mark {
+  border-radius: 0;
+  background: var(--wave-to);
+  animation-name: wave-mark;
+}
+
+@keyframes wave-text {
+  0% { color: var(--wave-from); -webkit-text-stroke: 0 transparent; text-shadow: none; }
+  1% { color: var(--wave-to); -webkit-text-stroke: 0.1px currentColor; }
+  8% { color: var(--wave-to); -webkit-text-stroke: 0.5px currentColor; text-shadow: 0 0 7px color-mix(in srgb, currentColor var(--wave-glow), transparent); }
+  30% { color: var(--wave-to); -webkit-text-stroke: 0.15px currentColor; text-shadow: none; }
+  100% { color: var(--wave-to); -webkit-text-stroke: 0 transparent; text-shadow: none; }
+}
+
+@keyframes wave-mark {
+  0% { background: var(--wave-from); -webkit-text-stroke: 0 transparent; }
+  1% { background: var(--wave-flash); -webkit-text-stroke: 0.1px currentColor; }
+  8% { background: var(--wave-flash); -webkit-text-stroke: 0.3px currentColor; }
+  40% { background: var(--wave-to); -webkit-text-stroke: 0 transparent; }
+  100% { background: var(--wave-to); }
+}
+
+:root {
+  --wave-glow: 70%;
+}
+
+/* A glow on white reads as a smudge: light mode keeps the pulse and drops it. */
+:root[data-theme="light"] {
+  --wave-glow: 0%;
 }
 
 .cm-md-strike {
@@ -1879,186 +1959,520 @@ html[data-theme-fade]::view-transition-new(root) {
 }
 
 /* ---------- Colour picker ----------
-   The design system's one playful object, and its one deliberate exception
-   to the scales: the 20px corner, the odd
-   paddings, the 15px hex text and the round pill are all its own. */
+   Three depths, each opening from the last in place: the band (Text | Highlight,
+   the palette, a band of hex tiles like a heat shield), More (a honeycomb and
+   greys, under the band) and Custom (a field, a lightness bar and fields, to the
+   side). Tiles are solid for text colour and a wash with a coloured edge for a
+   highlight. The hex tiles' geometry is the one off-scale thing here. */
 
 .cp {
-  --pick: #d9a05b;
+  --tile: color-mix(in srgb, var(--text) 13%, var(--card)); /* solid, so a tile's stroke and fill don't double up */
   position: fixed;
   z-index: 30;
   display: grid;
-  gap: 14px;
-  padding: 22px 18px 16px 22px;
-  border-radius: 20px;
+  grid-template-columns: auto 0fr;
+  align-items: start;
+  width: max-content; /* sized by its content, so Custom slides out to its full width */
+  padding: 4px;
   border: 1px solid var(--line);
-  border-top-color: var(--line-strong);
+  border-radius: var(--r-window);
   background: var(--card);
   box-shadow: var(--float);
-  animation: cp-in 0.2s cubic-bezier(0.2, 0.7, 0.2, 1);
+  user-select: none;
+  -webkit-user-select: none;
+  transition: grid-template-columns 0.24s cubic-bezier(0.2, 0.7, 0.2, 1);
+  animation: cp-in 0.24s cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+:root[data-theme="light"] .cp {
+  --tile: color-mix(in srgb, var(--text) 9%, var(--card));
+}
+
+/* Focus lands on the picker itself so Escape works; the ring is for its controls. */
+.cp:focus {
+  outline: none;
 }
 
 .cp.is-leaving {
-  animation: window-out 0.12s ease forwards;
+  animation: cp-out 0.12s ease forwards;
   pointer-events: none;
 }
 
-.cp__stage {
-  display: flex;
+.cp.is-custom {
+  grid-template-columns: auto 1fr;
+}
+
+.cp__main {
+  display: grid;
+  gap: 4px;
+}
+
+.cp__top {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 4px;
   align-items: center;
-  gap: 10px;
 }
 
-/* The dish is backlit by the chosen colour, like the corona around an eclipse. */
-.cp__dish {
-  position: relative;
-  width: 232px;
-  height: 232px;
-  flex: none;
-  border-radius: 50%;
-  background: color-mix(in srgb, var(--pick) 16%, var(--canvas));
-  box-shadow:
-    0 0 0 1px color-mix(in srgb, var(--pick) 50%, transparent),
-    0 0 0 9px color-mix(in srgb, var(--pick) 14%, transparent),
-    0 0 44px color-mix(in srgb, var(--pick) 32%, transparent);
-  transition: background 0.2s ease, box-shadow 0.2s ease;
+.cp .seg-control {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
 }
 
-.cp__petal {
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  border-radius: 50%;
-  border: 1.5px solid rgba(255, 255, 255, 0.55);
-  transform: translate(calc(-50% + var(--x)), calc(-50% + var(--y)));
-  transition: transform 0.15s ease;
-  animation: cp-bloom 0.45s cubic-bezier(0.2, 0.8, 0.2, 1) var(--d) backwards;
+.cp .seg-option {
+  height: 24px;
+  font-size: 12px;
 }
 
-.cp__petal:hover,
-.cp__petal:focus-visible {
-  z-index: 2;
-  transform: translate(calc(-50% + var(--x)), calc(-50% + var(--y))) scale(1.12);
+.cp__palette,
+.cp__custom-button,
+.cp__add {
+  display: inline-flex;
+  align-items: center;
 }
 
-.cp__heart {
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  z-index: 1;
-  width: 46px;
-  height: 46px;
-  border-radius: 50%;
-  border: 2px solid rgba(255, 255, 255, 0.8);
-  background: var(--pick);
-  transform: translate(-50%, -50%);
-  pointer-events: none;
-  transition: background 0.2s ease;
+.cp__palette {
+  gap: 4px;
+  padding: 0 4px 0 8px;
+  color: var(--text-2);
 }
 
-.cp__arc {
-  width: 56px;
-  height: 232px;
-  flex: none;
+.cp__palette:hover,
+.cp__palette[aria-expanded="true"] {
+  color: var(--text);
+}
+
+.cp__hive {
+  display: block;
   overflow: visible;
+  margin: 0 auto;
+}
+
+.cp__tile {
+  stroke-width: 1.5px;
+  stroke-linejoin: round;
+  transform-box: fill-box;
+  transform-origin: center;
+  transition: fill 0.24s ease, stroke 0.24s ease, transform 0.12s ease;
+}
+
+.cp__tile--plain {
+  fill: var(--tile);
+  stroke: var(--tile);
+}
+
+.cp__tile--colour,
+.cp__tile--more,
+.cp__tile--cell {
   cursor: pointer;
-  touch-action: none;
-  border-radius: 12px;
+  outline: none;
 }
 
-.cp__thumb {
-  fill: var(--pick);
-  stroke: #fff;
-  stroke-width: 2.5;
-}
-
-.cp__inks {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.cp__ink {
-  width: 22px;
-  height: 22px;
-  border-radius: 50%;
-  border: 1.5px solid var(--line-strong);
-  transition: transform 0.12s ease;
-}
-
-.cp__ink:hover {
+.cp__tile--colour:hover,
+.cp__tile--colour:focus-visible,
+.cp__tile--more:hover,
+.cp__tile--more:focus-visible {
   transform: scale(1.12);
 }
 
-.cp__reset {
-  margin-left: auto;
+.cp__tile--colour.is-on,
+.cp__tile--colour:focus-visible,
+.cp__tile--more:focus-visible,
+.cp__tile--cell:focus-visible {
+  stroke: var(--text);
 }
 
-.cp__pill {
+/* An empty slot in My colours: dashed, like the "start a wiki" card. */
+.cp__tile--colour.is-empty {
+  fill: transparent;
+  stroke: var(--line-strong);
+  stroke-width: 1px;
+  stroke-dasharray: 3 2.5;
+}
+
+.cp__tile--cell {
+  stroke-width: 1px;
+}
+
+.cp__tile.is-new {
+  animation: cp-new 0.6s cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+/* The cell under the pointer, redrawn on top and larger so its neighbours never cover it. */
+.cp__cell-hover {
+  pointer-events: none;
+  stroke: var(--text);
+  stroke-width: 1.5px;
+  stroke-linejoin: round;
+  transform-box: fill-box;
+  transform-origin: center;
+  transform: scale(1.3);
+  opacity: 0;
+  transition: opacity 0.12s ease;
+}
+
+.cp__cell-hover.is-on {
+  opacity: 1;
+}
+
+.cp__slash,
+.cp__glyph {
+  stroke: var(--text-2);
+  stroke-width: 1.5px;
+  stroke-linecap: round;
+  pointer-events: none;
+}
+
+.cp__glyph--add {
+  display: none;
+  opacity: 0.7;
+}
+
+.cp__glyph--more {
+  transform-box: fill-box;
+  transform-origin: center;
+  transition: transform 0.24s cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+.cp.is-more .cp__glyph--more {
+  transform: rotate(45deg);
+}
+
+/* More: opens under the band */
+.cp__more {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.24s cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+.cp.is-more .cp__more {
+  grid-template-rows: 1fr;
+}
+
+.cp__more-inner {
+  min-height: 0;
+  overflow: hidden;
+  visibility: hidden;
+  transition: visibility 0s 0.24s;
+}
+
+.cp.is-more .cp__more-inner {
+  visibility: visible;
+  transition: none;
+}
+
+.cp__more-body {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  margin-top: 4px;
+  padding: 12px 4px 4px;
+  border-top: 1px solid var(--line);
+}
+
+.cp__foot {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 5px 5px 5px 8px;
-  border-radius: 999px;
-  border: 1px solid var(--line-strong);
-  background: var(--field);
+  gap: 8px;
+  width: 100%;
+  height: 28px;
+  padding-left: 8px;
+  font-size: 12px;
+  color: var(--text-2);
 }
 
-.cp__pill:focus-within {
-  border-color: var(--text);
-  box-shadow: 0 0 0 1px var(--text);
-}
-
+/* The colour pointed at, as a small hex tile; nothing until there is one. */
 .cp__swatch {
-  width: 24px;
-  height: 24px;
   flex: none;
-  border-radius: 50%;
-  background: var(--pick);
+  width: 13px;
+  height: 15px;
+  clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%);
+}
+
+.cp__foot-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .cp__hex {
-  flex: 1;
+  font: 11px/16px var(--font-mono);
+  color: var(--text-3);
+}
+
+.cp__custom-button svg {
+  transition: transform 0.24s cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+.cp.is-custom .cp__custom-button svg {
+  transform: rotate(180deg);
+}
+
+/* Custom: slides out to the side */
+.cp__custom {
   min-width: 0;
-  border: 0;
-  outline: 0;
-  background: none;
-  color: var(--text);
-  font-family: var(--font-mono);
-  font-size: 15px;
-  font-variant-numeric: slashed-zero;
+  overflow: hidden;
 }
 
-.cp__hex.is-invalid {
-  color: var(--error);
+.cp:not(.is-custom) .cp__custom {
+  height: 0;
+  visibility: hidden;
 }
 
-.cp__done {
-  width: 30px;
-  height: 30px;
-  flex: none;
+.cp__custom-body {
   display: grid;
-  place-items: center;
-  border-radius: 50%;
-  background: var(--primary);
-  color: var(--on-primary);
+  gap: 12px;
+  width: 336px;
+  margin-left: 4px;
+  padding: 8px 8px 4px 12px;
+  border-left: 1px solid var(--line);
 }
 
-.cp__done:hover {
-  background: var(--primary-hover);
+.cp__custom-top {
+  display: grid;
+  grid-template-columns: 200px 16px 48px;
+  gap: 8px;
+  align-items: start;
+}
+
+.cp__field,
+.cp__light {
+  position: relative;
+  border-radius: var(--r-sm);
+  touch-action: none;
+}
+
+.cp__field {
+  cursor: crosshair;
+}
+
+.cp__light {
+  cursor: ns-resize;
+}
+
+.cp__field:focus-visible,
+.cp__light:focus-visible {
+  outline: 2px solid var(--text);
+  outline-offset: 2px;
+}
+
+.cp__field canvas,
+.cp__light canvas {
+  display: block;
+  border-radius: var(--r-sm);
+  box-shadow: 0 0 0 1px var(--line);
+}
+
+.cp__field canvas {
+  width: 200px;
+  height: 168px;
+}
+
+.cp__field-thumb {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  margin: -6px 0 0 -6px;
+  border-radius: 50%;
+  border: 2px solid #fff;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.5);
+  pointer-events: none;
+}
+
+.cp__light-thumb {
+  position: absolute;
+  left: -3px;
+  right: -3px;
+  height: 4px;
+  margin-top: -2px;
+  border-radius: 2px;
+  background: var(--text);
+  box-shadow: 0 0 0 1px var(--card);
+  pointer-events: none;
+}
+
+.cp__newcur {
+  display: grid;
+  grid-template-rows: auto 1fr 1fr auto;
+  height: 168px;
+  font-size: 11px;
+  line-height: 16px;
+  color: var(--text-3);
+  text-align: center;
+}
+
+.cp__newcur i {
+  display: block;
+  box-shadow: 0 0 0 1px var(--line-strong);
+}
+
+.cp__newcur i:first-of-type {
+  border-radius: var(--r-sm) var(--r-sm) 0 0;
+}
+
+.cp__newcur i:last-of-type {
+  border-radius: 0 0 var(--r-sm) var(--r-sm);
+}
+
+.cp__fields {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 8px;
+  align-items: center;
+  font-size: 12px;
+  color: var(--text-2);
+}
+
+.cp__rgb {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.cp__rgb span {
+  color: var(--text-3);
+}
+
+.cp__input {
+  width: 48px;
+  height: 24px;
+  padding: 0 6px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-sm);
+  background: var(--field);
+  font: 12px/16px var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.cp__input--hex {
+  width: 88px;
+}
+
+.cp__input:focus {
+  border-color: var(--text);
+  outline: none;
+}
+
+.cp__input.is-invalid {
+  border-color: var(--error);
+}
+
+.cp__note {
+  min-height: 32px;
+  margin: 0;
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--text-3);
+}
+
+.cp__actions {
+  display: flex;
+  gap: 8px;
+}
+
+.cp__grow {
+  flex: 1;
+}
+
+.cp__add {
+  gap: 4px;
+}
+
+.cp__add.is-ready {
+  animation: cp-ready 1.2s ease-out;
+}
+
+/* The palette menu: Ory's menu, beside the picker so the band stays in view */
+.cp__menu {
+  position: absolute;
+  top: -5px;
+  left: calc(100% + 8px);
+  width: 272px;
+  max-width: none;
+}
+
+.cp__menu.is-left {
+  left: auto;
+  right: calc(100% + 8px);
+}
+
+.cp__menu[hidden] {
+  display: none;
+}
+
+.cp__menu-item {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  text-align: left;
+}
+
+.cp__menu-add {
+  display: block;
+  color: var(--text-2);
+}
+
+.cp__menu-add span {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.cp__menu-add:hover {
+  color: var(--text);
+}
+
+.cp__menu-sep {
+  height: 1px;
+  margin: 4px;
+  background: var(--line);
+}
+
+.cp__strip {
+  display: flex;
+  gap: 2px;
+}
+
+.cp__strip i {
+  width: 10px;
+  height: 12px;
+  clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%);
+}
+
+.cp__strip i.is-empty {
+  background: var(--tile);
 }
 
 @keyframes cp-in {
   from {
     opacity: 0;
-    transform: scale(0.9);
+    transform: translateY(6px) scale(0.985);
+    filter: blur(6px);
   }
 }
 
-@keyframes cp-bloom {
-  from {
+@keyframes cp-out {
+  to {
     opacity: 0;
-    transform: translate(-50%, -50%) scale(0.3) rotate(-40deg);
+    transform: scale(0.985);
+    filter: blur(4px);
+  }
+}
+
+@keyframes cp-new {
+  from {
+    transform: scale(1.4);
+  }
+}
+
+@keyframes cp-ready {
+  0%,
+  60% {
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--text) 25%, transparent);
   }
 }
 

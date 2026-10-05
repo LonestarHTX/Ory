@@ -10,7 +10,7 @@ import { Prec, StateEffect, StateField } from "@codemirror/state";
 import { Decoration, EditorView, keymap, ViewPlugin, WidgetType } from "@codemirror/view";
 
 import { fileName, isImage, isPage, parseLink } from "../links.js";
-import { inkPaint } from "../ui/color.js";
+import { inkPaint, markPaint } from "../ui/color.js";
 import { icon } from "../ui/dom.js";
 import { pageFrame } from "../ui/page-view.js";
 
@@ -269,9 +269,11 @@ class SeparatorWidget extends WidgetType {
 }
 const headingSeparator = Decoration.replace({ widget: new SeparatorWidget() });
 
-// Coloured text: <span style="color: ...">. Only a theme ink or a hex/rgb
-// colour is applied, and a picked colour is shown readably (ui/color.js).
+// Coloured text, <span style="color: ...">, and coloured highlights,
+// <mark style="background: ...">. Only a theme ink or a hex/rgb colour is
+// applied: text readably (ui/color.js), a highlight as a wash of its colour.
 const COLOR_OPEN = /^<span style="color:\s*([^";]+?);?\s*">$/;
+const MARK_OPEN = /^<mark style="background(?:-color)?:\s*([^";]+?);?\s*">$/;
 const bullet = Decoration.replace({ widget: new BulletWidget() });
 const rule = Decoration.replace({ widget: new RuleWidget() });
 const line = (cls) => Decoration.line({ class: cls });
@@ -386,15 +388,26 @@ function build(view, { resolve, fileSize, openPage }) {
             return false;
           }
           case "HTMLTag": {
-            const open = COLOR_OPEN.exec(doc.sliceString(node.from, node.to));
-            const paint = open && inkPaint(open[1]);
-            if (!paint) return;
+            const tag = doc.sliceString(node.from, node.to);
+            let deco = null;
+            let closing = "</span>";
+            const color = COLOR_OPEN.exec(tag);
+            const marked = !color && MARK_OPEN.exec(tag);
+            if (color) {
+              const paint = inkPaint(color[1]);
+              if (paint) deco = Decoration.mark({ class: paint.className, attributes: { style: paint.style } });
+            } else if (marked) {
+              const wash = markPaint(marked[1]);
+              if (wash) deco = Decoration.mark({ class: "cm-mark", attributes: { style: `--mark: ${wash}` } });
+              closing = "</mark>";
+            }
+            if (!deco) return;
             let close = node.nextSibling;
-            while (close && !(close.name === "HTMLTag" && doc.sliceString(close.from, close.to) === "</span>")) {
+            while (close && !(close.name === "HTMLTag" && doc.sliceString(close.from, close.to) === closing)) {
               close = close.nextSibling;
             }
             if (!close) return;
-            add(node.to, close.from, Decoration.mark({ class: paint.className, attributes: { style: paint.style } }));
+            add(node.to, close.from, deco);
             // Unlike ** marks, colour tags stay hidden at the cursor too: they
             // are long HTML, and the colour itself shows what they do. The
             // cursor steps over each tag as one unit (see atomic below).

@@ -130,16 +130,43 @@ The rules Ory's interface follows. A value outside the scales below is a mistake
   A paragraph-style dropdown leads it, as in Word. It only offers what Markdown can
   store, so there is no underline.
   `==Highlight==` uses the selected fill, like a search match.
-- **Text colour** uses Ory's colour picker (`ui/color-picker.js`): the petal dish,
-  the lightness arc, the theme inks and the hex field. It is the one deliberate
-  exception to the scales (20px corner, round pill, its own spacing). The toolbar
-  button is an "A" over a bar in the colour at the cursor. Theme inks are tokens
-  (`--ink-blue`, `--ink-green`, `--ink-amber`, `--ink-red`, `--ink-grey`); dark-mode
-  red is `#dc958e`, a step lighter than the status red so it passes 4.5:1 inside a
-  highlight. Picked colours are shown readably in each theme (the `.ink` class,
-  values from `ui/color.js`): unchanged if they pass 4.5:1, else the nearest lighter
-  or darker step. Colour in a note is the writer's content, so it is outside the
-  "colour means status" rule for the interface.
+- **Colour** (`ui/color-picker.js`) colours the text or a highlight behind it, in three
+  depths that open from each other in place. *The band:* a segmented Text | Highlight
+  control (remembered) and the palette button over a band of hex tiles, like a heat
+  shield: none, nine colours and +, with plain rows above and below that fade out; the
+  plain tiles touching the one you point at take a faint tint of it. *More* (+) opens a
+  honeycomb under the band, laid out like Office's (hue round, colour outward, the text
+  colour at the centre), and a row of greys. *Custom* (Custom ›) slides out to the side: hue
+  and colourfulness in a field, lightness in a bar (for text, what can't be read in this
+  theme is hatched), Hex and R G B, New over Current, a line saying how each theme will
+  show it, and Add to my colours, Cancel and Apply. The *palette* menu, beside the picker so
+  the band stays in view, swaps the band's nine: Ory (the inks), Soft, Vivid, Earth, Sea, and
+  My colours (the nine newest saved from Custom; an empty slot is dashed like the "start a
+  wiki" card and opens Custom; right-click removes one). Tiles are solid for text and a wash
+  with a coloured edge for a highlight; tooltips name them. Every colour offered reads in
+  both themes. Pointing at a colour (or arrowing to it) previews it on the text as a wave
+  (`editor/colour-preview.js`): letters switch in reading order over 0.117 · ∛n seconds, each
+  with a short bold pulse (and a glow in dark mode only, since a glow on white reads as a
+  smudge); a drag in Custom shows the colour at once. Leaving a colour for anything else
+  puts the text back after 90ms, so sweeping across seams doesn't flicker; with Custom open
+  the text shows the colour being made. A pick or Apply applies and closes; Escape steps
+  back one level (menu, Custom, More, picker); Tab stays inside. Hex tiles are laid out by
+  their apothem with exact seams (2px on the band, 1.5px in the honeycomb), each polygon
+  inset by half its stroke; they are the one off-scale geometry. The toolbar button is an
+  "A" over a bar in the text colour, sitting on the highlight's wash.
+- **Inks.** Theme inks are tokens (`--ink-blue`, `--ink-green`, `--ink-amber`,
+  `--ink-red`, `--ink-grey`, and `--ink-orange`, `--ink-teal`, `--ink-violet`,
+  `--ink-pink`). The chromatic ones sit on one ring of OKLCH lightness and chroma
+  (0.74 and 0.08 in dark mode, 0.48 and 0.09 in light), so each passes 4.5:1 on
+  the card and under a selection; dark-mode red is `#dc958e`, a step lighter than
+  the status red. Text colour is `<span style="color: …">`; a coloured highlight is
+  `<mark style="background: …">` (as Obsidian's Highlightr writes it), shown as a
+  wash of the colour (`--mark-mix`, 26% dark, 16% light) so the text keeps its own
+  colour; grey as a highlight is plain `==text==`, and changing one highlight into
+  another swaps its marks in place. Colours from the honeycomb, the other palettes and Custom are saved as hex (the colour as shown in the theme it was picked in); hex colours, including ones from elsewhere, are shown readably
+  (text, via `.ink` and `ui/color.js`) or as a wash (highlights, alpha dropped).
+  Colour in a note is the writer's content, so it is outside the "colour means
+  status" rule for the interface.
 - **Tooltips** name every icon button, with its shortcut as a key cap: a small raised
   label (hairline, float shadow, 12px, standard 6px corner; the 10px window corner
   would read as a pill at this size). After 450ms on hover, at once while moving along

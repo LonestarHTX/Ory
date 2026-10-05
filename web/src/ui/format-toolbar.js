@@ -3,12 +3,13 @@
 // tools for an address field. When the note is too narrow for every tool, the
 // last ones move into a "More" menu at the end instead of wrapping.
 
+import { endColourPreview, previewColour } from "../editor/colour-preview.js";
 import {
-  applyLink, formatState, insertPropertyTable, insertTable, linkAt, setColor, setHeading, startNoteLink,
-  toggleInline, toggleList, toggleQuote,
+  applyLink, formatState, insertPropertyTable, insertTable, linkAt, PLAIN_HIGHLIGHT, setColor, setHeading,
+  setHighlight, startNoteLink, toggleInline, toggleList, toggleQuote,
 } from "../editor/format.js";
-import { inkPaint } from "./color.js";
-import { openColorPicker, THEME_INKS } from "./color-picker.js";
+import { inkPaint, markPaint } from "./color.js";
+import { closeColorPicker, GREY, openColorPicker, THEME_INKS, washOf } from "./color-picker.js";
 import { h, icon } from "./dom.js";
 import { openMenu } from "./menu.js";
 
@@ -25,7 +26,7 @@ const TOOLS = [
   { label: "Italic", shortcut: "Mod-I", text: "I", cls: "is-italic", state: "italic", run: toggleInline("italic") },
   { label: "Strikethrough", shortcut: "Mod-Shift-X", text: "S", cls: "is-strike", state: "strike", run: toggleInline("strike") },
   { label: "Highlight", shortcut: "Mod-Shift-H", icon: "highlight", state: "highlight", run: toggleInline("highlight") },
-  { label: "Text colour", ink: true },
+  { label: "Colour", ink: true },
   null,
   { label: "Bulleted list", shortcut: "Mod-Shift-8", icon: "bullets", state: "list:bullet", run: toggleList("bullet") },
   { label: "Numbered list", shortcut: "Mod-Shift-7", icon: "numbers", state: "list:number", run: toggleList("number") },
@@ -147,14 +148,28 @@ export function createFormatToolbar(getView, options = {}) {
     next.focus();
   });
 
-  /** The colour picker. Colour applies as you pick; focus returns to the note when it closes. */
+  /**
+   * The colour picker, for text colour or a highlight. Pointing at a colour
+   * previews it on the text; picking applies it; focus returns to the note.
+   * The picker's grey highlight is the plain ==highlight==.
+   */
   function openInks(anchor) {
     const view = getView();
+    const asHighlight = (value) => (value === GREY ? PLAIN_HIGHLIGHT : value);
     openColorPicker({
       anchor,
-      color: current.color,
-      onPick: (value) => setColor(value)(view),
-      onClose: () => view.focus(),
+      text: current.color,
+      mark: current.mark === PLAIN_HIGHLIGHT ? GREY : current.mark,
+      onPreview: (kind, value, options) => previewColour(view, kind, kind === "mark" ? asHighlight(value) : value, options),
+      onPick: (kind, value) => {
+        endColourPreview(view);
+        if (kind === "text") setColor(value)(view);
+        else setHighlight(asHighlight(value))(view);
+      },
+      onClose: ({ quiet }) => {
+        if (quiet) endColourPreview(view);
+        else view.focus();
+      },
     });
   }
 
@@ -224,12 +239,16 @@ export function createFormatToolbar(getView, options = {}) {
     styleLabel.textContent = STYLES.find((s) => s.level === current.heading)?.label ?? `Heading ${current.heading}`;
     const ink = THEME_INKS.find(([, value]) => value === current.color);
     const inkButton = tools.querySelector(".format-btn--ink");
-    // The bar shows the colour as the note does: readable in this theme.
+    // The bar shows the text colour as the note does (readable in this theme),
+    // and the letter sits on the highlight's wash, if there is one.
     const bar = inkButton.querySelector(".format-ink");
     const paint = current.color ? inkPaint(current.color) : null;
     bar.className = `format-ink ${paint?.className ?? ""}`;
     bar.setAttribute("style", paint?.style ?? "");
-    inkButton.setAttribute("aria-label", `Text colour: ${ink?.[0] ?? current.color ?? "Default"}`);
+    const wash = current.mark === PLAIN_HIGHLIGHT ? "var(--selected)" : current.mark ? markPaint(current.mark) : null;
+    inkButton.firstChild.style.background = wash && wash !== "var(--selected)" ? washOf(wash) : wash ?? "";
+    const marked = THEME_INKS.find(([, value]) => value === current.mark)?.[0] ?? (current.mark === PLAIN_HIGHLIGHT ? "Grey" : current.mark);
+    inkButton.setAttribute("aria-label", `Colour: text ${ink?.[0] ?? current.color ?? "default"}${marked ? `, ${marked} highlight` : ""}`);
     for (const { button, tool } of buttons) {
       if (!tool.state) continue;
       const [key, value] = tool.state.split(":");
@@ -238,8 +257,9 @@ export function createFormatToolbar(getView, options = {}) {
     }
   }
 
-  /** Close the link field, as when the note it was editing is left. */
+  /** Close the link field and the colour picker, as when the note they were editing is left. */
   function reset() {
+    closeColorPicker({ quiet: true });
     linkRow.hidden = true;
     linkRow.replaceChildren();
     tools.hidden = false;

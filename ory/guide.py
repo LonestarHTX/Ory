@@ -56,7 +56,7 @@ This folder belongs to Ory: plain Markdown files, written and read by a person i
   - `tags` and `cover` (an image).
   - `sources`: a list of links to the notes the page draws on, like `"[[{daily}/2026-09-27]]"`.
   - Properties whose names start with a capital letter form the page's infobox, for example `Distance: 9.5 AU`. Lower-case ones don't.
-- **Writing:** put each paragraph on one line. Use `##` headings, lists, `- [ ]` tasks, tables, `**bold**`, `==highlight==` and `<span style="color: ...">coloured text</span>`.
+- **Writing:** put each paragraph on one line. Use `##` headings, lists, `- [ ]` tasks, tables, `**bold**`, `==highlight==`, `<span style="color: var(--ink-blue)">coloured text</span>` and `<mark style="background: var(--ink-amber)">a coloured highlight</mark>` (inks: grey, red, orange, amber, green, teal, blue, violet, pink).
 - **Property tables** are ```` ```notes ```` code blocks holding a YAML query (filters, views, sort) that lists notes by their properties. Leave them as they are unless asked.
 
 ## Working here

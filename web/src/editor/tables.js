@@ -10,7 +10,7 @@ import { Decoration, EditorView, keymap, WidgetType } from "@codemirror/view";
 
 import { parseLink } from "../links.js";
 import { spellchecks } from "../prefs.js";
-import { inkPaint } from "../ui/color.js";
+import { inkPaint, markPaint } from "../ui/color.js";
 import { openMenu } from "../ui/menu.js";
 import { isReading, setReading, setSourceMode, sourceMode } from "./live-preview.js";
 
@@ -108,6 +108,10 @@ function renderInline(raw, resolve) {
     .replace(/&lt;span style=&quot;color:\s*([^;&]+?);?\s*&quot;&gt;(.*?)&lt;\/span&gt;/g, (whole, color, text) => {
       const paint = inkPaint(color);
       return paint ? `<span class="${paint.className}" style="${paint.style}">${text}</span>` : whole;
+    })
+    .replace(/&lt;mark style=&quot;background(?:-color)?:\s*([^;&]+?);?\s*&quot;&gt;(.*?)&lt;\/mark&gt;/g, (whole, color, text) => {
+      const wash = markPaint(color);
+      return wash ? `<mark class="cm-mark" style="--mark: ${wash}">${text}</mark>` : whole;
     });
   return html.replace(/\u0000(\d+)\u0000/g, (_, i) => codes[i]);
 }
